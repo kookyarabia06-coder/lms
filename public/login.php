@@ -95,8 +95,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
        </div>
        <div class="mb-6"><label for="password" class="block text-sm font-medium text-navy mb-2">Password</label> <input name="password" type="password" placeholder="Enter your password" class="w-full px-4 py-2.5 border border-slate/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent text-navy" required>
        </div>
-       <div class="mb-6"><label for="password" class="block text-sm font-medium text-navy mb-2">Password</label> <input name="password" type="password" placeholder="Enter your password" class="w-full px-4 py-2.5 border border-slate/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent text-navy" required>
-       </div>
        <button type="submit" class="w-full bg-amber hover:bg-amber/90 text-navy font-medium py-2.5 rounded-lg transition-colors mb-4"> Login </button>
       </form>
       <div class="text-center">
