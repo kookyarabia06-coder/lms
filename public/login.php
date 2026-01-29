@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../inc/config.php';
 
-// Redirect if already logged in
+// Redirect if already logged in 
 if(isset($_SESSION['user'])) {
     header('Location: ' . BASE_URL . '/public/dashboard.php');
     exit;
@@ -94,7 +94,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
        <div class="mb-4"><label for="username" class="block text-sm font-medium text-navy mb-2">Username</label> <input name="username" type="text" placeholder="Enter your username" class="w-full px-4 py-2.5 border border-slate/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent text-navy" required>
        </div>
        <div class="mb-6"><label for="password" class="block text-sm font-medium text-navy mb-2">Password</label> <input name="password" type="password" placeholder="Enter your password" class="w-full px-4 py-2.5 border border-slate/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent text-navy" required>
-       </div><button type="submit" class="w-full bg-amber hover:bg-amber/90 text-navy font-medium py-2.5 rounded-lg transition-colors mb-4"> Login </button>
+       </div>
+       <div class="mb-6"><label for="password" class="block text-sm font-medium text-navy mb-2">Password</label> <input name="password" type="password" placeholder="Enter your password" class="w-full px-4 py-2.5 border border-slate/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent text-navy" required>
+       </div>
+       <button type="submit" class="w-full bg-amber hover:bg-amber/90 text-navy font-medium py-2.5 rounded-lg transition-colors mb-4"> Login </button>
       </form>
       <div class="text-center">
        <p class="text-slate text-sm">Don't have an account? <a id="register-link" href="<?= BASE_URL ?>/public/register.php" class="text-amber hover:text-amber/90 font-medium">Register here</a></p>
