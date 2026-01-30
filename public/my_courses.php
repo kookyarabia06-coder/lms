@@ -23,16 +23,14 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <meta charset="utf-8">
 <title>My Courses - LMS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <style>
 .main { margin-left: 240px; padding: 20px; }
 .card-img-top { height: 150px; object-fit: cover; }
 </style>
 </head>
 <body>
-<div class="lms-sidebar-container">
-        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
-    </div>
+<?php include __DIR__ . '/../inc/sidebar.php'; ?>
+
 <div class="main">
     <h3>My Courses</h3>
     <?php if ($myCourses): ?>
