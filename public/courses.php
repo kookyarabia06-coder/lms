@@ -97,19 +97,42 @@ if (!empty($c['expires_at'])) {
                     $expiryDate = $c['expires_at']
                         ? date('M, d, Y', strtotime($c['expires_at']))
                         : 'No expiry';
-                    ?>
+                ?>
 
-                    <p class="mb-1">
-                        <small class="text-muted">
-                            <strong>Start:</strong> <?= $startDate ?>
-                        </small>
-                    </p>
+                <p class="mb-1">
+                    <small class="text-muted">
+                        <strong>Start:</strong> <?= $startDate ?>
+                    </small>
+                </p>
 
-                    <p class="mb-2">
-                        <small class="text-muted">
-                            <strong>Expires:</strong> <?= $expiryDate ?>
-                        </small>
-                    </p>
+                <p class="mb-2">
+                    <small class="text-muted">
+                        <strong>Expires:</strong> <?= $expiryDate ?>
+                    </small>
+                </p>
+
+                <!-- Progress Bar -->
+                <?php if ($c['enroll_status'] && $c['enroll_status'] !== 'expired'): ?>
+                    <div class="mb-2">
+                        <small><strong>Progress:</strong></small>
+                        <div class="progress" style="height: 20px;">
+                            <?php
+                                // Ensure progress is numeric and capped at 100
+                                $progressPercent = intval($c['progress']);
+                                if ($progressPercent > 100) $progressPercent = 100;
+                            ?>
+                            <div class="progress-bar 
+                                <?= $c['enroll_status'] === 'completed' ? 'bg-success' : 'bg-info' ?>"
+                                role="progressbar"
+                                style="width: <?= $progressPercent ?>%;"
+                                aria-valuenow="<?= $progressPercent ?>"
+                                aria-valuemin="0"
+                                aria-valuemax="100">
+                                <?= $progressPercent ?>%
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <!-- Actions -->
                 <div class="card-actions mt-auto">
@@ -117,25 +140,22 @@ if (!empty($c['expires_at'])) {
                         <a href="<?= BASE_URL ?>/admin/courses_crud.php?act=edit&id=<?= $c['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
                         <a href="<?= BASE_URL ?>/admin/courses_crud.php?act=delete&id=<?= $c['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this course?')">Delete</a>
                     <?php endif; ?>
-                    <!--<a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>" class="btn btn-sm btn-primary"><?= $c['enroll_status'] ? 'Start / Continue' : 'Enroll' ?>
-                </a>--> 
-                <?php if ($isExpired): ?>
-    <!-- Expired course: show prompt -->
-    <a href="#"
-       class="btn btn-sm btn-secondary"
-       onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">
-        Enroll
-    </a>
-<?php else: ?>
-    <!-- Active course: go to course view -->
-    <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>"
-       class="btn btn-sm btn-primary">
-        <?= $c['enroll_status'] ? 'Start / Continue' : 'Enroll' ?>
-    </a>
-<?php endif; ?>
 
-                    
-                        </div>
+                    <?php if ($isExpired): ?>
+                        <!-- Expired course: show prompt -->
+                        <a href="#"
+                           class="btn btn-sm btn-secondary"
+                           onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">
+                            Enroll
+                        </a>
+                    <?php else: ?>
+                        <!-- Active course: go to course view -->
+                        <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>"
+                           class="btn btn-sm btn-primary">
+                            <?= $c['enroll_status'] ? 'Start / Continue' : 'Enroll' ?>
+                        </a>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>

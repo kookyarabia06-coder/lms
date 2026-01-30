@@ -16,11 +16,13 @@ $id  = isset($_GET['id']) ? (int)$_GET['id'] : null;
  * Calculate expiration date
  */
 function calculateExpiry($expires_at, $valid_days) {
-    if (!empty($valid_days)) {
-        return date('Y-m-d', strtotime("+{$valid_days} days"));
+    if (!empty($valid_days) && is_numeric($valid_days)) {
+        return date('Y-m-d', strtotime('+' . (int)$valid_days . ' days'));
     }
-    return $expires_at ?: null;
+
+    return !empty($expires_at) ? $expires_at : null;
 }
+
 
 /**
  * Handle file upload
@@ -178,11 +180,12 @@ body { background: #f8f9fa; }
 
     <div class="col-md-6 mb-3">
         <label>Validity (Days)</label>
-        <input type="number" name="valid_days" class="form-control"
+        <input  class="form-control"
                placeholder="Example: 5"
-                if value="<?= $editing && $course['expires_at'] ? ( (strtotime($course['expires_at']) - time()) / 86400 ) : '' ?>">   
+               value="<?= ($editing && !empty($course['expires_at'])) ? max(0, (int) ceil((strtotime($course['expires_at']) - time()) / 86400)) : 
+               (isset($_POST['valid_days']) ? (int) $_POST['valid_days'] : '') ?>" > 
         <small class="text-muted">Auto-calculate expiration</small>
-    </div>
+ </div>
     </div>
     <div class="mb-3">
         <label>Thumbnail</label> <input type="file" name="thumbnail" class="form-control">
@@ -238,5 +241,6 @@ body { background: #f8f9fa; }
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
