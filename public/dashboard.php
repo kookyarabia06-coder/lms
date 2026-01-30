@@ -54,7 +54,7 @@ foreach ($courses as $c) {
             margin-left: 240px;
             padding: 20px;
             flex: 1;
-            background-color: #f9f9f9;
+            background-color: var(--home-bg, #E8E2DB)
         }
 
         .counter-card {
@@ -91,7 +91,7 @@ foreach ($courses as $c) {
                 flex-direction: column;
             }
 
-            .sidebar {
+            .lms-sidebar {
                 position: relative;
                 width: 100%;
             }

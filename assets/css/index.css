@@ -1,0 +1,165 @@
+/* Home Page Namespace: home-page */
+:root {
+  --home-bg: #faf4ed;               /* page background */
+  --home-dashboard-bg: #1A3263;      /* hero/dashboard */
+  --home-dashboard-text: #FAB95B;    /* hero text and button */
+  --home-text: #1A3263;              /* main text */
+  --home-accent: #FAB95B;            /* links / accents */
+  --home-secondary: #547792;         /* secondary text */
+}
+
+/* Reset & Base */
+.home-page * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.home-page body {
+  background-color: var(--home-bg); /* page background */
+  color: var(--home-text);
+}
+
+/* Container for content below hero */
+.home-page .home-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+/* Hero Dashboard Section */
+.home-page .home-dashboard {
+  width: 100vw; /* full viewport width */
+  background-color: var(--home-dashboard-bg);
+  color: var(--home-dashboard-text);
+  padding: 1.5rem 1rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  margin-bottom: 2.5rem;
+}
+
+.home-page .home-dashboard h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--home-dashboard-text);
+  margin-bottom: 0;
+}
+
+.home-page .home-dashboard .home-btn {
+  padding: 0.6rem 1.2rem;
+  background-color: var(--home-dashboard-text);
+  color: var(--home-dashboard-bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  margin-right: 30px;
+  margin-left: auto;
+}
+.home-btn1 {
+  padding: 0.6rem 1.2rem;
+  background-color: var(--home-dashboard-text);
+  color: var(--home-dashboard-bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  margin-right: 30px;
+  margin-left: 15px;
+}
+
+.home-page .home-dashboard .home-btn:hover{
+  background-color: var(--home-dashboard-bg);
+  color: var(--home-dashboard-text);
+  border: 1px solid var(--home-dashboard-text);
+}
+
+.home-page .home-dashboard .home-btn1:hover{
+  background-color: var(--home-dashboard-bg);
+  color: var(--home-dashboard-text);
+  border: 1px solid var(--home-dashboard-text);
+}
+
+/* Layout for content below dashboard */
+.home-page .home-row {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.home-page .home-col-left {
+  flex: 2;
+  min-width: 300px;
+  font-size: 30px;
+}
+
+.home-page .home-col-right {
+  flex: 1;
+  min-width: 200px;
+  font-size: 30px;
+}
+
+/* Section titles */
+.home-page h5 {
+  color: var(--home-text);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+/* News cards */
+.home-page .home-card {
+  background-color: #fff; 
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  font-size: 15px;
+}
+
+.home-page .home-card h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--home-dashboard-bg);
+}
+
+.home-page .home-card p {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  color: var(--home-dashboard-bg);
+}
+
+.home-page .home-card small {
+  color: var(--home-secondary);
+}
+
+/* Quick links */
+.home-page .home-links {
+  list-style: none;
+  padding: 0;
+  font-size: 15px;
+}
+
+.home-page .home-links li {
+  background-color: #fff; /* same as page background */
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.home-page .home-links li a {
+  display: block;
+  color: var(--home-dashboard-bg);
+}
+
+.home-page .home-links li a:hover {
+  text-decoration: underline;
+}

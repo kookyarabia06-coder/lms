@@ -23,26 +23,51 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
 }
 ?>
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Register</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"></head>
-<body class="bg-light">
-<div class="container py-5">
-  <div class="row justify-content-center"><div class="col-md-6">
-    <div class="card p-3">
-      <h4 class="mb-3">Register</h4>
-      <?php if($err): ?><div class="alert alert-danger"><?=htmlspecialchars($err)?></div><?php endif; ?>
-      <?php if($success): ?><div class="alert alert-success"><?=htmlspecialchars($success)?></div><?php endif; ?>
-      <form method="post">
-        <div class="row"><div class="col"><input name="fname" class="form-control" placeholder="First name"></div><div class="col"><input name="lname" class="form-control" placeholder="Last name"></div></div>
-        <div class="mb-2 mt-2"><input name="email" type="email" class="form-control" placeholder="Email"></div>
-        <div class="mb-2"><input name="username" class="form-control" placeholder="Username"></div>
-        <div class="mb-2"><input name="password" type="password" class="form-control" placeholder="Password"></div>
-        <div class="d-flex justify-content-between align-items-center">
-          <button class="btn btn-success">Register</button>
-          <a href="login.php">Login</a>
-        </div>
-      </form>
-    </div>
-  </div></div>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Register</title>
+<link href="<?= BASE_URL ?>/assets/css/login.css" rel="stylesheet">
+</head>
+<body class="login-page" bgcolor="#faf4ed">
+
+<div class="login-page login-container">
+  <div class="login-card">
+    <h4>Register</h4>
+
+    <?php if($err): ?>
+      <div class="login-alert"><?= htmlspecialchars($err) ?></div>
+    <?php endif; ?>
+    <?php if($success): ?>
+      <div class="login-alert"><?= htmlspecialchars($success) ?></div>
+    <?php endif; ?>
+
+    <form method="post">
+      <!-- First & Last Name Side by Side -->
+      <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+        <input name="fname" class="login-input" placeholder="First Name">
+        <input name="lname" class="login-input" placeholder="Last Name">
+      </div>
+
+      <!-- Email -->
+      <input name="email" type="email" class="login-input" placeholder="Email">
+
+      <!-- Username -->
+      <input name="username" class="login-input" placeholder="Username">
+
+      <!-- Password -->
+      <input name="password" type="password" class="login-input" placeholder="Password">
+
+      <!-- Footer: Register Button + Login Link -->
+      <div class="login-footer">
+        <button type="submit" class="login-btn">Register</button>
+        <a href="login.php" class="login-register-link">Login</a>
+      </div>
+    </form>
+  </div>
 </div>
-</body></html>
+
+</body>
+</html>
+
+
