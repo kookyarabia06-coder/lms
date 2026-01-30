@@ -11,12 +11,12 @@ if(!defined('BASE_URL')) {
 }
 ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/sidebar.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<nav class="bg-white border-end sidebar">
-  <div class="mb-3"><strong>LMS</strong></div>
+<nav class="sidebar lms-sidebar">
+  <div class="mb-3"><strong><i class="fa-solid fa-chalkboard-user"></i>Learning Management System</strong></div>
   <ul class="nav flex-column">
 
     <li class="nav-item">
@@ -37,7 +37,6 @@ if(!defined('BASE_URL')) {
               <i class="fa fa-list"></i> All Courses
             </a>
           </li>
-
           <?php if($u && is_student()): ?>
           <li class="nav-item">
             <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
@@ -45,7 +44,6 @@ if(!defined('BASE_URL')) {
             </a>
           </li>
           <?php endif; ?>
-
           <?php if($u && (is_proponent() || is_admin())): ?>
           <li class="nav-item">
             <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php?act=addform">
@@ -53,7 +51,6 @@ if(!defined('BASE_URL')) {
             </a>
           </li>
           <?php endif; ?>
-
         </ul>
       </div>
     </li>
@@ -79,4 +76,5 @@ if(!defined('BASE_URL')) {
 
   </ul>
 </nav>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

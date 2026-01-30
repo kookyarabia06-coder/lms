@@ -1,0 +1,115 @@
+/* Login Page Namespace: login-page */
+:root {
+  --login-bg: #E8E2DB;
+  --login-header: #1A3263;
+  --login-accent: #FAB95B;
+  --login-text: #1A3263;
+  --login-secondary: #547792;
+}
+
+/* Reset & Base */
+.login-page * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.login-page body {
+  background-color: var(--login-bg);
+  color: var(--login-text);
+}
+
+.login-page a {
+  color: var(--login-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.login-page a:hover {
+  text-decoration: underline;
+}
+
+.login-page .login-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.login-page .login-card {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 360px;
+  font-size: 25px;
+}
+
+.login-page .login-card h4 {
+  color: var(--login-header);
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.login-page .login-alert {
+  background-color: #FAB95B20; /* light accent tone */
+  color: var(--login-header);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.login-page input.login-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--login-secondary);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+.login-page input.login-input:focus {
+  outline: none;
+  border-color: var(--login-accent);
+  box-shadow: 0 0 0 2px var(--login-accent)33; /* subtle glow */
+}
+
+.login-page button.login-btn {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--login-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.login-page button.login-btn:hover {
+  background-color: var(--login-secondary);
+}
+
+.login-page .login-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+}
+
+.login-page .login-register-link {
+  color: var(--login-text); /* new color for Register link */
+  font-weight: 600;
+}
+
+.login-page .login-register-link:hover {
+  color: var(--login-accent); /* hover effect */
+  text-decoration: underline;
+}
