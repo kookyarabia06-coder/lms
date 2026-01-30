@@ -75,6 +75,9 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// just added this
+
+
 /* =========================
    EDIT COURSE
 ========================= */
@@ -83,6 +86,7 @@ if ($act === 'edit' && $id) {
     $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id");
     $stmt->execute([':id' => $id]);
     $course = $stmt->fetch();
+    
 
     if (!$course) {
         exit('Course not found');
@@ -175,7 +179,8 @@ body { background: #f8f9fa; }
     <div class="col-md-6 mb-3">
         <label>Validity (Days)</label>
         <input type="number" name="valid_days" class="form-control"
-               placeholder="Example: 5">
+               placeholder="Example: 5"
+                if value="<?= $editing && $course['expires_at'] ? ( (strtotime($course['expires_at']) - time()) / 86400 ) : '' ?>">   
         <small class="text-muted">Auto-calculate expiration</small>
     </div>
     </div>
