@@ -75,3 +75,12 @@ if (!function_exists('is_student')) {
     }
 }
 
+if (!function_exists('destroy_session')) {
+    function destroy_session() {
+        session_start();
+        session_unset();
+        session_destroy();
+        return true;
+    }
+}
+

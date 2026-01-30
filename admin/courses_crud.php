@@ -1,157 +1,147 @@
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
+
 require_login();
 
 if (!is_admin() && !is_proponent()) {
-    echo "Access denied";
-    exit;
+    http_response_code(403);
+    exit('Access denied');
 }
 
 $act = $_GET['act'] ?? '';
-$id = isset($_GET['id']) ? (int)$_GET['id'] : null;
-$message = '';
+$id  = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
-// Handle Add
+/**
+ * Calculate expiration date
+ */
+function calculateExpiry($expires_at, $valid_days) {
+    if (!empty($valid_days)) {
+        return date('Y-m-d', strtotime("+{$valid_days} days"));
+    }
+    return $expires_at ?: null;
+}
+
+/**
+ * Handle file upload
+ */
+function uploadFile($input, $dir, $allowed = []) {
+    if (!isset($_FILES[$input]) || $_FILES[$input]['error'] !== UPLOAD_ERR_OK) {
+        return null;
+    }
+
+    $ext = strtolower(pathinfo($_FILES[$input]['name'], PATHINFO_EXTENSION));
+    if ($allowed && !in_array($ext, $allowed)) {
+        return null;
+    }
+
+    $filename = bin2hex(random_bytes(8)) . '.' . $ext;
+    move_uploaded_file($_FILES[$input]['tmp_name'], __DIR__ . "/../uploads/$dir/$filename");
+
+    return $filename;
+}
+
+/* =========================
+   ADD COURSE
+========================= */
 if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $totalDuration = 0;
-        if ($course['file_pdf']) $totalDuration += 60; // assume 1 min for PDF reading
-        if ($course['file_video']) {
-            // You can store video duration in DB or get via PHP using FFmpeg, for now assume 300 sec
-            $totalDuration += 300; 
-        }
+    $expires_at = calculateExpiry(
+        $_POST['expires_at'] ?? null,
+        $_POST['valid_days'] ?? null
+    );
 
-    // NEW: expiration inputs
-    $expires_at = $_POST['expires_at'] ?? null;   // date input
-    $valid_days = $_POST['valid_days'] ?? null;   // number of days
-
-    // Auto-calculate expiration if valid_days is provided
-    if (!empty($valid_days)) {
-        $expires_at = date('Y-m-d', strtotime("+{$valid_days} days"));
-    }
-
-    $thumbnail = null;
-    $pdf = null;
-    $video = null;
-
-    // Thumbnail upload
-    if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower(pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION));
-        $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-        move_uploaded_file(
-            $_FILES['thumbnail']['tmp_name'],
-            __DIR__ . '/../uploads/images/' . $filename
-        );
-        $thumbnail = $filename;
-    }
-
-    // PDF upload
-    if (isset($_FILES['file_pdf']) && $_FILES['file_pdf']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower(pathinfo($_FILES['file_pdf']['name'], PATHINFO_EXTENSION));
-        $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-        move_uploaded_file(
-            $_FILES['file_pdf']['tmp_name'],
-            __DIR__ . '/../uploads/pdf/' . $filename
-        );
-        $pdf = $filename;
-    }
-
-    // Video upload
-    if (isset($_FILES['file_video']) && $_FILES['file_video']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower(pathinfo($_FILES['file_video']['name'], PATHINFO_EXTENSION));
-        $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-        move_uploaded_file(
-            $_FILES['file_video']['tmp_name'],
-            __DIR__ . '/../uploads/video/' . $filename
-        );
-        $video = $filename;
-    }
-
-    // INSERT with expiration
     $stmt = $pdo->prepare("
-        INSERT INTO courses 
-        (title, description, thumbnail, file_pdf, file_video, proponent_id, created_at, expires_at, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 1)
+        INSERT INTO courses (
+            title, description, thumbnail, file_pdf, file_video,
+            proponent_id, created_at, expires_at, is_active
+        ) VALUES (
+            :title, :description, :thumbnail, :pdf, :video,
+            :proponent_id, NOW(), :expires_at, 1
+        )
     ");
 
     $stmt->execute([
-        $title,
-        $description,
-        $thumbnail,
-        $pdf,
-        $video,
-        $_SESSION['user']['id'],
-        $expires_at
+        ':title'         => $_POST['title'],
+        ':description'   => $_POST['description'],
+        ':thumbnail'     => uploadFile('thumbnail', 'images', ['jpg','jpeg','png','webp']),
+        ':pdf'           => uploadFile('file_pdf', 'pdf', ['pdf']),
+        ':video'         => uploadFile('file_video', 'video', ['mp4','webm']),
+        ':proponent_id'  => $_SESSION['user']['id'],
+        ':expires_at'    => $expires_at
     ]);
 
     header('Location: courses_crud.php');
     exit;
 }
 
-
-// Handle Edit
+/* =========================
+   EDIT COURSE
+========================= */
 if ($act === 'edit' && $id) {
-    $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
-    $stmt->execute([$id]);
+
+    $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id");
+    $stmt->execute([':id' => $id]);
     $course = $stmt->fetch();
 
     if (!$course) {
-        echo "Course not found";
-        exit;
+        exit('Course not found');
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $title = $_POST['title'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $expires_at = $_POST['expires_at'] ?? '';
-        $thumbnail = $course['thumbnail'];
-        $pdf = $course['file_pdf'];
-        $video = $course['file_video'];
 
-        if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION));
-            $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-            move_uploaded_file($_FILES['thumbnail']['tmp_name'], __DIR__ . '/../uploads/images/' . $filename);
-            $thumbnail = $filename;
-        }
+        $expires_at = calculateExpiry(
+            $_POST['expires_at'] ?? null,
+            $_POST['valid_days'] ?? null
+        );
 
-        if (isset($_FILES['file_pdf']) && $_FILES['file_pdf']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['file_pdf']['name'], PATHINFO_EXTENSION));
-            $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-            move_uploaded_file($_FILES['file_pdf']['tmp_name'], __DIR__ . '/../uploads/pdf/' . $filename);
-            $pdf = $filename;
-        }
+        $stmt = $pdo->prepare("
+            UPDATE courses SET
+                title       = :title,
+                description = :description,
+                expires_at  = :expires_at,
+                thumbnail   = :thumbnail,
+                file_pdf    = :pdf,
+                file_video  = :video
+            WHERE id = :id
+        ");
 
-        if (isset($_FILES['file_video']) && $_FILES['file_video']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['file_video']['name'], PATHINFO_EXTENSION));
-            $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-            move_uploaded_file($_FILES['file_video']['tmp_name'], __DIR__ . '/../uploads/video/' . $filename);
-            $video = $filename;
-        }
+        $stmt->execute([
+            ':title'       => $_POST['title'],
+            ':description' => $_POST['description'],
+            ':expires_at'  => $expires_at,
+            ':thumbnail'   => uploadFile('thumbnail','images',['jpg','jpeg','png','webp']) ?? $course['thumbnail'],
+            ':pdf'         => uploadFile('file_pdf','pdf',['pdf']) ?? $course['file_pdf'],
+            ':video'       => uploadFile('file_video','video',['mp4','webm']) ?? $course['file_video'],
+            ':id'          => $id
+        ]);
 
-        $stmt = $pdo->prepare("UPDATE courses SET title=?, description=?, expires_at=?, thumbnail=?, file_pdf=?, file_video=? WHERE id=?");
-        $stmt->execute([$title, $description, $thumbnail, $pdf, $video, $id, $expires_at]);
         header('Location: courses_crud.php');
         exit;
     }
 }
 
-// Handle Delete
-if ($act === 'delete' && $id) {
-    $stmt = $pdo->prepare("DELETE FROM courses WHERE id=?");
-    $stmt->execute([$id]);
+/* =========================
+   DELETE COURSE
+========================= */
+if ($act === 'delete' && $id && is_admin()) {
+    $stmt = $pdo->prepare("DELETE FROM courses WHERE id = :id");
+    $stmt->execute([':id' => $id]);
     header('Location: courses_crud.php');
     exit;
 }
 
-// Fetch all courses
-$courses = $pdo->query("SELECT c.*, u.username FROM courses c LEFT JOIN users u ON c.proponent_id = u.id ORDER BY c.created_at DESC")->fetchAll();
+/* =========================
+   FETCH COURSES
+========================= */
+$courses = $pdo->query("
+    SELECT c.*, u.username 
+    FROM courses c 
+    LEFT JOIN users u ON c.proponent_id = u.id
+    ORDER BY c.created_at DESC
+")->fetchAll();
 ?>
-
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">

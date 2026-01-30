@@ -1,7 +1,13 @@
 <?php
+
+
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_login();
+
+
+
+
 
 $userId = $_SESSION['user']['id'];
 
@@ -16,6 +22,7 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 
 // Calculate counters
 $counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
