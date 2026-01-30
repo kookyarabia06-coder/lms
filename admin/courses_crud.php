@@ -161,7 +161,9 @@ body { background: #f8f9fa; }
 </style>
 </head>
 <body>
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    <div class="lms-sidebar-container">
+        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    </div>
 <div class="main container">
 <h3 class="mb-4">Courses Management</h3>
 

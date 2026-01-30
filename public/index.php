@@ -13,7 +13,8 @@ $news = $stmt->fetchAll();
 <title>LMS Home</title>
 <link href="<?= BASE_URL ?>/assets/css/index.css" rel="stylesheet">
 </head>
-<body class="home-page" bgcolor="#faf4ed">
+<body class="home-page" style="background: linear-gradient(160deg,#0F1C3F,#1E3C72,#F2C94C,#FFFFFF);"
+>
 
   <!-- Hero Dashboard Section -->
   <div class="home-dashboard">

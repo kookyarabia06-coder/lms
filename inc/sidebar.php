@@ -10,16 +10,23 @@ if(!defined('BASE_URL')) {
     define('BASE_URL', $protocol . $_SERVER['HTTP_HOST'] . '/lms');
 }
 ?>
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Sidebar</title>
+
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/sidebar.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/sidebar.css">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <nav class="sidebar lms-sidebar">
-  <div class="mb-3"><strong><i class="fa-solid fa-chalkboard-user"></i>Learning Management System</strong></div>
+  <a class="text-link" href="<?= BASE_URL ?>/public/index.php"><strong><i class="fa-solid fa-chalkboard-user"></i>Learning Management System</strong></a>
   <ul class="nav flex-column">
 
-    <li class="nav-item">
+    <li class="nav-item" color>
       <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">
         <i class="fa fa-tachometer-alt"></i> Dashboard
       </a>
@@ -78,3 +85,6 @@ if(!defined('BASE_URL')) {
 </nav>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+  </html>

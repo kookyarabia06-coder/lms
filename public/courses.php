@@ -28,25 +28,12 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <meta charset="utf-8">
 <title>All Courses - LMS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-.main { margin-left: 240px; padding: 20px; }
-.card { display: flex; flex-direction: column; height: 100%; position: relative; }
-.card-img-top { height: 150px; object-fit: cover; }
-.card-body { flex: 1 1 auto; }
-.card-checkbox {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-}
-.card-actions {
-    margin-top: 10px;
-}
-</style>
+    <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 </head>
 <body>
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
-
+    <div class="lms-sidebar-container">
+        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    </div>
 <div class="main">
 <h3>All Courses</h3>
 

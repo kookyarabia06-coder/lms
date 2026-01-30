@@ -12,13 +12,15 @@
 .home-page * {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .home-page body {
   background-color: var(--home-bg); /* page background */
   color: var(--home-text);
+  background-repeat: no-repeat; /* ADD THIS LINE */
+  background-attachment: fixed; /* Optional: keeps background fixed */
+  min-height: 100vh; /* Ensure full height */
 }
 
 /* Container for content below hero */
@@ -26,10 +28,13 @@
   max-width: 1000px;
   margin: 0 auto;
   padding: 2rem 1rem;
+  background-repeat: no-repeat; /* ADD THIS LINE */
+  background-size: cover; /* ADD THIS LINE */
 }
 
 /* Hero Dashboard Section */
 .home-page .home-dashboard {
+  height: auto;
   width: 100vw; /* full viewport width */
   background-color: var(--home-dashboard-bg);
   color: var(--home-dashboard-text);
@@ -39,6 +44,8 @@
   flex-wrap: wrap;
   box-shadow: 0 6px 20px rgba(0,0,0,0.12);
   margin-bottom: 2.5rem;
+  background-repeat: no-repeat; /* ADD THIS LINE */
+  background-size: cover; /* ADD THIS LINE */
 }
 
 .home-page .home-dashboard h1 {

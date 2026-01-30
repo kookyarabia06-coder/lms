@@ -1,69 +1,84 @@
 /* Sidebar Namespace: lms-sidebar */
 :root {
-  --home-dashboard-bg: #1A3263; /* sidebar / dashboard background */
-  --sidebar-text: #FAB95B;      /* main link text */
-  --sidebar-hover: #547792;     /* hover link color */
-  --sidebar-active: #FAB95B;    /* active link color */
+  --home-dashboard-bg: #1A3263;
+  --sidebar-text: #FAB95B;
+  --sidebar-hover: #547792;
+  --sidebar-active: #FAB95B;
+  --sidebar-width: 240px;
 }
 
+/* Sidebar container */
+.lms-sidebar-container {
+  width: var(--sidebar-width);
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: 240px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+.sidebar-container {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: 240px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+        
+/* Sidebar styling */
 .lms-sidebar {
   background-color: var(--home-dashboard-bg);
-  min-height: 100vh;
+  height: 100%;
   padding: 1rem;
   color: var(--sidebar-text);
-  position: fixed;
-  width: 240px;
   border-right: 1px solid rgba(255,255,255,0.1);
   transition: all 0.3s;
   overflow-y: auto;
-  z-index: 1000;
 }
 
 .lms-sidebar strong {
   color: var(--sidebar-text);
   font-size: 1.5rem;
-  display: flex;             /* use flex instead of block */
-  align-items: center;       /* vertically center icon and text */
-  gap: 0.75rem;              /* spacing between icon and text */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-bottom: 2.5rem;
   margin-top: 1.5rem;
-  line-height: 1.2;          /* optional: tighter line spacing */
+  line-height: 1.2;
 }
 
 .lms-sidebar strong i {
-  flex-shrink: 0;            /* prevent icon from shrinking */
+  flex-shrink: 0;
   font-size: 1.5rem;
   color: var(--sidebar-text);
 }
 
-
-
-.lms-sidebar .nav-link {
-  color: var(--sidebar-text);
-  font-weight: 500;
-  transition: color 0.3s, background-color 0.3s;
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
+/* Sidebar text color = header color */
+.lms-sidebar,
+.lms-sidebar .nav-link,
 .lms-sidebar .nav-link i {
-  margin-right: 0.5rem;
+   color: #FAB95B !important;
 }
+
 
 .lms-sidebar .nav-link:hover {
-  color: var(--sidebar-hover);
-  background-color: rgba(255,255,255,0.05);
-  border-radius: 5px;
+  color: var(--sidebar-text);
+  background-color: rgba(250, 185, 91, 0.15); /* soft yellow glow */
+  border-radius: 6px;
 }
 
 .lms-sidebar .nav-link.active {
-  color: var(--sidebar-active);
+  color: var(--sidebar-text);
   font-weight: 600;
+  background-color: rgba(250, 185, 91, 0.25);
+  border-radius: 6px;
 }
 
 .lms-sidebar .collapse .nav-link {
-  padding-left: 1.5rem;
+  padding-left: 2.5rem;
 }
 
 .lms-sidebar .fa-caret-down {
@@ -72,4 +87,92 @@
 
 .lms-sidebar .collapse.show .fa-caret-down {
   transform: rotate(180deg);
+}
+
+/* =========================
+   Text Link - Looks like text, acts like link
+============================ */
+
+/* Basic text-link class */
+.text-link {
+    color: inherit; /* Use parent text color */
+    text-decoration: none; /* No underline */
+    cursor: pointer; /* Shows it's clickable */
+    background: none; /* Remove any background */
+    border: none; /* Remove any border */
+    padding: 0; /* Remove padding */
+    font: inherit; /* Use parent font */
+    display: inline; /* Inline display */
+}
+
+.text-link:hover,
+.text-link:focus {
+    color: inherit; /* Keep same color on hover */
+    text-decoration: none; /* No underline on hover */
+    outline: none; /* Remove focus outline if desired */
+}
+
+.text-link:active {
+    color: inherit; /* Keep same color when clicked */
+    text-decoration: none;
+}
+
+/* Text link with subtle hover effect */
+.text-link-subtle {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.text-link-subtle:hover {
+    color: inherit;
+    text-decoration: none;
+    opacity: 0.8; /* Slight fade on hover */
+}
+
+/* Text link for dark backgrounds */
+.text-link-light {
+    color: #ffffff; /* White text */
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.text-link-light:hover {
+    color: #ffffff;
+    text-decoration: none;
+    opacity: 0.9;
+}
+
+/* Text link for buttons that look like text */
+button.text-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    text-align: left;
+}
+
+button.text-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* For divs that act like text links */
+div.text-link,
+span.text-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline;
+}
+
+div.text-link:hover,
+span.text-link:hover {
+    color: inherit;
+    text-decoration: none;
 }

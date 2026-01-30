@@ -100,12 +100,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
 <head>
 <meta charset="utf-8">
 <title><?=htmlspecialchars($course['title'])?> - LMS</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
 </head>
+<<<<<<< HEAD
 <body class="bg-light d-flex">
     <div class="sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+=======
+<body class="d-flex">
+    <div class="sidebar-container">
+        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    </div>
+<div class="main flex-1 p-4">
+    <h3><?=htmlspecialchars($course['title'])?></h3>
+    <p><?=nl2br(htmlspecialchars($course['description']))?></p>
+
+    <?php if($course['file_pdf']): ?>
+    <div class="mb-3">
+        <h5>PDF:</h5>
+        <iframe
+            src="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
+            width="100%"
+            height="800px"
+            style="border:1px solid #ccc">
+        </iframe>
+
+        <p class="mt-2">
+            <a class="btn btn-sm btn-outline-primary"
+            href="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
+            target="_blank">
+                Open PDF in new tab
+            </a>
+        </p>
+>>>>>>> f95964b909f01529c15cae74dd9c428ae4617bcf
     </div>
 
     <div class="main flex-1 p-4" style="padding-right: 10px; margin-left: 250px">

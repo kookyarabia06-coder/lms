@@ -24,5 +24,5 @@ if (ini_get("session.use_cookies")) {
 }
 
 // Redirect to login page
-header('Location: ' . BASE_URL . '/public/login.php');
+header('Location: ' . BASE_URL . '/public/index.php');
 exit;

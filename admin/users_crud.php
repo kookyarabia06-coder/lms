@@ -52,8 +52,9 @@ $users = $pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll()
 </head>
 
 <body>
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
-
+    <div class="lms-sidebar-container">
+        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    </div>
 <div class="main">
     <div class="container py-4">
         <h3>All Users</h3>

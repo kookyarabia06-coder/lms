@@ -28,7 +28,9 @@ $news = $pdo->query('SELECT n.*, u.username FROM news n LEFT JOIN users u ON n.c
   <title>News</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    <div class="lms-sidebar-container">
+        <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    </div>
 <body class="bg-light">
   <div class="container py-4">
     <h4>News</h4>
