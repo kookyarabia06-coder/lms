@@ -87,76 +87,121 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
 
 ?>
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title><?=htmlspecialchars($course['title'])?> - LMS</title>
+    <meta charset="utf-8">
+    <title><?=htmlspecialchars($course['title'])?> - LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
-<body class="d-flex">
-    <div class="sidebar-container">
+<body>
+    <!-- Sidebar -->
+    <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
-<div class="main flex-1 p-4">
-    <h3><?=htmlspecialchars($course['title'])?></h3>
-    <p><?=nl2br(htmlspecialchars($course['description']))?></p>
 
-    <?php if($course['file_pdf']): ?>
-    <div class="mb-3">
-        <h5>PDF:</h5>
-        <iframe
-            src="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
-            width="100%"
-            height="600"
-            style="border:1px solid #ccc">
-        </iframe>
+    <!-- Main Content -->
+    <div class="course-content-wrapper">
+        <!-- Course Header -->
+        <div class="course-header">
+            <h3><?=htmlspecialchars($course['title'])?></h3>
+            <p><?=nl2br(htmlspecialchars($course['description']))?></p>
+        </div>
 
-        <p class="mt-2">
-            <a class="btn btn-sm btn-outline-primary"
-            href="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
-            target="_blank">
-                Open PDF in new tab
-            </a>
-        </p>
-    </div>
-    <?php endif; ?>
-
-
-    <?php if($course['file_video']): ?>
-    <div class="mb-3">
-        <h5>Video:</h5>
-        <video id="courseVideo" width="100%" controls>
-            <source src="<?= BASE_URL ?>/uploads/video/<?= htmlspecialchars($course['file_video']) ?>" type="video/mp4">
-            Your browser does not support HTML5 video.
-        </video>
-    </div>
-   <?php if($enrollment['status'] === 'completed'): ?>
-    <span class="badge bg-success">Completed</span>
-        <?php else: ?>
-            <span class="badge bg-warning">Ongoing</span>
-        <?php endif; ?>
-        <?php if($enrollment['status'] === 'completed'): ?>
-            <div class="alert alert-success">
-                You have completed this course 🎓
+        <!-- Course Info -->
+        <div class="course-info-card">
+            <div class="course-instructor">
+                <div class="instructor-avatar">
+                    <?= substr($course['fname'] ?? 'I', 0, 1) . substr($course['lname'] ?? 'nstructor', 0, 1) ?>
+                </div>
+                <div class="instructor-info">
+                    <h5><?= htmlspecialchars($course['fname'] ?? 'Instructor') ?> <?= htmlspecialchars($course['lname'] ?? '') ?></h5>
+                    <p>Course Instructor</p>
+                </div>
             </div>
+        </div>
+
+        <!-- Progress Section for Students -->
+        <?php if(is_student()): ?>
+        <div class="progress-section">
+            <div class="progress-header">
+                <h5><i class="fas fa-chart-line me-2"></i>Your Progress</h5>
+                <div class="time-spent">
+                    Time spent: <span id="timeSpent"><?= intval($enrollment['total_time_seconds']) ?></span> seconds
+                </div>
+            </div>
+            
+            <div class="status-container">
+                <?php if($enrollment['status'] === 'completed'): ?>
+                    <span class="badge bg-success">
+                        <i class="fas fa-check-circle me-2"></i>Completed
+                    </span>
+                <?php else: ?>
+                    <span class="badge bg-warning">
+                        <i class="fas fa-spinner me-2"></i>Ongoing
+                    </span>
+                <?php endif; ?>
+            </div>
+
+            <?php if($enrollment['status'] === 'completed'): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-graduation-cap me-2"></i>Congratulations! You have successfully completed this course 🎓
+                </div>
+            <?php endif; ?>
+
+            <!-- Complete Button -->
+            <?php if($enrollment['status'] !== 'completed'): ?>
+                <button id="completeBtn" class="btn btn-success">
+                    <i class="fas fa-check-circle me-2"></i>Mark as Complete
+                </button>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
-    <?php endif; ?>
 
-<?php if(is_student()): ?>
-    <div class="mb-3">
-        <strong>Time spent:</strong> <span id="timeSpent"><?= intval($enrollment['total_time_seconds']) ?></span> seconds
+        <!-- PDF Content -->
+        <?php if($course['file_pdf']): ?>
+        <div class="content-card">
+            <h5><i class="fas fa-file-pdf text-danger"></i>Course PDF Material</h5>
+            
+            <div class="pdf-viewer">
+                <iframe
+                    src="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
+                    width="100%"
+                    height="600"
+                    style="border:none">
+                </iframe>
+            </div>
+
+            <p class="mt-3">
+                <a class="btn btn-outline-primary"
+                   href="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
+                   target="_blank">
+                    <i class="fas fa-external-link-alt me-2"></i>Open PDF in new tab
+                </a>
+            </p>
+        </div>
+        <?php endif; ?>
+
+        <!-- Video Content -->
+        <?php if($course['file_video']): ?>
+        <div class="content-card">
+            <h5><i class="fas fa-video text-primary"></i>Course Video</h5>
+            
+            <div class="video-player">
+                <video id="courseVideo" width="100%" controls>
+                    <source src="<?= BASE_URL ?>/uploads/video/<?= htmlspecialchars($course['file_video']) ?>" type="video/mp4">
+                    Your browser does not support HTML5 video.
+                </video>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
-
-    <!-- Complete Button -->
-    <?php if($enrollment['status'] !== 'completed'): ?>
-        <button id="completeBtn" class="btn btn-success mb-3">Mark as Complete</button>
-    <?php endif; ?>
 
     <script>
+    <?php if(is_student()): ?>
     let totalSeconds = parseInt($('#timeSpent').text());
 
     // auto update time spent
@@ -196,10 +241,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
             location.reload();
         });
     }
-    </script>
     <?php endif; ?>
-</div>
+    
+    // Add animations
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.content-card, .progress-section, .course-info-card');
+        cards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            
+            setTimeout(() => {
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, index * 100);
+        });
+    });
+    </script>
 </body>
 </html>
-
-

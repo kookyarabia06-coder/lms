@@ -1,172 +1,256 @@
-/* Home Page Namespace: home-page */
-:root {
-  --home-bg: #faf4ed;               /* page background */
-  --home-dashboard-bg: #1A3263;      /* hero/dashboard */
-  --home-dashboard-text: #FAB95B;    /* hero text and button */
-  --home-text: #1A3263;              /* main text */
-  --home-accent: #FAB95B;            /* links / accents */
-  --home-secondary: #547792;         /* secondary text */
+/* welcome.css - Styles specifically for welcome page only */
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Reset & Base */
-.home-page * {
-  margin: 0;
-  padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+body {
+    min-height: 100vh;
+    padding: 20px;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3498db 100%);
 }
 
-.home-page body {
-  background-color: var(--home-bg); /* page background */
-  color: var(--home-text);
-  background-repeat: no-repeat; /* ADD THIS LINE */
-  background-attachment: fixed; /* Optional: keeps background fixed */
-  min-height: 100vh; /* Ensure full height */
+/* Welcome Container */
+.welcome-container {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
 }
 
-/* Container for content below hero */
-.home-page .home-container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  background-repeat: no-repeat; /* ADD THIS LINE */
-  background-size: cover; /* ADD THIS LINE */
+/* Hero Section */
+.welcome-hero {
+    text-align: center;
+    padding: 60px 20px;
+    color: white;
 }
 
-/* Hero Dashboard Section */
-.home-page .home-dashboard {
-  height: auto;
-  width: 100vw; /* full viewport width */
-  background-color: var(--home-dashboard-bg);
-  color: var(--home-dashboard-text);
-  padding: 1.5rem 1rem;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-  margin-bottom: 2.5rem;
-  background-repeat: no-repeat; /* ADD THIS LINE */
-  background-size: cover; /* ADD THIS LINE */
+.welcome-hero h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.home-page .home-dashboard h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--home-dashboard-text);
-  margin-bottom: 0;
+.welcome-hero p {
+    font-size: 20px;
+    max-width: 800px;
+    margin: 0 auto 40px;
+    opacity: 0.95;
+    line-height: 1.6;
 }
 
-.home-page .home-dashboard .home-btn {
-  padding: 0.6rem 1.2rem;
-  background-color: var(--home-dashboard-text);
-  color: var(--home-dashboard-bg);
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s, color 0.3s;
-  margin-right: 30px;
-  margin-left: auto;
-}
-.home-btn1 {
-  padding: 0.6rem 1.2rem;
-  background-color: var(--home-dashboard-text);
-  color: var(--home-dashboard-bg);
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s, color 0.3s;
-  margin-right: 30px;
-  margin-left: 15px;
+/* Features Grid */
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+    padding: 40px 20px;
 }
 
-.home-page .home-dashboard .home-btn:hover{
-  background-color: var(--home-dashboard-bg);
-  color: var(--home-dashboard-text);
-  border: 1px solid var(--home-dashboard-text);
+.feature-card {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.98));
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    transition: transform 0.3s, box-shadow 0.3s;
+    backdrop-filter: blur(10px);
 }
 
-.home-page .home-dashboard .home-btn1:hover{
-  background-color: var(--home-dashboard-bg);
-  color: var(--home-dashboard-text);
-  border: 1px solid var(--home-dashboard-text);
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
-/* Layout for content below dashboard */
-.home-page .home-row {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-  justify-content: center;
+.feature-icon {
+    font-size: 48px;
+    color: #3498db;
+    margin-bottom: 25px;
+    background: linear-gradient(135deg, #3498db, #1a75d2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.home-page .home-col-left {
-  flex: 2;
-  min-width: 300px;
-  font-size: 30px;
+.feature-card h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 22px;
 }
 
-.home-page .home-col-right {
-  flex: 1;
-  min-width: 200px;
-  font-size: 30px;
+.feature-card p {
+    color: #64748b;
+    line-height: 1.6;
+    font-size: 16px;
 }
 
-/* Section titles */
-.home-page h5 {
-  color: var(--home-text);
-  margin-bottom: 1rem;
-  font-weight: 600;
+/* Stats Section */
+.welcome-stats {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    padding: 50px 20px;
+    flex-wrap: wrap;
 }
 
-/* News cards */
-.home-page .home-card {
-  background-color: #fff; 
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  padding: 1rem;
-  margin-bottom: 1rem;
-  font-size: 15px;
+.stat-item {
+    text-align: center;
+    color: white;
 }
 
-.home-page .home-card h6 {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--home-dashboard-bg);
+.stat-number {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.home-page .home-card p {
-  font-size: 0.95rem;
-  margin-bottom: 0.5rem;
-  color: var(--home-dashboard-bg);
+.stat-label {
+    font-size: 18px;
+    opacity: 0.9;
 }
 
-.home-page .home-card small {
-  color: var(--home-secondary);
+/* Authentication Section */
+.auth-section {
+    padding: 60px 20px;
+    text-align: center;
 }
 
-/* Quick links */
-.home-page .home-links {
-  list-style: none;
-  padding: 0;
-  font-size: 15px;
+.auth-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 40px;
+    flex-wrap: wrap;
 }
 
-.home-page .home-links li {
-  background-color: #fff; /* same as page background */
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+.auth-btn {
+    padding: 18px 50px;
+    font-size: 18px;
+    font-weight: 700;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 200px;
+    justify-content: center;
 }
 
-.home-page .home-links li a {
-  display: block;
-  color: var(--home-dashboard-bg);
+.login-btn {
+    background: linear-gradient(135deg, #3498db 0%, #1a75d2 100%);
+    color: white;
+    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
 }
 
-.home-page .home-links li a:hover {
-  text-decoration: underline;
+.login-btn:hover {
+    background: linear-gradient(135deg, #2980b9 0%, #1665b8 100%);
+    box-shadow: 0 10px 30px rgba(52, 152, 219, 0.4);
+    transform: translateY(-3px);
+}
+
+.register-btn {
+    background: transparent;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.register-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: white;
+    transform: translateY(-3px);
+}
+
+/* Footer */
+.welcome-footer {
+    padding: 40px 20px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    margin-top: 40px;
+}
+
+.footer-links a {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    margin: 0 15px;
+    transition: color 0.3s;
+}
+
+.footer-links a:hover {
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .welcome-hero h1 {
+        font-size: 36px;
+    }
+    
+    .welcome-hero p {
+        font-size: 18px;
+    }
+    
+    .auth-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .auth-btn {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .welcome-stats {
+        gap: 30px;
+    }
+    
+    .stat-number {
+        font-size: 36px;
+    }
+}
+
+@media (max-width: 480px) {
+    .welcome-hero h1 {
+        font-size: 28px;
+    }
+    
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .auth-btn {
+        padding: 16px 30px;
+        font-size: 16px;
+    }
+}
+
+/* Animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feature-card {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.feature-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.feature-card:nth-child(3) {
+    animation-delay: 0.4s;
 }
