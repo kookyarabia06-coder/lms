@@ -56,10 +56,6 @@ require_once __DIR__ . '/../inc/config.php';
                 <div class="stat-number">10K+</div>
                 <div class="stat-label">Active Learners</div>
             </div>
-            <div class="stat-item">
-                <div class="stat-number">98%</div>
-                <div class="stat-label">Satisfaction Rate</div>
-            </div>
         </div>
         
         <!-- Authentication Section -->

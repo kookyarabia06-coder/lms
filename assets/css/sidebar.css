@@ -70,7 +70,7 @@
 .lms-sidebar,
 .lms-sidebar .nav-link,
 .lms-sidebar .nav-link i {
-   color: #ffffff !important;
+   color: #ffffff !important; 
 }
 
 /* Navigation items */
@@ -311,4 +311,45 @@ span.text-link:hover {
     padding: 0.75rem 0.875rem;
     font-size: 0.95rem;
   }
+}
+ 
+/* Compact profile header for sidebar */
+
+.profile-icon-mini {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.profile-details-mini {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-details-mini h6 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-details-mini small {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    margin-top: 2px;
 }

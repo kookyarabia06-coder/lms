@@ -155,7 +155,7 @@ $courses = $pdo->query("
     <?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
 
-<div class="main container">
+<div class="modern-courses-wrapper">
 <h3 class="mb-4">Courses Management</h3>
 
 <?php if ($act === 'addform' || $act === 'edit'): ?>
@@ -225,25 +225,39 @@ $courses = $pdo->query("
 
 <a href="?act=addform" class="btn btn-success mb-3">Add New Course</a>
 
-<div class="row row-cols-1 row-cols-md-3 g-4">
-<?php foreach ($courses as $c): ?>
-<div class="col">
-    <div class="card h-100 shadow-sm">
-        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" class="card-img-top">
-        <div class="card-body d-flex flex-column">
-            <h5><?= htmlspecialchars($c['title']) ?></h5>
-            <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>
-            <div class="mt-auto">
-                <a href="?act=edit&id=<?= $c['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
+<div class="modern-courses-grid">
+    <?php foreach ($courses as $c): ?>
+        <div class="modern-course-card">
+            <div class="modern-card-img">
+                <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
+            </div>
+        <div class="modern-card-body">
+            <div class="modern-card-title">
+                <div class="modern-card-title">
+                    <h6><?= htmlspecialchars($c['title']) ?></h6>
+                </div>
+            </div>
+        <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>
+            <div class="modern-course-info">
+                <?php
+                $startDate = date('M, d, Y', strtotime($c['created_at']));
+                $expiryDate = $c['expires_at']
+                    ? date('M, d, Y', strtotime($c['expires_at']))
+                    : 'No expiry';
+                ?>
+            <p><strong>Start:</strong> <span><?= $startDate ?></span></p>
+            <p><strong>Expires:</strong> <span><?= $expiryDate ?></span></p>
+            </div>
+        <div class="modern-card-actions">
+            <a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>
                 <?php if (is_admin()): ?>
-                    <a href="?act=delete&id=<?= $c['id'] ?>" class="btn btn-danger btn-sm"
+                    <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
                        onclick="return confirm('Delete this course?')">Delete</a>
                 <?php endif; ?>
-            </div>
+        </div>  
         </div>
-    </div>
-</div>
-<?php endforeach; ?>
+        </div>
+    <?php endforeach; ?>
 </div>
 
 <?php endif; ?>

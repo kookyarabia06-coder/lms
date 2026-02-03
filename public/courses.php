@@ -48,13 +48,6 @@ if (!empty($c['expires_at'])) {
 }
 ?>
     <div class="modern-course-card">
-        <!-- Checkbox -->
-        <?php if($isAdmin): ?>
-            <div class="modern-card-checkbox">
-                <input type="checkbox" name="selected_courses[]" value="<?= $c['id'] ?>">
-            </div>
-        <?php endif; ?>
-
         <div class="modern-card-img">
             <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
         </div>

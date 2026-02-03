@@ -9,6 +9,16 @@ if(!defined('BASE_URL')) {
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
     define('BASE_URL', $protocol . $_SERVER['HTTP_HOST'] . '/lms');
 }
+
+// Function to get role icon - WITH DEFAULT VALUE
+function get_role_icon($role = '') {
+    $icons = [
+        'admin' => 'fa-user-shield',
+        'user' => 'fa-user-graduate',
+    ];
+    return $icons[$role] ?? 'fa-user';
+}
+
 ?>
 
 <!doctype html>
@@ -28,6 +38,22 @@ if(!defined('BASE_URL')) {
                 <strong><i class="fa-solid fa-chalkboard-user"></i>Learning Management System</strong>
             </a>
             <ul class="nav flex-column">
+                <li class="nav-item" color>
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/profile.php">
+                        <div class="profile-icon-mini">
+                            <i class="fas <?= get_role_icon($u['role'] ?? '') ?>"></i>
+                        </div>
+                        <div class="profile-details-mini">
+                            <h6 title="<?= htmlspecialchars($u['fname'] ?? '') ?>">
+                                 <?= htmlspecialchars($u['fname'] ?? '') ?>
+                                 <?= htmlspecialchars($u['lname'] ?? '') ?>
+                            </h6>
+                            <small>
+                                <?= htmlspecialchars(ucfirst($u['role'] ?? 'Guest')) ?>
+                            </small>
+                        </div>
+                    </a>
+                </li>
 
                 <li class="nav-item" color>
                     <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">

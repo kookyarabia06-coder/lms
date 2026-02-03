@@ -38,8 +38,9 @@ $news = $pdo->query('SELECT n.*, u.username FROM news n LEFT JOIN users u ON n.c
     <?php if ($act === 'addform'): ?>
       <form method="post" action="?act=add"><input name="title" class="form-control mb-2" placeholder="Title"><textarea name="body" class="form-control mb-2" placeholder="Body"></textarea><button class="btn btn-primary">Create</button></form>
     <?php else: ?>
-      <table class="table">
-        <thead>
+      <div class="card shadow-sm p-3">
+        <table class="table table-hover">
+          <thead class="table-light">
           <tr>
             <th>Title</th>
             <th>By</th>
@@ -52,6 +53,7 @@ $news = $pdo->query('SELECT n.*, u.username FROM news n LEFT JOIN users u ON n.c
               <td><a href="?act=delete&id=<?= $n['id'] ?>" class="btn btn-sm btn-danger">Delete</a></td>
             </tr><?php endforeach; ?></tbody>
       </table>
+      </div>
     <?php endif; ?>
   </div>
 </body>
