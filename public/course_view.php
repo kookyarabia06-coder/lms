@@ -212,6 +212,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
     },1000);
 
     // PDF / Video Completion
+// kapag natapos ung video mag oon ung button
+const video = document.getElementById('courseVideo');if (video) {
+const button = document.getElementById('completeBtn'); button.disabled = true;}
+
+// sa button to
+video.addEventListener('ended', (event) => {
+   
+    button.disabled = false;
+});
+
+
+
+
+
     let pdfReadSeconds = 0;
     let pdfCompleted = false;
     <?php if($course['file_pdf']): ?>

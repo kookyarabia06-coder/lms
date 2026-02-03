@@ -11,22 +11,61 @@ if (!is_admin()) {
 
 $act = $_GET['act'] ?? '';
 
+// ADD USER
 if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-    $fname = $_POST['fname'] ?? '';
-    $lname = $_POST['lname'] ?? '';
-    $email = $_POST['email'] ?? '';
-    $role = $_POST['role'] ?? 'user';
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $fname    = $_POST['fname'];
+    $lname    = $_POST['lname'];
+    $email    = $_POST['email'];
+    $role     = $_POST['role'];
+
     $hash = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $pdo->prepare('INSERT INTO users (username,password,fname,lname,email,role,created_at) VALUES (?,?,?,?,?,?,NOW())');
+    $stmt = $pdo->prepare(
+        "INSERT INTO users (username,password,fname,lname,email,role,created_at)
+         VALUES (?,?,?,?,?,?,NOW())"
+    );
     $stmt->execute([$username, $hash, $fname, $lname, $email, $role]);
 
     header('Location: users_crud.php');
     exit;
 }
 
+
+
+// UPDATE USER
+if ($act === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id       = (int)$_POST['id'];
+    $username = $_POST['username'];
+    $password = $_POST['password'] ?? '';
+    $fname    = $_POST['fname'];
+    $lname    = $_POST['lname'];
+    $email    = $_POST['email'];
+    $role     = $_POST['role'];
+
+    if (!empty($password)) {
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $sql = "UPDATE users
+                SET username=?, fname=?, lname=?, email=?, role=?, password=?
+                WHERE id=?";
+        $params = [$username, $fname, $lname, $email, $role, $hash, $id];
+    } else {
+        $sql = "UPDATE users
+                SET username=?, fname=?, lname=?, email=?, role=?
+                WHERE id=?";
+        $params = [$username, $fname, $lname, $email, $role, $id];
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    header('Location: users_crud.php');
+    exit;
+}
+
+
+// DELETE USER
 if ($act === 'delete' && isset($_GET['id'])) {
     $id = (int)$_GET['id'];
     $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
@@ -34,9 +73,23 @@ if ($act === 'delete' && isset($_GET['id'])) {
     exit;
 }
 
+// FETCH USER FOR EDIT
+if ($act === 'edit' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $id = (int)$_GET['id'];
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id=?");
+    $stmt->execute([$id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        exit('User not found');
+    }
+}
+
+
 // Fetch all users
-$users = $pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll();
+$users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!doctype html>
 <html lang="en">
 
@@ -86,6 +139,41 @@ $users = $pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll()
                 </form>
             </div>
         <?php endif; ?>
+<!-- edit user -->
+       <?php if ($act === 'edit' && isset($user)): ?>
+        <div class="card p-3 mb-4">
+            <h5>Edit User</h5>
+            <form method="post" action="?act=edit">
+                <input type="hidden" name="id" value="<?= $user['id'] ?>">
+
+                <input class="form-control mb-2" name="username"
+                       value="<?= htmlspecialchars($user['username']) ?>" required>
+
+                <input class="form-control mb-2" type="password" name="password"
+                       id="passwordField" placeholder="New Password" disabled>
+
+                <input class="form-control mb-2" name="fname"
+                       value="<?= htmlspecialchars($user['fname']) ?>">
+
+                <input class="form-control mb-2" name="lname"
+                       value="<?= htmlspecialchars($user['lname']) ?>">
+
+                <input class="form-control mb-2" type="email" name="email"
+                       value="<?= htmlspecialchars($user['email']) ?>">
+
+                <select name="role" class="form-control mb-3">
+                    <option value="user" <?= $user['role'] === 'user' ? 'selected' : '' ?>>Student</option>
+                    <option value="proponent" <?= $user['role'] === 'proponent' ? 'selected' : '' ?>>Proponent</option>
+                    <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+                </select>
+
+                <button class="btn btn-primary">Update</button>
+                <button type="button" class="btn btn-warning" onclick="enablePassword()">Change Password</button>
+                <a href="users_crud.php" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    <?php endif; ?>
+
 
         <!-- Users Table -->
         <div class="card shadow-sm p-3">
@@ -111,6 +199,11 @@ $users = $pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll()
                             <td><?= htmlspecialchars(ucfirst($u['role'])) ?></td>
                             <td><?= date('Y-m-d H:i', strtotime($u['created_at'])) ?></td>
                             <td class="table-actions">
+                                <?php if($act !== 'edit'): ?>
+            <p><a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm">Edit User</a></p>
+        <?php endif; ?>
+                            
+                            
                                 <a href="?act=delete&id=<?= $u['id'] ?>" onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" class="btn btn-sm btn-danger">Delete</a>
                             </td>
                         </tr>
@@ -127,4 +220,16 @@ $users = $pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll()
 </div>
 
 </body>
+
+
+<script>
+function enablePassword() {
+     document.getElementById('passwordField').disabled = false;
+     }
+
+
+
+
+
+</script>
 </html>

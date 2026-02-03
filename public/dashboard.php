@@ -74,17 +74,17 @@ try {
 
         <!-- Stats Cards -->
         <div class="stats-grid">
-            <div class="stat-card stat-card-ongoing">
+            <div class="stat-card stat-card-ongoing" onclick="window.location.href='<?= BASE_URL ?>/public/my_courses.php'">
                 <div class="stat-number"><?= $counter['ongoing'] ?></div>
                 <div class="stat-label">Ongoing Courses</div>
             </div>
             
-            <div class="stat-card stat-card-completed">
+            <div class="stat-card stat-card-completed" onclick="window.location.href='<?= BASE_URL ?>/public/my_courses.php'">
                 <div class="stat-number"><?= $counter['completed'] ?></div>
                 <div class="stat-label">Completed Courses</div>
             </div>
             
-            <div class="stat-card stat-card-notenrolled">
+            <div class="stat-card stat-card-notenrolled" onclick="window.location.href='<?= BASE_URL ?>/public/courses.php'">
                 <div class="stat-number"><?= $counter['not_enrolled'] ?></div>
                 <div class="stat-label">Available Courses</div>
             </div>

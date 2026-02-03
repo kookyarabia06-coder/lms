@@ -1,5 +1,28 @@
 <?php
+
 require_once __DIR__ . '/../inc/config.php';
+
+
+$stmt = $pdo->prepare("
+    SELECT c.id, c.title, c.description, c.thumbnail, c.file_pdf, c.file_video,
+           e.status AS enroll_status, e.progress
+    FROM courses c
+    LEFT JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
+    WHERE c.is_active = 1
+    ORDER BY c.id DESC
+");
+
+$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate counters
+$counter = ['total_courses' => 0, 'not_enrolled' => 0];
+$stmt = $pdo->query("SELECT COUNT(*) AS total FROM courses WHERE is_active = 1");
+$counter['total_courses'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+$avail = ['total_users' => 0];
+$stmt = $pdo->query("SELECT COUNT(*) AS total FROM users");
+$avail['total_users'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+//added tweak for welcome page
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,11 +72,11 @@ require_once __DIR__ . '/../inc/config.php';
         <!-- Stats Section -->
         <div class="welcome-stats">
             <div class="stat-item">
-                <div class="stat-number">500+</div>
-                <div class="stat-label">Courses Available</div>
+                <div class="stat-number"><?= $counter['total_courses'] ?></div>
+                <div class="stat-label">Total Courses</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">10K+</div>
+                <div class="stat-number"><?= $avail['total_users'] ?></div>
                 <div class="stat-label">Active Learners</div>
             </div>
             <div class="stat-item">
