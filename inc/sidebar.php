@@ -36,34 +36,42 @@ if(!defined('BASE_URL')) {
                 </li>
 
                 <!-- Courses parent menu -->
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
+<li class="nav-item">
+    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
+        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
+    </a>
+    <div class="collapse" id="coursesSubMenu">
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <?php if($u && is_admin()): ?>
+                    <!-- Admin users go to courses_crud.php -->
+                    <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
+                        <i class="fa fa-list"></i> All Courses
                     </a>
-                    <div class="collapse" id="coursesSubMenu">
-                        <ul class="nav flex-column ms-3">
-                            <li class="nav-item">
-                                <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
-                                    <i class="fa fa-list"></i> All Courses
-                                </a>
-                            </li>
-                            <?php if($u && is_student()): ?>
-                            <li class="nav-item">
-                                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
-                                    <i class="fa fa-graduation-cap"></i> My Courses
-                                </a>
-                            </li>
-                            <?php endif; ?>
-                            <?php if($u && (is_proponent() || is_admin())): ?>
-                            <li class="nav-item">
-                                <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php?act=addform">
-                                    <i class="fa fa-plus"></i> Add Course
-                                </a>
-                            </li>
-                            <?php endif; ?>
-                        </ul>
-                    </div>
-                </li>
+                <?php else: ?>
+                    <!-- Non-admin users go to courses.php -->
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
+                        <i class="fa fa-list"></i> All Courses
+                    </a>
+                <?php endif; ?>
+            </li>
+            <?php if($u && is_student()): ?>
+            <li class="nav-item">
+                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
+                    <i class="fa fa-graduation-cap"></i> My Courses
+                </a>
+            </li>
+            <?php endif; ?>
+            <?php if($u && (is_proponent() || is_admin())): ?>
+            <li class="nav-item">
+                <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php?act=addform">
+                    <i class="fa fa-plus"></i> Add Course
+                </a>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </div>
+</li>
 
                 <?php if($u && is_admin()): ?>
                     <li class="nav-item">

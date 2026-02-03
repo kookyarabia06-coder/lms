@@ -147,12 +147,7 @@ $courses = $pdo->query("
 <meta charset="utf-8">
 <title>Courses CRUD</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-body { background: #f8f9fa; }
-.main { padding: 30px; }
-.card img { height: 180px; object-fit: cover; }
-.card-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-</style>
+<link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
 </head>
 <body>
 
