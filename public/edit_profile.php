@@ -65,19 +65,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="<?= BASE_URL ?>/assets/css/editprofile.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
 </head>
-<body class="bg-light">
+<body>
     <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
     
-    <div class="container py-5">
-        <div class="profile-title">
+    <div class="profile-wrapper">
+        <div class="profile-header">
             <h1>Edit Profile</h1>
             <p>Update your personal information below</p>
         </div>
         
-        <form method="POST" class="mt-4">
+        <form method="POST" class="profile-card">
             <div class="mb-3">
                 <label for="fname" class="form-label">First Name</label>
                 <input type="text" name="fname" id="fname" class="form-control" required

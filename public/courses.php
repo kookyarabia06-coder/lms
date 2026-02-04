@@ -19,7 +19,7 @@ $stmt = $pdo->prepare("
     WHERE c.is_active = 1
     ORDER BY c.id DESC
 ");
-// $stmt->execute([$userId]);
+$stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>

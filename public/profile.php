@@ -19,13 +19,25 @@ if ($userData) {
 
 $createdAt = $userData['created_at'] ?? null;
 
-// Get user statistics (you should implement this based on your database)
-// For now, using placeholders
-$userStats = [
-    'total_courses' => 0,
-    'completed' => 0,
-    'ongoing' => 0
-];
+// Fetch all courses with enrollment info for current user
+$stmt = $pdo->prepare("
+    SELECT c.id, c.title, c.description, c.thumbnail, c.file_pdf, c.file_video,
+           e.status AS enroll_status, e.progress
+    FROM courses c
+    LEFT JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
+    WHERE c.is_active = 1
+    ORDER BY c.id DESC
+");
+//  $stmt->execute([$userId]);
+ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate counters
+$counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
+foreach ($courses as $c) {
+    if (!$c['enroll_status']) $counter['not_enrolled']++;
+    elseif ($c['enroll_status'] === 'ongoing') $counter['ongoing']++;
+    elseif ($c['enroll_status'] === 'completed') $counter['completed']++;
+}
 
 // Function to get role display name
 function get_role_display_name($role) {
@@ -116,18 +128,19 @@ function get_role_display_name($role) {
         <!-- Stats Grid -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-number"><?= $userStats['total_courses'] ?? 0 ?></div>
-                <div class="stat-label">Total Courses</div>
+                <div class="stat-number"><?= $counter['ongoing'] ?></div>
+                <div class="stat-label">Ongoing Courses</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number"><?= $userStats['completed'] ?? 0 ?></div>
+                <div class="stat-number"><?= $counter['completed'] ?></div>
                 <div class="stat-label">Completed</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number"><?= $userStats['ongoing'] ?? 0 ?></div>
-                <div class="stat-label">Ongoing</div>
+                <div class="stat-number"><?= $counter['not_enrolled'] ?></div>
+                <div class="stat-label">Available Courses</div>
             </div>
         </div>
+
 
         <!-- Actions -->
         <div class="text-center">

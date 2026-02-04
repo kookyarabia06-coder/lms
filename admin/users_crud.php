@@ -97,6 +97,8 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
     <meta charset="utf-8">
     <title>All Users - LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <style>
         body { background-color: #f9f9f9; }
         .card { margin-bottom: 20px; }
@@ -105,9 +107,11 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
 </head>
 
 <body>
+
     <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
+
 <div class="main">
     <div class="container py-4">
         <h3>All Users</h3>

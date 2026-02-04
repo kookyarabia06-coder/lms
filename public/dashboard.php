@@ -74,17 +74,17 @@ try {
 
         <!-- Stats Cards -->
         <div class="stats-grid">
-            <div class="stat-card stat-card-ongoing" onclick="window.location.href='<?= BASE_URL ?>/public/my_courses.php'">
+            <div class="stat-card stat-card-ongoing">
                 <div class="stat-number"><?= $counter['ongoing'] ?></div>
                 <div class="stat-label">Ongoing Courses</div>
             </div>
             
-            <div class="stat-card stat-card-completed" onclick="window.location.href='<?= BASE_URL ?>/public/my_courses.php'">
+            <div class="stat-card stat-card-completed">
                 <div class="stat-number"><?= $counter['completed'] ?></div>
                 <div class="stat-label">Completed Courses</div>
             </div>
             
-            <div class="stat-card stat-card-notenrolled" onclick="window.location.href='<?= BASE_URL ?>/public/courses.php'">
+            <div class="stat-card stat-card-notenrolled">
                 <div class="stat-number"><?= $counter['not_enrolled'] ?></div>
                 <div class="stat-label">Available Courses</div>
             </div>
@@ -172,9 +172,15 @@ try {
                     </div>
                     
                     <div class="text-center mt-4">
+                        <?php if($u && is_admin()): ?>
+                            <a href="<?= BASE_URL ?>/admin/courses_crud.php" class="view-all-btn">
+                                <i class="fas fa-eye"></i> View All Courses
+                            </a>
+                        <?php else: ?>
                         <a href="<?= BASE_URL ?>/public/courses.php" class="view-all-btn">
                             <i class="fas fa-eye"></i> View All Courses
                         </a>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <div class="empty-state">
