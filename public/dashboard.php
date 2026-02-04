@@ -14,8 +14,8 @@ $stmt = $pdo->prepare("
     WHERE c.is_active = 1
     ORDER BY c.id DESC
 ");
-$stmt->execute([$userId]);
-$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+ $stmt->execute([$userId]);
+ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate counters
 $counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
