@@ -238,7 +238,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
                     e.preventDefault();
                     return false;
                 }
-            }
+            }g
         });
     </script>
 </body>

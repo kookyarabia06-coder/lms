@@ -9,7 +9,7 @@ use PHPMailer\PHPMailer\Exception;
 
 $mail = new PHPMailer(true);
 
-//otp generator
+//otp generator   jasbdkjabskjdbfkajsbd
     $otp_code= str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $expiry = date("Y-m-d H:i:s", strtotime("+10 minutes"));
 
