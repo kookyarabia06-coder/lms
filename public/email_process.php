@@ -19,7 +19,7 @@ try {
 
     //Recipients
     $mail->setFrom('learningmanagement576@gmail.com', 'Mailer');
-    $mail->addAddress('faith2miyuki@gmail.com', 'Joe User');     //Add a recipient
+    $mail->addAddress($mail, 'Joe User');     //Add a recipient
     $mail->addAddress('ellen@example.com');               //Name is optional
     $mail->addReplyTo('info@example.com', 'Information');
     $mail->addCC('cc@example.com');

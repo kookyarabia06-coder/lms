@@ -1,5 +1,7 @@
 <?php
+
 require_once __DIR__ . '/../inc/config.php';
+require_once __DIR__ . '/../inc/auth.php';
 
 // Redirect if already logged in 
 if(isset($_SESSION['user'])) {
@@ -63,7 +65,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="username">OTP</label>
                 <div class="input-with-icon">
                     <i class="fas fa-envelope-circle-check"></i>
-                    <input type="text" id="username" name="username" class="form-control" 
+                    <input type="text" id="otp_code" name="username" class="form-control" 
                            placeholder="Enter OTP" required 
                            value="<?= isset($_POST['username']) ? htmlspecialchars($_POST['username']) : '' ?>">
 

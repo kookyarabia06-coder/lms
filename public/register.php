@@ -8,6 +8,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $lname = $_POST['lname'] ?? '';
     $email = $_POST['email'] ?? '';
     $otp_code = $_POST['otp_code'] ?? '';
+    $STATUS = 'pending';
     if(!$username || !$password){ $err='Username and password required'; }
     else {
         // check exists
@@ -16,8 +17,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         if($stmt->fetch()){ $err='Username or email already exists'; }
         else {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare('INSERT INTO users (username,password,fname,otp_code,lname,email,role,created_at) VALUES (?,?,?,?,?,?,"user",NOW())');
-            $stmt->execute([$username,$hash,$fname,$otp_code,$lname,$email]);
+            $stmt = $pdo->prepare('INSERT INTO users (username,password,fname,otp_code,STATUS,lname,email,role,created_at) VALUES (?,?,?,?,?,?,?,?,NOW())');
+            $stmt->execute([$username,$hash,$fname,$otp_code,$STATUS,$lname,$email]);
             $success = 'Registered successfully. You may login.';
         }
         //otp insert

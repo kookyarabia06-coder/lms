@@ -34,8 +34,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             // Sender & Recipients
             $mail->setFrom('learningmanagement576@gmail.com', 'Website Contact Form');
-            $mail->addAddress('faith2miyuki@gmail.com', 'Website Admin');
-            $mail->addReplyTo($email, $name);
+            $mail->addAddress('$email, $fname');
             
             // Content
             $mail->isHTML(true);
