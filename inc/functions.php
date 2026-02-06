@@ -24,12 +24,12 @@ function safe_upload($file_input_name, $target_dir, $allowed_ext = ['pdf','mp4',
 ------------------------*/
 function count_active_enrollments($user_id) {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE user_id = ? AND status = 'ongoing' AND (expires_at IS NULL OR expires_at >= CURDATE())");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE user_id = ? AND status = 'ongoing' AND (expired_at IS NULL OR expired_at >= CURDATE())");
     $stmt->execute([$user_id]);
     return (int)$stmt->fetchColumn();
 }
 
-function enroll_course($user_id, $course_id, $expires_at = null) {
+function enroll_course($user_id, $course_id, $expired_at = null) {
     global $pdo;
     // check duplicate
     $stmt = $pdo->prepare('SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?');
@@ -41,8 +41,8 @@ function enroll_course($user_id, $course_id, $expires_at = null) {
         return ['ok'=>false,'msg'=>'You must finish or let one course expire before enrolling in a new course.'];
     }
 
-    $stmt = $pdo->prepare('INSERT INTO enrollments (user_id, course_id, enrolled_at, expires_at, progress, status, total_time_seconds) VALUES (?, ?, NOW(), ?, 0, "ongoing", 0)');
-    $stmt->execute([$user_id, $course_id, $expires_at]);
+    $stmt = $pdo->prepare('INSERT INTO enrollments (user_id, course_id, enrolled_at, expired_at, progress, status, total_time_seconds) VALUES (?, ?, NOW(), ?, 0, "ongoing", 0)');
+    $stmt->execute([$user_id, $course_id, $expired_at]);
     return ['ok'=>true,'id'=>$pdo->lastInsertId()];
 }
 

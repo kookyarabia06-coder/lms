@@ -232,7 +232,7 @@ video.addEventListener('ended', (event) => {
     setInterval(function () {
         if (pdfCompleted) return;
         pdfReadSeconds++;
-        if (pdfReadSeconds >= 60) { // 60 seconds reading
+        if (pdfReadSeconds >= 5) { // 60 seconds reading
             pdfCompleted = true;
             completeCourse();
         }
