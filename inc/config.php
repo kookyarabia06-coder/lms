@@ -44,6 +44,18 @@ require_once __DIR__ . '/functions.php';
 
 // Run schema check
 //checkAndUpdateSchema($pdo);
+
+
+// mail mail and pass are for debugg
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USERNAME', 'learningmanagement576@gmail.com');
+define('SMTP_PASSWORD', 'ahkv dpsl urcn lbmr');
+define('SMTP_FROM_EMAIL', 'learningmanagement576@gmail.com');
+define('SMTP_FROM_NAME', 'LMS');
+
+
+
 ?>
 
 

@@ -1,36 +1,36 @@
 <?php
+// In your login.php authentication logic
 require_once __DIR__ . '/../inc/config.php';
+session_start();
 
-// Redirect if already logged in 
-if(isset($_SESSION['user'])) {
-    header('Location: ' . BASE_URL . '/public/dashboard.php');
-    exit;
-}
-
-
-
-$err = '';
-if($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ?');
-    $stmt->execute([$username]);
-    $u = $stmt->fetch();
-
-    if($u && password_verify($password, $u['password'])) {
-        $_SESSION['user'] = [
-            'id' => $u['id'],
-            'username' => $u['username'],
-            'fname' => $u['fname'],
-            'lname' => $u['lname'],
-            'email' => $u['email'],
-            'role' => $u['role']
-        ];
-        header('Location: ' . BASE_URL . '/public/dashboard.php');
-        exit;
+    
+    // Find user
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? OR email = ?');
+    $stmt->execute([$username, $username]);
+    $user = $stmt->fetch();
+    
+    if ($user && password_verify($password, $user['password'])) {
+        // Check if user is confirmed
+        if ($user['status'] !== 'confirmed') {
+            $error = 'Please confirm your email before logging in.';
+        } else {
+            // Login successful
+            $_SESSION['user'] = [
+                'id' => $user['id'],
+                'username' => $user['username'],
+                'email' => $user['email'],
+                'role' => $user['role'],
+                'status' => $user['status']
+            ];
+            
+            header('Location: dashboard.php');
+            exit();
+        }
     } else {
-        $err = 'Invalid credentials';
+        $error = 'Invalid username or password';
     }
 }
 

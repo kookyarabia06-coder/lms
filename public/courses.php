@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
+require
 require_login();
 
 $user = $_SESSION['user'];
@@ -35,6 +36,7 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -66,22 +68,59 @@ if (!empty($c['expires_at'])) {
             <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
         </div>
 
-<div class="modern-card-body">
-    <div class="modern-card-title">
-        <h6><?= htmlspecialchars($c['title']) ?></h6>
-        <?php if ($c['display_status'] === 'ongoing'): ?>
-            <span class="modern-badge badge-ongoing">Ongoing</span>
-        <?php elseif ($c['display_status'] === 'completed'): ?>
-            <span class="modern-badge badge-completed">Completed</span>
+<?php
+// config.php or at the top of your current file
 
+function getCourseStatus($expiresAt, $isActive = true) {
+    // Check if course is inactive
+    if (!$isActive) {
+        return 'Deactivated';
+    }
+    
+    // Check if course has no expiration
+    if ($expiresAt === null || $expiresAt === '') {
+        return 'Active (No Expiry)';
+    }
+    
+    $currentDate = new DateTime();
+    $expiryDate = new DateTime($expiresAt);
+    
+    // Check if expired
+    if ($expiryDate < $currentDate) {
+        return 'Expired';
+    }
+    
+    // Check if expiring soon (within 7 days)
+    $interval = $currentDate->diff($expiryDate);
+    $daysRemaining = (int)$interval->format('%r%a');
+    
+    if ($daysRemaining === 0) {
+        return 'Expires Today';
+    } elseif ($daysRemaining <= 7) {
+        return 'Expiring Soon';
+    }
+    
+    return 'Active';
+}
 
-        <?php elseif ($c['display_status'] === 'expired'): ?>
-            <span class="modern-badge badge-expired">Expired</span>
-            
-         <?php elseif ($c['display_status'] === 'notenrolled'): ?>
-            <span class="modern-badge badge-notenrolled">Not Enrolledsssss</span>
-        <?php endif; ?>
-    </div>
+// You might also want this helper function for badges:
+function getCourseStatusBadge($expiresAt, $isActive = true) {
+    $status = getCourseStatus($expiresAt, $isActive);
+    
+    $badgeClasses = [
+        'Active' => 'badge-success',
+        'Active (No Expiry)' => 'badge-info',
+        'Expired' => 'badge-danger',
+        'Expiring Soon' => 'badge-warning',
+        'Expires Today' => 'badge-warning',
+        'Deactivated' => 'badge-secondary'
+    ];
+    
+    $badgeClass = $badgeClasses[$status] ?? 'badge-light';
+    
+    return '<span class="modern-badge ' . $badgeClass . '">' . $status . '</span>';
+}
+?>
             
             <p><?= htmlspecialchars(substr($c['description'], 0, 120)) ?>...</p>
             
