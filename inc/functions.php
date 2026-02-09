@@ -84,4 +84,61 @@ if (!function_exists('destroy_session')) {
     }
 }
 
-?>
+// inc/functions.php
+
+function getCourseStatus($expiresAt, $isActive = true) {
+    // Check if course is inactive
+    if (!$isActive) {
+        return 'Deactivated';
+    }
+    
+    // Check if course has no expiration
+    if ($expiresAt === null || $expiresAt === '') {
+        return 'Active (No Expiry)';
+    }
+    
+    $currentDate = new DateTime();
+    $expiryDate = new DateTime($expiresAt);
+    
+    // Check if expired
+    if ($expiryDate < $currentDate) {
+        return 'Expired';
+    }
+    
+    // Check if expiring soon (within 7 days)
+    $interval = $currentDate->diff($expiryDate);
+    $daysRemaining = (int)$interval->format('%r%a');
+    
+    if ($daysRemaining === 0) {
+        return 'Expires Today';
+    } elseif ($daysRemaining <= 7) {
+        return 'Expiring Soon';
+    }
+    
+    return 'Active';
+}
+
+function getCourseStatusBadge($expiresAt, $isActive = true) {
+    $status = getCourseStatus($expiresAt, $isActive);
+    
+    $badgeClasses = [
+        'Active' => 'badge-success',
+        'Active (No Expiry)' => 'badge-info',
+        'Expired' => 'badge-danger',
+        'Expiring Soon' => 'badge-warning',
+        'Expires Today' => 'badge-warning',
+        'Deactivated' => 'badge-secondary'
+    ];
+    
+    $badgeClass = $badgeClasses[$status] ?? 'badge-light';
+    
+    return '<span class="badge ' . $badgeClass . '">' . $status . '</span>';
+}
+
+function isCourseExpired($expiresAt) {
+    if (!$expiresAt) return false;
+    return (new DateTime($expiresAt)) < new DateTime();
+}
+
+
+?> 
