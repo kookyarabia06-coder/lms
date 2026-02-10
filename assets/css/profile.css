@@ -197,3 +197,10 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
         }
+
+        .table-actions {
+    white-space: nowrap;
+        }
+        .table-actions .btn {
+    margin-bottom: 2px; /* Small vertical spacing if they do wrap */
+        }

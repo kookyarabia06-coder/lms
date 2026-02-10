@@ -23,10 +23,10 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <meta charset="utf-8">
 <title>My Courses - LMS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
-<link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-<link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 .main { margin-left: 240px; padding: 20px; }
 .card-img-top { height: 150px; object-fit: cover; }
@@ -51,9 +51,7 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 ?>
                 <div class="modern-course-card">
                     <div class="modern-card-img">
-                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" 
-                             alt="<?= htmlspecialchars($c['title']) ?>"
-                             onerror="this.src='<?= BASE_URL ?>/uploads/images/placeholder.png'">
+                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
                     </div>
                     
                     <div class="modern-card-body">

@@ -99,7 +99,7 @@ function get_role_icon($role = '') {
     </div>
 </li>
 
-                <?php if($u && is_admin()): ?>
+                <?php if($u && (is_proponent() || is_admin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
                             <i class="fa fa-users"></i> User Management

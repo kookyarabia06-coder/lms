@@ -85,6 +85,30 @@ if ($act === 'edit' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] !== 'POS
     }
 }
 
+// CONFIRM USER STATUS
+if (isset($_GET['act']) && $_GET['act'] === 'status' && isset($_GET['id'])) {
+    $id = (int)$_GET['id'];
+
+
+    $stmt = $pdo->prepare("SELECT status FROM users WHERE id = ?");
+    $stmt->execute([$id]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($current) {
+        // Only update if not already confirmed
+        if ($current['status'] !== 'confirmed') {
+            $update = $pdo->prepare("UPDATE users SET status = ? WHERE id = ?");
+            $update->execute(['confirmed', $id]);
+        }
+      
+        header('Location: users_crud.php');
+        exit;
+    } else {
+        exit('User not found');
+    }
+}
+
+
 
 // Fetch all users
 $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
@@ -98,6 +122,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
     <title>All Users - LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <style>
         body { background-color: #f9f9f9; }
@@ -191,6 +216,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                         <th>Role</th>
                         <th>Created At</th>
                         <th>Actions</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -204,10 +230,17 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                             <td><?= date('Y-m-d H:i', strtotime($u['created_at'])) ?></td>
                             <td class="table-actions">
                                 <?php if($act !== 'edit'): ?>
-                                <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm">Edit</a>
+                                    <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm">Edit</a>
                                 <?php endif; ?>
-                                <a href="?act=delete&id=<?= $u['id'] ?>" onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" class="btn btn-sm btn-danger">Delete</a>
+                                    <a href="?act=delete&id=<?= $u['id'] ?>" 
+                                        onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" 
+                                        class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="?act=status&id=<?= $u['id'] ?>" 
+                                        onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
+                                        class="btn btn-primary btn-sm">Confirm</a>
                             </td>
+<!-- status cell -->
+                            <td><?= htmlspecialchars(ucfirst($u['status'] ?? 'pending')) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if(empty($users)): ?>
@@ -235,3 +268,4 @@ function enablePassword() {
 
 </script>
 </html>
+

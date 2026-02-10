@@ -1,5 +1,5 @@
 ALTER TABLE users 
-ADD COLUMN status ENUM('pending', 'confirmed') DEFAULT 'confirmed';
+ADD COLUMN status ENUM('pending', 'confirmed') DEFAULT 'confirmed';   ;;// status confirm, pending
 CREATE TABLE otp_verifications (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT,
@@ -9,3 +9,5 @@ CREATE TABLE otp_verifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL 10 MINUTE)
 );
+
+

@@ -1,7 +1,7 @@
 <?php
 // In your login.php authentication logic
 require_once __DIR__ . '/../inc/config.php';
-session_start();
+//session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($user && password_verify($password, $user['password'])) {
         // Check if user is confirmed
-        if ($user['status'] !== 'confirmed') {
+     if (isset($user['status']) && $user['status'] !== 'confirmed') {
             $error = 'Please confirm your email before logging in.';
         } else {
             // Login successful

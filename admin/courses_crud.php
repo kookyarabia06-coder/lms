@@ -53,10 +53,10 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $pdo->prepare("
         INSERT INTO courses (
-            title, description, thumbnail, file_pdf, file_video,
+            title, description, summary, thumbnail, file_pdf, file_video,
             proponent_id, created_at, expires_at, is_active
         ) VALUES (
-            :title, :description, :thumbnail, :pdf, :video,
+            :title, :description, :summary, :thumbnail, :pdf, :video,
             :proponent_id, NOW(), :expires_at, 1
         )
     ");
@@ -64,6 +64,7 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([
         ':title'         => $_POST['title'],
         ':description'   => $_POST['description'],
+        ':summary'       => $_POST['summary'],
         ':thumbnail'     => uploadFile('thumbnail', 'images', ['jpg','jpeg','png','webp']),
         ':pdf'           => uploadFile('file_pdf', 'pdf', ['pdf']),
         ':video'         => uploadFile('file_video', 'video', ['mp4','webm']),
@@ -99,6 +100,7 @@ if ($act === 'edit' && $id) {
             UPDATE courses SET
                 title       = :title,
                 description = :description,
+                summary     = :summary,
                 expires_at  = :expires_at,
                 thumbnail   = :thumbnail,
                 file_pdf    = :pdf,
@@ -109,6 +111,7 @@ if ($act === 'edit' && $id) {
         $stmt->execute([
             ':title'       => $_POST['title'],
             ':description' => $_POST['description'],
+            ':summary'     => $_POST['summary'],
             ':expires_at'  => $expires_at,
             ':thumbnail'   => uploadFile('thumbnail','images',['jpg','jpeg','png','webp']) ?? $course['thumbnail'],
             ':pdf'         => uploadFile('file_pdf','pdf',['pdf']) ?? $course['file_pdf'],
@@ -171,8 +174,13 @@ $courses = $pdo->query("
     </div>
 
     <div class="mb-3">
-        <textarea name="description" class="form-control" rows="4" required
-                  placeholder="Description"><?= $editing ? htmlspecialchars($course['description']) : '' ?></textarea>
+        <input name="description" class="form-control" placeholder="Description" required
+               value="<?= $editing ? htmlspecialchars($course['description']) : '' ?>">
+    </div>
+
+    <div class="mb-3">
+        <textarea name="summary" class="form-control" rows="4" required
+                  placeholder="Course Summary"><?= $editing ? htmlspecialchars($course['summary']) : '' ?></textarea>
     </div>
 
     <div class="row">
