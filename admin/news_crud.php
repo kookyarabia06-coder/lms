@@ -3,7 +3,7 @@ require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 
 require_login();
-if (!is_admin()) {
+if (!is_admin() && !is_proponent()) {
   echo 'Admin only';
   exit;
 }
