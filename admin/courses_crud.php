@@ -4,6 +4,7 @@ require_once __DIR__ . '/../inc/auth.php';
 
 require_login();
 
+// Only admins and proponents can access this page
 if (!is_admin() && !is_proponent()) {
     http_response_code(403);
     exit('Access denied');
@@ -39,6 +40,45 @@ function uploadFile($input, $dir, $allowed = []) {
     move_uploaded_file($_FILES[$input]['tmp_name'], __DIR__ . "/../uploads/$dir/$filename");
 
     return $filename;
+}
+
+/**
+ * Check if current user can edit/delete course
+ * Returns true for admins OR if user owns the course
+ */
+function canModifyCourse($course_id, $pdo) {
+    if (is_admin()) {
+        return true;
+    }
+    
+    $stmt = $pdo->prepare("SELECT proponent_id FROM courses WHERE id = :id");
+    $stmt->execute([':id' => $course_id]);
+    $course = $stmt->fetch();
+    
+    return $course && $course['proponent_id'] == $_SESSION['user']['id'];
+}
+
+/**
+ * Fetch courses with appropriate filtering
+ */
+function fetchCourses($pdo) {
+    if (is_admin()) {
+        // Admin sees all courses
+        $query = "SELECT c.*, u.username 
+                  FROM courses c 
+                  LEFT JOIN users u ON c.proponent_id = u.id
+                  ORDER BY c.created_at DESC";
+        return $pdo->query($query)->fetchAll();
+    } else {
+        // Proponent sees only their own courses
+        $stmt = $pdo->prepare("SELECT c.*, u.username 
+                               FROM courses c 
+                               LEFT JOIN users u ON c.proponent_id = u.id
+                               WHERE c.proponent_id = :proponent_id
+                               ORDER BY c.created_at DESC");
+        $stmt->execute([':proponent_id' => $_SESSION['user']['id']]);
+        return $stmt->fetchAll();
+    }
 }
 
 /* =========================
@@ -88,6 +128,12 @@ if ($act === 'edit' && $id) {
     if (!$course) {
         exit('Course not found');
     }
+    
+    // Check if user can edit this course
+    if (!canModifyCourse($id, $pdo)) {
+        http_response_code(403);
+        exit('Access denied: You can only edit your own courses');
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -127,7 +173,13 @@ if ($act === 'edit' && $id) {
 /* =========================
    DELETE COURSE
 ========================= */
-if ($act === 'delete' && $id && is_admin()) {
+if ($act === 'delete' && $id) {
+    // Check if user can delete this course
+    if (!canModifyCourse($id, $pdo)) {
+        http_response_code(403);
+        exit('Access denied: You can only delete your own courses');
+    }
+    
     $stmt = $pdo->prepare("DELETE FROM courses WHERE id = :id");
     $stmt->execute([':id' => $id]);
     header('Location: courses_crud.php');
@@ -137,12 +189,7 @@ if ($act === 'delete' && $id && is_admin()) {
 /* =========================
    FETCH COURSES
 ========================= */
-$courses = $pdo->query("
-    SELECT c.*, u.username 
-    FROM courses c 
-    LEFT JOIN users u ON c.proponent_id = u.id
-    ORDER BY c.created_at DESC
-")->fetchAll();
+$courses = fetchCourses($pdo);
 ?>
 <!DOCTYPE html>
 <html>
@@ -161,6 +208,12 @@ $courses = $pdo->query("
 
 <div class="modern-courses-wrapper">
 <h3 class="mb-4">Courses Management</h3>
+
+<?php if (is_proponent()): ?>
+<div class="alert alert-info mb-3">
+    <i class="fas fa-info-circle"></i> You can only view and edit courses that you have created.
+</div>
+<?php endif; ?>
 
 <?php if ($act === 'addform' || $act === 'edit'): ?>
 <?php $editing = ($act === 'edit'); ?>
@@ -259,11 +312,14 @@ $courses = $pdo->query("
             </div>
         <div class="modern-card-actions">
             <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">View</a>
-            <a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>
-                <?php if (is_admin()): ?>
-                    <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
-                       onclick="return confirm('Delete this course?')">Delete</a>
-                <?php endif; ?>
+            
+            <?php if (canModifyCourse($c['id'], $pdo)): ?>
+                <a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>
+                <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
+                   onclick="return confirm('Delete this course?')">Delete</a>
+            <?php else: ?>
+                <span class="badge bg-secondary">Read Only</span>
+            <?php endif; ?>
         </div>  
         </div>
         </div>

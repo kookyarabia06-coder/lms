@@ -4,7 +4,7 @@ require_once __DIR__ . '/../inc/auth.php';
 require_login();
 
 // Only admin can access this page
-if (!is_admin() && !is_proponent()) {
+if (!is_admin()) {
     echo 'Admin only';
     exit;
 }
@@ -231,10 +231,12 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                             <td><?= htmlspecialchars(ucfirst($u['role'])) ?></td>
                             <td><?= date('Y-m-d H:i', strtotime($u['created_at'])) ?></td>
                             <td class="table-actions">
-                                <?php if ($u['role'] == '!is_admin'): ?>
-                                <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm">Edit</a>
+
+                            <!-- for admin -->
+                                
+                                <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm" id="editBtn" disable>Edit</a>
                                    
-                                <?php endif; ?>fhgjgvhj
+                              
                                     <a href="?act=delete&id=<?= $u['id'] ?>" 
                                         onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" 
                                         class="btn btn-danger btn-sm">Delete</a>
@@ -266,7 +268,9 @@ function enablePassword() {
      }
 
 
-
+function edit_admin() {
+     document.getElementById('editBtn').disabled = false;
+     }
 
 
 </script>

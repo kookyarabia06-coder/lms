@@ -69,7 +69,7 @@ function get_role_icon($role = '') {
     <div class="collapse" id="coursesSubMenu">
         <ul class="nav flex-column ms-3">
             <li class="nav-item">
-                <?php if($u && is_admin()): ?>
+                <?php if($u && (is_proponent() || is_admin())): ?>
                     <!-- Admin users go to courses_crud.php -->
                     <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
                         <i class="fa fa-list"></i> All Courses
@@ -99,7 +99,7 @@ function get_role_icon($role = '') {
     </div>
 </li>
 
-                <?php if($u && (is_proponent() || is_admin())): ?>
+                <?php if($u && ( is_admin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
                             <i class="fa fa-users"></i> User Management
