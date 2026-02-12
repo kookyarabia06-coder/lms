@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../inc/config.php';
-session_start();
+// session_start();
 
 // Check if PHPMailer exists
 $mailer_path = __DIR__ . '/../inc/mailer.php';
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hash = password_hash($userData['password'], PASSWORD_DEFAULT);
             
             // insert sa database with confirm status =3
-            $stmt = $pdo->prepare('INSERT INTO users (username, password, fname, lname, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, "user", "confirmed", NOW())');
+            $stmt = $pdo->prepare('INSERT INTO users (username, password, fname, lname, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, "user", "pending", NOW())');
             
             if ($stmt->execute([$userData['username'], $hash, $userData['fname'], $userData['lname'], $userData['email']])) {
                 // Clear session data
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
             
             if (!$emailResult['success']) {
-                $emailResult = sendOTPEmailLocal($userData['email'], $fullName, $newOTP);
+                $emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
             }
             
             $success = $emailResult['success'] ? "New OTP sent to your email" : "Failed to resend OTP";
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // If PHPMailer fails use local logging hehehhe
                 if (!$emailResult['success']) {
                     error_log("PHPMailer failed: " . $emailResult['message']);
-                    $emailResult = sendOTPEmailLocal($email, $fullName, $otp);
+                    $emailResult = sendOTPEmail($email, $fullName, $otp);
                     
                     if ($emailResult['success']) {
                         $success = "OTP generated: <strong>$otp</strong> (Check server logs)";

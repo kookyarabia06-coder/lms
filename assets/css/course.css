@@ -508,6 +508,7 @@
 
 .modern-btn-secondary {
     background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+    font-size: 5px;
     color: white;
 }
 

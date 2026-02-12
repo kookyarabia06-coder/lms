@@ -129,30 +129,25 @@
 }
 
 /* ADMIN - Blue */
-.user-role.admin {
+    .user-role.admin {
     background: linear-gradient(135deg, #2563eb, #3b82f6);
 }
 
 /* USER (Student) - Green */
-.user-role.user {
+    .user-role.user {
     background: linear-gradient(135deg, #10b981, #059669);
-}
+    }
 
 /* PROPONENT - Purple */
-.user-role.proponent {
-    background: linear-gradient(135deg, #7c3aed, #a855f7);
-}
+        .user-role.proponent {
+          background: linear-gradient(135deg, #7c3aed, #a855f7);
+        }
 
 
 
         .user-role.student {
             background: linear-gradient(135deg, #ffc107, #ffd54f);
             color: #1a202c;
-        }
-
-        .user-role.proponent {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
         }
 
         .user-email {

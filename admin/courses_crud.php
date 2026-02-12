@@ -1,4 +1,6 @@
+
 <?php
+
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 
@@ -58,28 +60,6 @@ function canModifyCourse($course_id, $pdo) {
     return $course && $course['proponent_id'] == $_SESSION['user']['id'];
 }
 
-/**
- * Fetch courses with appropriate filtering
- */
-function fetchCourses($pdo) {
-    if (is_admin()) {
-        // Admin sees all courses
-        $query = "SELECT c.*, u.username 
-                  FROM courses c 
-                  LEFT JOIN users u ON c.proponent_id = u.id
-                  ORDER BY c.created_at DESC";
-        return $pdo->query($query)->fetchAll();
-    } else {
-        // Proponent sees only their own courses
-        $stmt = $pdo->prepare("SELECT c.*, u.username 
-                               FROM courses c 
-                               LEFT JOIN users u ON c.proponent_id = u.id
-                               WHERE c.proponent_id = :proponent_id
-                               ORDER BY c.created_at DESC");
-        $stmt->execute([':proponent_id' => $_SESSION['user']['id']]);
-        return $stmt->fetchAll();
-    }
-}
 
 /* =========================
    ADD COURSE
@@ -189,8 +169,12 @@ if ($act === 'delete' && $id) {
 /* =========================
    FETCH COURSES
 ========================= */
-$courses = fetchCourses($pdo);
+
+$stmt = $pdo->query("SELECT c.*, u.username FROM courses c LEFT JOIN users u ON c.proponent_id = u.id ORDER BY c.created_at DESC");
+$courses = $stmt->fetchAll();
 ?>
+
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -318,12 +302,14 @@ $courses = fetchCourses($pdo);
                 <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
                    onclick="return confirm('Delete this course?')">Delete</a>
             <?php else: ?>
-                <span class="badge bg-secondary">Read Only</span>
+                <span class="btn btn-secondary ms-2">Read Only</span>
             <?php endif; ?>
         </div>  
         </div>
         </div>
     <?php endforeach; ?>
+
+    
 </div>
 
 <?php endif; ?>

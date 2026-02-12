@@ -66,7 +66,7 @@ function get_role_display_name($role) {
 <body>
 
 <div class="lms-sidebar-container">
-    <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    <?php include __DIR__ . '/../inc/sidebar.php'; ?>              
 </div>
 
 <div class="profile-wrapper">
@@ -89,7 +89,7 @@ function get_role_display_name($role) {
 
     <div class="profile-card">
         <!-- Avatar -->
-         <div class="profile-avatar <?= $u['role'] ?? 'guest' ?>">
+         <div class="profile-avatar <?= strtolower(trim($u['role'] ?? 'guest')) ?>">
             <?php
             $initials = 'U';
             if(isset($u['fname']) && !empty($u['fname'])) {

@@ -245,7 +245,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                                         class="btn btn-primary btn-sm">Confirm</a>
                             </td>
 <!-- status cell -->
-                            <td><?= htmlspecialchars(ucfirst($u['status'] ?? 'pending')) ?></td>
+                            <td><?= htmlspecialchars(ucfirst($u['status'] ?? 'confirmed')) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if(empty($users)): ?>
@@ -258,6 +258,57 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
         </div>
     </div>
 </div>
+
+
+ <div class="card shadow-sm p-3">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($users as $u): ?>
+                        <tr>
+                            <td><?= $u['id'] ?></td>
+                            <td><?= htmlspecialchars($u['username']) ?></td>
+                            <td><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></td>
+                            <td><?= htmlspecialchars($u['email']) ?></td>
+                            <td><?= htmlspecialchars(ucfirst($u['role'])) ?></td>
+                            <td><?= date('Y-m-d H:i', strtotime($u['created_at'])) ?></td>
+                            <td class="table-actions">
+
+                            <!-- for admin -->
+                                
+                                <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-success btn-sm" id="editBtn" disable>Edit</a>
+                                   
+                              
+                                    <a href="?act=delete&id=<?= $u['id'] ?>" 
+                                        onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" 
+                                        class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="?act=status&id=<?= $u['id'] ?>" 
+                                        onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
+                                        class="btn btn-primary btn-sm">Confirm</a>
+                            </td>
+<!-- status cell -->
+                            <td><?= htmlspecialchars(ucfirst($u['status'] ?? 'pending')) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if(empty($users)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center">No users found</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
 
 </body>
 

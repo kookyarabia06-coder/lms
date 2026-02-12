@@ -43,7 +43,16 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 //     print_r($courses[0]);
 //     echo "</pre>";
 // }
+
+
+$stmt = $pdo->prepare('SELECT u.id, u.fname, u.lname 
+FROM enrollments e
+JOIN users u ON e.user_id = u.id 
+WHERE e.course_id = ?');
+$stmt->execute(['']);
+$enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -149,10 +158,14 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <i class="fas fa-ban"></i> Expired
                                 </a>
                             <?php else: ?>
+
                                 <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>"
                                 class="modern-btn-primary modern-btn-sm">
+
+                                
                                     <?php if ($c['display_status'] === 'notenrolled'): ?>
-                                        <i class="fas fa-sign-in-alt"></i> Enroll Now
+                                        <i class="fas fa-sign-in-alt"  id=" enrollbtn"></i> Enroll Now
+
                                     <?php else: ?>
                                         <i class="fas fa-play-circle"></i> Continue
                                     <?php endif; ?>
@@ -167,6 +180,10 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
+
+
+
+
                             <?php endif; ?>
                         </div>
                     </div>
@@ -180,5 +197,14 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- <div style="position: fixed; bottom: 10px; right: 10px; background: white; padding: 10px; border: 1px solid #ccc; z-index: 9999;">
         <small>Courses found: <?= count($courses) ?></small>
     </div> -->
+
+
+    <script>
+//enroll will only show when not enrolled on any course 
+
+
+
+
+    </script>
 </body>
 </html>

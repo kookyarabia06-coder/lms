@@ -85,6 +85,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
     exit;
 }
 
+
+//list all studen enrolled in course
+$stmt = $pdo->prepare('
+    SELECT u.id, u.fname, u.lname 
+    FROM enrollments e 
+    JOIN users u ON e.user_id = u.id 
+    WHERE e.course_id = ? AND e.status = "completed" 
+');
+$stmt->execute([$courseId]);
+$enrolledStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+//list of users
+$stmt = $pdo->prepare('SELECT id, fname, lname FROM users');
+// $stmt->execute($users);
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+//lif of users who is enrolled to this course
+$stmt = $pdo->prepare('SELECT u.id, u.fname, u.lname 
+FROM enrollments e
+JOIN users u ON e.user_id = u.id 
+WHERE e.course_id = ?');
+$stmt->execute([$courseId]);
+$enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
 <html lang="en">
@@ -198,7 +221,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && 
             </div>
         </div>
         <?php endif; ?>
-    </div>
+
+      
+      <!-- //list of users who is enrolled to this course -->
+        <?php if(is_admin() || is_proponent()): ?>
+            <?php if(count($enrolledUsers) > 0): ?>     
+                <div class="content-card">
+                    <h5><i class="fas fa-users text-info"></i>Enrolled Students</h5>
+                        <ul class="list-group">
+                            <?php foreach($enrolledUsers as $eu): ?>
+                                <li class="list-group-item">
+                                    <i class="fas fa-user me-2"></i>
+                                    <?= htmlspecialchars($eu['fname']) ?> <?= htmlspecialchars($eu['lname']) ?> 
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                </div>  
+            <?php endif; ?>
+        <?php endif; ?>
 
     <script>
     <?php if(is_student()): ?>
@@ -221,11 +261,6 @@ video.addEventListener('ended', (event) => {
    
     button.disabled = false;
 });
-
-
-
-
-
     let pdfReadSeconds = 0;
     let pdfCompleted = false;
     <?php if($course['file_pdf']): ?>

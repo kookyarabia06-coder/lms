@@ -546,7 +546,7 @@
             .content-card,
             .progress-section,
             .course-info-card {
-                padding: 20px;
+                position:relative
             }
             
             .pdf-viewer iframe {
