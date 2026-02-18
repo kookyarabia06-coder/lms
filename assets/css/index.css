@@ -23,21 +23,21 @@ body {
 
 /* Hero Section */
 .welcome-hero {
-    text-align: center;
+    text-align: left;   /* change from center to left */
     padding: 60px 20px;
     color: white;
 }
 
 .welcome-hero h1 {
     font-size: 40px;
-    margin-bottom: 20px;
+    margin-bottom: 50px;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .welcome-hero p {
     font-size: 25px;
     max-width: 800px;
-    margin: 0 auto 40px;
+    margin-bottom: 50px;  /* remove auto */
     opacity: 0.95;
     line-height: 1.6;
 }
@@ -45,15 +45,17 @@ body {
 /* Features Grid */
 .features-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 30px;
-    padding: 40px 20px;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 450px));
+    justify-content: center;
+    gap: 40px; /* slightly more space */
+    padding: 70px 20px; /* more top/bottom space */
 }
+
 
 .feature-card {
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.98));
     border-radius: 16px;
-    padding: 40px 30px;
+    padding: 40px 20px;
     text-align: center;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -102,14 +104,14 @@ body {
 }
 
 .stat-number {
-    font-size: 48px;
+    font-size: 50px;
     font-weight: 700;
     margin-bottom: 10px;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .stat-label {
-    font-size: 18px;
+    font-size: 20px;
     opacity: 0.9;
 }
 
@@ -170,17 +172,22 @@ body {
 
 /* Footer */
 .welcome-footer {
-    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
+    width: 100%;
+    padding: 40px 50px;
     color: rgba(255, 255, 255, 0.8);
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    margin-top: 40px;
+    margin-top: 0; /* changed */
 }
+
 
 .footer-links a {
     color: rgba(255, 255, 255, 0.8);
     text-decoration: none;
-    margin: 0 15px;
+    margin: 1px;
     transition: color 0.3s;
 }
 

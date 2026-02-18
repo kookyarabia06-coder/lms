@@ -352,7 +352,6 @@ $totalPending = count($pendingUsers);
 <span class="status-indicator status-pending"></span> 
 Pending Confirmation (<?= count($pendingUsers) ?>)
 </h5>
-<span class="badge bg-warning">Waiting for email verification</span>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
@@ -393,13 +392,11 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
 <td class="table-actions">
 <a href="?act=confirm&id=<?= $u['id'] ?>" 
 onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
-class="btn btn-success btn-sm">
- <i class="fas fa-check"></i> Approve
+class="btn btn-success btn-sm"> Approve
 </a>
 <a href="?act=reject&id=<?= $u['id'] ?>" 
 onclick="return confirm('Reject and delete <?= htmlspecialchars($u['username']) ?>?')" 
-class="btn btn-danger btn-sm">
-<i class="fas fa-times"></i> Reject
+class="btn btn-danger btn-sm"> Reject
 </a>
 </td>
 </tr>
@@ -418,7 +415,6 @@ class="btn btn-danger btn-sm">
 <span class="status-indicator status-confirmed"></span> 
 Confirmed Users (<?= count($confirmedUsers) ?>)
 </h5>
-<span class="badge bg-success">Email verified</span>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
@@ -451,27 +447,24 @@ Confirmed Users (<?= count($confirmedUsers) ?>)
 <td><?= htmlspecialchars($u['email']) ?></td>
 <td>
 <?php if ($u['role'] === 'admin'): ?>
-<span class="badge bg-danger">Admin</span>
+<span class="badge bg-primary">Admin</span>
 <?php elseif ($u['role'] === 'proponent'): ?>
 <span class="badge bg-info">Proponent</span>
 <?php else: ?>
-<span class="badge bg-secondary">Student</span>
+<span class="badge bg-success">Student</span>
 <?php endif; ?>
 </td>
 <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
 <td>
-<span class="badge-confirmed">
-<i class="fas fa-check-circle"></i> Confirmed
+<span class="badge-confirmed"> Confirmed
  </span>
 </td>
 <td class="table-actions">
-<a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm">
- <i class="fas fa-edit"></i> Edit
+<a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm"> Edit
 </a>
 <a href="?act=delete&id=<?= $u['id'] ?>" 
 onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" 
-class="btn btn-danger btn-sm">
-<i class="fas fa-trash"></i> Delete
+class="btn btn-danger btn-sm"> Delete
  </a>
  </td>
         </tr>

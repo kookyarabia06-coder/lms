@@ -78,8 +78,8 @@
 }
 
 .profile-avatar.proponent {
-    background: linear-gradient(135deg, #7c3aed, #a855f7); /* Purple */
-}
+    background: linear-gradient(135deg, #0DCAF0, #7be3ff);
+ }
 
 
 .avatar-edit-btn {
@@ -140,7 +140,7 @@
 
 /* PROPONENT - Purple */
         .user-role.proponent {
-          background: linear-gradient(135deg, #7c3aed, #a855f7);
+          background: linear-gradient(135deg, #0DCAF0, #7be3ff);
         }
 
 

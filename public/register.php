@@ -136,16 +136,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Calculate OTP time left if OTP was sent
-if (isset($_SESSION['otp_time'])) {
-    $otpTime = $_SESSION['otp_time'];
-    $currentTime = time();
-    $timeElapsed = $currentTime - $otpTime;
-    $timeLeft = 600 - $timeElapsed; // 10m in secc
+        if (isset($_SESSION['otp_time'])) {
+       $otpTime = $_SESSION['otp_time'];
+        $currentTime = time();
+        $timeElapsed = $currentTime - $otpTime;
+       $timeLeft = 600 - $timeElapsed; // 10m in secc
     if ($timeLeft < 0) $timeLeft = 0;
 } else {
     $timeLeft = 600;
 }
 ?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
