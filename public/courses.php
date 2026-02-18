@@ -72,6 +72,7 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
+<link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
     /* company report staff sheet  */
@@ -134,6 +135,12 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         margin-left: 5px;
         cursor: help;
     }
+
+    .tooltip-icon-ex {
+        color: #ff0707;
+        margin-left: 5px;
+        cursor: help;
+    }
     
     .course-locked {
         position: relative;
@@ -186,8 +193,8 @@ if ($currentCourse):
 </span>
 <?php endif; ?>
 </div>
-<a href="my_courses.php" class="btn btn-sm btn-light">
-<i class="fas fa-arrow-right"></i> Go to My Courses
+<a href="my_courses.php" class="btn btn-sm btn-outline-light mt-3">
+<i class="fas fa-arrow-right"></i> Go to My Course
 </a>
 </div>
 <?php endif; ?>
@@ -228,7 +235,7 @@ $enrollDisabledReason = 'You are already enrolled in this course';
 } elseif ($isExpired) {
 $enrollDisabledReason = 'This course has expired';
 } elseif ($hasOngoingCourse && !$isAdmin) {
-$enrollDisabledReason = 'u must komplete ang imong kors bago ka mag lumot';
+$enrollDisabledReason = 'Please Complete current course before enrolling in a new one.';
 }
 ?>
                 
@@ -327,8 +334,9 @@ title="Preview course content">
                             
 <?php if ($isExpired || $c['display_status'] === 'expired'): ?>
                                 <!-- EXPIRED COURSE -->
-<span class="modern-btn-secondary modern-btn-sm" style="cursor: not-allowed;">
-<i class="fas fa-ban"></i> Expired
+<span class="tooltip-icon-ex" title="<?= htmlspecialchars($enrollDisabledReason) ?>"
+data-bs-toggle="tooltip">
+<i class="fas fa-info-circle"></i> Expired
 </span>
                                 
 <?php elseif ($canContinue): ?>
@@ -353,16 +361,16 @@ onclick="return confirm('Enroll in this course?');">
 </a>
 <?php else: ?>
                                     <!-- disab btn  -->
-<span class="modern-btn-secondary modern-btn-sm btn-disabled"
+<span class=""
 title="<?= htmlspecialchars($enrollDisabledReason) ?>"
  data-bs-toggle="tooltip"
 data-bs-placement="top">
-<i class="fas fa-lock"></i> Enroll
+<i class="fas fa-lock"></i>
 </span>
 <span class="tooltip-icon" 
 title="<?= htmlspecialchars($enrollDisabledReason) ?>"
 data-bs-toggle="tooltip">
-<i class="fas fa-info-circle"></i>
+<i class="fas fa-info-circle"></i>Disabled
 </span>
 <?php endif; ?>
 <?php endif; ?>

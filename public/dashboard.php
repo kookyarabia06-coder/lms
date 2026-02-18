@@ -72,6 +72,23 @@ try {
             <p>You have <?= $counter['ongoing'] ?> ongoing courses and <?= $counter['completed'] ?> completed courses. Keep up the great work!</p>
         </div>
 
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card stat-card-ongoing">
+                <div class="stat-number"><?= $counter['ongoing'] ?></div>
+                <div class="stat-label">Ongoing Courses</div>
+            </div>
+            
+            <div class="stat-card stat-card-completed">
+                <div class="stat-number"><?= $counter['completed'] ?></div>
+                <div class="stat-label">Completed Courses</div>
+            </div>
+            
+            <div class="stat-card stat-card-notenrolled">
+                <div class="stat-number"><?= $counter['not_enrolled'] ?></div>
+                <div class="stat-label">Available Courses</div>
+            </div>
+        </div>
 
         <!-- News & Courses Section -->
         <div class="content-section">
@@ -129,7 +146,7 @@ try {
                             <a href="<?= $courseUrl ?>" class="course-card-link">
                                 <div class="course-card">
                                     <div class="course-card-img">
-                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
+                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image.png">
                                     </div>
                                     <div class="course-card-body">
                                         <div class="course-card-title">

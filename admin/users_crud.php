@@ -1,6 +1,8 @@
 <?php
+
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/mailerconfigadmin.php';
 require_login();
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
@@ -9,7 +11,7 @@ require_login();
 //////////////////////////////////////////////////////////////////////////////////
 
 // Only admin can access this page
-if (!is_admin()) {
+if (!is_admin() && !is_superadmin()) {
     echo 'Admin only';
     exit;
 }
@@ -17,7 +19,11 @@ if (!is_admin()) {
 $act = $_GET['act'] ?? '';
 
 // ADD USER
+// ADD USER WITH EMAIL NOTIFICATION
 if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Start session for messages
+    session_start();
+    
     $username = $_POST['username'];
     $password = $_POST['password'];
     $fname    = $_POST['fname'];
@@ -25,18 +31,69 @@ if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = $_POST['email'];
     $role     = $_POST['role'];
 
+    // Validate email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $_SESSION['error'] = "Invalid email format";
+        header('Location: users_crud.php?act=addform');
+        exit;
+    }
+
+    // Check if username or email already exists
+    $check = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+    $check->execute([$username, $email]);
+    if ($check->fetch()) {
+        $_SESSION['error'] = "Username or email already exists";
+        header('Location: users_crud.php?act=addform');
+        exit;
+    }
+
     $hash = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $pdo->prepare(
-        "INSERT INTO users (username,password,fname,lname,email,role,status,created_at)
-         VALUES (?,?,?,?,?,?,'confirmed',NOW())"
-    );
-    $stmt->execute([$username, $hash, $fname, $lname, $email, $role]);
+    try {
+        // Start transaction
+        $pdo->beginTransaction();
+        
+        // Insert user
+        $stmt = $pdo->prepare(
+            "INSERT INTO users (username,password,fname,lname,email,role,status,created_at)
+             VALUES (?,?,?,?,?,?,'confirmed',NOW())"
+        );
+        $stmt->execute([$username, $hash, $fname, $lname, $email, $role]);
+        
+        // Get the new user ID
+        $newUserId = $pdo->lastInsertId();
+        
+        // Prepare recipient name
+        $recipientName = !empty($fname) ? $fname : $username;
+        if (!empty($lname)) {
+            $recipientName .= ' ' . $lname;
+        }
+        
+        // SEND WELCOME EMAIL
+        require_once __DIR__ . '/../inc/mailerconfigadmin.php';
+        
+        // You need to create this function or modify existing one
+        $emailResult = sendConfirmationEmail($email, $recipientName, $username, $password);
+        
+        if ($emailResult['success']) {
+            $pdo->commit();
+            $_SESSION['success'] = "User added successfully and welcome email sent to $email";
+        } else {
+            // Email failed but user was created - decide if you want to rollback
+            // For now, we'll still commit but show warning
+            $pdo->commit();
+            $_SESSION['warning'] = "User added but email failed: " . $emailResult['message'];
+        }
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['error'] = "Failed to add user: " . $e->getMessage();
+        error_log("Add user error: " . $e->getMessage());
+    }
 
     header('Location: users_crud.php');
     exit;
 }
-
 // UPDATE USER
 if ($act === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $id       = (int)$_POST['id'];
@@ -61,9 +118,9 @@ if ($act === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute($params);-
 
-    header('Location: users_crud.php');
+    header('Location: mailerconfigadmin.php');
     exit;
 }
 
@@ -142,37 +199,8 @@ $totalPending = count($pendingUsers);
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-    <style>
+    <link href="<?= BASE_URL ?>/assets/css/manager.css" rel="stylesheet">
 
-        
-
-        body { background-color: #f9f9f9; }
-        .card { margin-bottom: 20px; border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-        .card-header { background: white; border-bottom: 2px solid #f0f0f0; padding: 15px 20px; font-weight: 600; border-radius: 12px 12px 0 0 !important; }
-        .table-actions a { margin-right: 5px; }
-        .stats-card { background: linear-gradient(135deg, #3498db, #1a75d2); color: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .stats-number { font-size: 32px; font-weight: bold; }
-        .stats-label { font-size: 14px; opacity: 0.9; }
-        .badge-pending { background: #ffc107; color: #000; padding: 5px 10px; border-radius: 20px; font-size: 12px; }
-        .badge-confirmed { background: #28a745; color: white; padding: 5px 10px; border-radius: 20px; font-size: 12px; }
-        .table th { background: #f8f9fa; border-top: none; }
-        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
-        .status-pending { background: #ffc107; }
-        .status-confirmed { background: #28a745; }
-
-
-
-
-
-
-
-
-
-
-
-
-        
-    </style>
 </head>
 
 <body>
@@ -248,6 +276,7 @@ $totalPending = count($pendingUsers);
                                     <option value="user">Student</option>
                                     <option value="proponent">Proponent</option>
                                     <option value="admin">Admin</option>
+                                    
                                 </select>
                             </div>
                         </div>
@@ -323,11 +352,11 @@ $totalPending = count($pendingUsers);
 <span class="status-indicator status-pending"></span> 
 Pending Confirmation (<?= count($pendingUsers) ?>)
 </h5>
-
+<span class="badge bg-warning">Waiting for email verification</span>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
-<table class="table table-hover mb-0">
+<table class="table table-hover mb-0 fixed-table">
 <thead class="table-light">
 <tr>
                                     <th>ID</th>
@@ -343,7 +372,7 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
 <tbody>
 <?php if (empty($pendingUsers)): ?>
 <tr>
-<td colspan="8" class="text-center py-4 text-muted">
+<td colspan="7" class="text-center py-4 text-muted">
 <i class="fas fa-check-circle"></i> No pending users found
 </td>
 </tr>
@@ -365,15 +394,12 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
 <a href="?act=confirm&id=<?= $u['id'] ?>" 
 onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
 class="btn btn-success btn-sm">
- </i> Approve
+ <i class="fas fa-check"></i> Approve
 </a>
 <a href="?act=reject&id=<?= $u['id'] ?>" 
 onclick="return confirm('Reject and delete <?= htmlspecialchars($u['username']) ?>?')" 
 class="btn btn-danger btn-sm">
-</i> Reject
-</a>
-<a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm">
- Edit
+<i class="fas fa-times"></i> Reject
 </a>
 </td>
 </tr>
@@ -392,10 +418,11 @@ class="btn btn-danger btn-sm">
 <span class="status-indicator status-confirmed"></span> 
 Confirmed Users (<?= count($confirmedUsers) ?>)
 </h5>
+<span class="badge bg-success">Email verified</span>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
-<table class="table table-hover mb-0">
+<table class="table table-hover mb-0 fixed-table">
 <thead class="table-light">
  <tr>
 <th>ID</th>
@@ -424,27 +451,27 @@ Confirmed Users (<?= count($confirmedUsers) ?>)
 <td><?= htmlspecialchars($u['email']) ?></td>
 <td>
 <?php if ($u['role'] === 'admin'): ?>
-<span class="btn btn-danger btn-sm">Admin</span>
+<span class="badge bg-danger">Admin</span>
 <?php elseif ($u['role'] === 'proponent'): ?>
-<span class="btn btn-primary btn-sm">Proponent</span>
+<span class="badge bg-info">Proponent</span>
 <?php else: ?>
-<span class="btn btn-secondary ms-2">Student</span>
+<span class="badge bg-secondary">Student</span>
 <?php endif; ?>
 </td>
 <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
 <td>
 <span class="badge-confirmed">
-Confirmed
+<i class="fas fa-check-circle"></i> Confirmed
  </span>
 </td>
 <td class="table-actions">
 <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm">
-  Edit
+ <i class="fas fa-edit"></i> Edit
 </a>
 <a href="?act=delete&id=<?= $u['id'] ?>" 
 onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')" 
 class="btn btn-danger btn-sm">
-Delete
+<i class="fas fa-trash"></i> Delete
  </a>
  </td>
         </tr>

@@ -26,7 +26,10 @@ $stmt = $pdo->prepare("
         c.thumbnail,
         c.created_at, 
         c.expires_at AS course_expires_at,
-        e.status AS enroll_status,
+        CASE 
+            WHEN e.status = 'ongoing' AND c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
+            ELSE COALESCE(e.status, 'notenrolled')
+        END AS enroll_status,
         e.progress, 
         e.total_time_seconds,
         e.enrolled_at,
@@ -38,6 +41,24 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+
+$stmt = $pdo->prepare("
+    SELECT c.id, c.title, c.description, c.thumbnail, c.created_at, c.expires_at,
+           e.progress, e.total_time_seconds, 
+           CASE 
+               WHEN e.status = 'ongoing' AND c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
+               ELSE e.status 
+           END AS enroll_status
+    FROM courses c
+    JOIN enrollments e ON e.course_id = c.id
+    WHERE e.user_id = ?
+    ORDER BY c.id DESC
+");
+$stmt->execute([$userId]);
+$myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -82,17 +103,31 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="meta-item"><span>Expires on: <?= $course['expires_at'] ? date('F j, Y', strtotime($course['expires_at'])) : 'No expiration' ?></span></div>
                 </div> 
             </div>
-            <div class="modern-card-actions mt-3">
-                    <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $course['id'] ?>"
-                        class="btn btn-primary">
-                        <i class="fas fa-sign-in-alt"></i> Enroll Now
-                    </a>
+
+
+<div class="modern-card-actions mt-3">
+<button onclick="window.location.href='<?= BASE_URL ?>/public/course_view.php?id=<?= $course['id'] ?>'"
+ class="btn btn-primary">
+ <i class="fas fa-sign-in-alt"></i> Enroll Now 
+</button>
+                    
+
+<?php if ($course['enroll_status'] === 'expired'): ?>
+<a href="#"
+class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
+onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">Expired</a>
+<?php else: ?>
+    <a href="#" class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
+onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">expired ito</a>
+<?php endif; ?>
+
+
             </div>
         </div>
 
         <!-- Preview Section -->
-        <div class="course-info-card">
-            <div class="content-header">
+        <div>
+           
                 <h4>Course Preview</h4>
             </div>
             <div class="modern-course-info-content">
@@ -102,4 +137,17 @@ $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 </body>
+<script>
+ //disable Enroll now button if course is expired or user already enrolled
+$(document).ready(function() {
+    const enrollStatus = "<?= $course['enroll_status'] ?? 'notenrolled' ?>";
+
+    if (enrollStatus === 'expired') {
+        $('.modern-card-actions .btn-primary').addClass('disabled').text('Course Expired').attr('role', 'button').css('pointer-events', 'none');
+    } else if (enrollStatus === 'ongoing') {
+        $('.modern-card-actions .btn-primary').addClass('disabled').text('Already Enrolled').attr('role', 'button').css('pointer-events', 'none');
+    }   
+});
+</script>
+
 </html>

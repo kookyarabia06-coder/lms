@@ -1,4 +1,3 @@
-
 <?php
 
 require_once __DIR__ . '/../inc/config.php';
@@ -7,7 +6,7 @@ require_once __DIR__ . '/../inc/auth.php';
 require_login();
 
 // Only admins and proponents can access this page
-if (!is_admin() && !is_proponent()) {
+if (!is_admin() && !is_proponent() && !is_superadmin()) {
     http_response_code(403);
     exit('Access denied');
 }
@@ -275,7 +274,7 @@ $courses = $stmt->fetchAll();
     <?php foreach ($courses as $c): ?>
         <div class="modern-course-card">
             <div class="modern-card-img">
-                <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'placeholder.png') ?>" alt="Course Image">
+                <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image.png">
             </div>
         <div class="modern-card-body">
             <div class="modern-card-title">
@@ -295,7 +294,7 @@ $courses = $stmt->fetchAll();
             <p><strong>Expires:</strong> <span><?= $expiryDate ?></span></p>
             </div>
         <div class="modern-card-actions">
-            <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">View</a>
+            <a href="<?= BASE_URL ?>/proponent/view_course.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">View</a>
             
             <?php if (canModifyCourse($c['id'], $pdo)): ?>
                 <a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>

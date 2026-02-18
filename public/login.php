@@ -171,16 +171,19 @@ $admin_email = $admin['email'];
 <div class="pending-note">
 <i class="fas fa-clock"></i>
 <div class="pending-note-content">
-<div class="pending-note-title">Account pending approval</div>
-<div class="pending-note-text">
+<div class="pending-note-title"><p>Account pending approval.</p>
+                                <p>Please wait for Admin approval.</p>
 </div>
+<div class="pending-note-text">
+
+
              <!-- wag galawin pls        -->
-<?php if (!empty($admin_email)): ?>
+<!-- <?php if (!empty($admin_email)): ?>
 <a href="mailto:<?= htmlspecialchars($admin_email) ?>?subject=Account%20Activation%20Request&body=Hello%20Admin%2C%0D%0A%0D%0AMy%20account%20is%20still%20pending.%20Please%20activate%20it.%0D%0AUsername%3A%20<?= urlencode($_POST['username'] ?? '') ?>%0D%0A%0D%0AThank%20you.">
 <i class="fas fa-envelope"></i> Email Admin</a>
 <a href="login.php">
 <i class="fas fa-arrow-left"></i> Back
-</a>
+</a> -->
 </div>
 <?php endif; ?>
 </div>
@@ -193,14 +196,6 @@ $admin_email = $admin['email'];
 <i class="fas fa-exclamation-circle"></i>
 <span><?= htmlspecialchars($error) ?></span>
 </div>
-        <?php endif; ?>
-        
-        <!-- Success Message -->
-        <?php if(isset($_GET['registered']) && $_GET['registered'] == 1): ?>
-            <div class="success-message">
-                <i class="fas fa-check-circle"></i>
-                <span>Registration successful! Please check your email.</span>
-            </div>
         <?php endif; ?>
         
         <form class="login-form" method="POST" action="">
@@ -244,6 +239,7 @@ $admin_email = $admin['email'];
             </div>
         </form>
     </div>
+        </div>
 
     <script>
         // Password toggle

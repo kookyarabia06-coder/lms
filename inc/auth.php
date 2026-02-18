@@ -33,3 +33,11 @@ function require_proponent() {
         die('Access denied: Proponents only.');
     }
 }
+
+
+function require_superadmin() {
+    require_login();
+    if (!is_superadmin()) {
+        die('Access denied: Superadmin only.');
+    }
+}

@@ -76,10 +76,10 @@ $avail['total_users'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
             
             <div class="feature-card">
                 <div class="feature-icon">
-                    <i class="fas fa-users"></i>
+                    <i class="fas fa-clock"></i>
                 </div>
-                <h3>Community Learning</h3>
-                <p>Connect with peers and instructors through discussion forums, group projects, and collaborative tools.</p>
+                <h3>Self-Paced Learning</h3>
+                <p>Courses are designed to be completed at your own pace, allowing you to learn whenever and wherever it's convenient for you.</p>
             </div>
         </div>
         

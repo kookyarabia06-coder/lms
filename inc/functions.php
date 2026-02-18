@@ -54,20 +54,29 @@ if (!function_exists('current_user')) {
         return $_SESSION['user'] ?? null;
     }
 }
-
+//added is_admin function
 if (!function_exists('is_admin')) {
     function is_admin() {
         $u = current_user();
         return $u && isset($u['role']) && $u['role'] === 'admin';
     }
 }
-
+// Added is_superadmin function
+if (!function_exists('is_superadmin')) {
+    function is_superadmin() {
+        $u = current_user();
+        return $u && isset($u['role']) && $u['role'] === 'superadmin';
+    }
+}
+//added is_proponent function
 if (!function_exists('is_proponent')) {
     function is_proponent() {
         $u = current_user();
         return $u && isset($u['role']) && $u['role'] === 'proponent';
     }
 }
+
+//user role check helper
 if (!function_exists('is_student')) { 
     function is_student() {
         $u = current_user();

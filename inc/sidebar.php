@@ -88,29 +88,46 @@ function get_role_icon($role = '') {
                 </a>
             </li>
             <?php endif; ?>
-            <?php if($u && (is_proponent() || is_admin())): ?>
-            <li class="nav-item">
+            <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+               <li class="nav-item">
                 <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php?act=addform">
-                    <i class="fa fa-plus"></i> Add Course
+                    <i class="fa fa-plus"></i> managekors
                 </a>
+              
+        
+               
             </li>
             <?php endif; ?>
         </ul>
     </div>
-</li>
 
-                <?php if($u && ( is_admin())): ?>
+   
+
+                <?php if($u && ( is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
                             <i class="fa fa-users"></i> User Management
-                        </a>
+                        </a></li>
+                         <li class="nav-item">
+                        
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/news_crud.php">
                             <i class="fa fa-newspaper"></i> News
                         </a>
                     </li>
+                    <li class="nav-item">
+                <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php?act=addform">
+                    <i class="fa fa-plus"></i> Add Course
+                </a>
                 <?php endif; ?>
+
+<!-- super admin -->
+                   <?php if($u && (is_superadmin())): ?>
+</li><a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
+                            <i class="fa fa-users"></i> Audit Logs
+                        </a>
+                         <?php endif; ?>
 
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/logout.php">
