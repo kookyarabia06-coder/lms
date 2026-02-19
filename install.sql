@@ -97,3 +97,30 @@ created_by INT,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 is_published TINYINT(1) DEFAULT 1
 );
+
+
+CREATE TABLE IF NOT EXISTS departments (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- user_departments junction table for many-to-many relationship
+CREATE TABLE IF NOT EXISTS user_departments (
+    user_id INT NOT NULL,
+    department_id INT NOT NULL,
+    PRIMARY KEY (user_id, department_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+);
+
+
+INSERT INTO departments (name) VALUES
+('Anesthetics'),
+('Breast Screening'),
+('Cardiology'),
+('Ear, Nose and Throat (ENT)'),
+('Elderly Services Department'),
+('Gastroenterology'),
+('General Surgery'),
+('Gynecology');
