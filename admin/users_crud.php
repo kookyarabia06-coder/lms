@@ -61,6 +61,9 @@ if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([$username, $hash, $fname, $lname, $email, $departments, $role]);
         
+
+
+        
         // Get the new user ID
         $newUserId = $pdo->lastInsertId();
         
@@ -234,28 +237,29 @@ $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php endif; ?>
             </div>
 
-            <!-- Statistics Cards -->
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="stats-card">
-                        <div class="stats-number"><?= $totalUsers ?></div>
-                        <div class="stats-label">Total Registered Users</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stats-card" style="background: linear-gradient(135deg, #28a745 0%, #218838 100%);">
-                        <div class="stats-number"><?= $totalConfirmed ?></div>
-                        <div class="stats-label">Confirmed Accounts</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="stats-card" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);">
-                        <div class="stats-number"><?= $totalPending ?></div>
-                        <div class="stats-label">Pending Confirmation</div>
-                    </div>
-                </div>
-            </div>
+    <!-- Statistics Cards -->
+<div class="row mb-4 justify-content-start">
+    <div class="col-auto">
+        <div class="stats-card">
+            <span class="stats-label">Total Users:</span>
+            <span class="stats-number"><?= $totalUsers ?></span>
+        </div>
+    </div>
 
+    <div class="col-auto">
+        <div class="stats-card">
+            <span class="stats-label">Confirmed Accounts:</span>
+            <span class="stats-number"><?= $totalConfirmed ?></span>
+        </div>
+    </div>
+
+    <div class="col-auto">
+        <div class="stats-card">
+            <span class="stats-label">Pending Confirmation:</span>
+            <span class="stats-number"><?= $totalPending ?></span>
+        </div>
+    </div>
+</div>
             <!-- Add User Form -->
             <?php if ($act === 'addform'): ?>
                 <div class="card p-4 mb-4">

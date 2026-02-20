@@ -8,15 +8,36 @@ $userId = $user['id'] ?? 0;
 $courseId = intval($_GET['id'] ?? 0);
 if(!$courseId) die('Invalid course ID');
 
-// Fetch course
-$stmt = $pdo->prepare('SELECT c.*, u.fname, u.lname FROM courses c LEFT JOIN users u ON c.proponent_id = u.id WHERE c.id = ?');
-$stmt->execute([$courseId]);
+// Fetch course with enrollment info for current user
+$stmt = $pdo->prepare('
+    SELECT 
+        c.*, 
+        u.fname, 
+        u.lname,
+        CASE 
+            WHEN c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN "expired"
+            ELSE COALESCE(e.status, "notenrolled")
+        END AS enroll_status,
+        e.progress,
+        e.total_time_seconds,
+        e.enrolled_at
+    FROM courses c 
+    LEFT JOIN users u ON c.proponent_id = u.id 
+    LEFT JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
+    WHERE c.id = ?
+');
+$stmt->execute([$userId, $courseId]);
 $course = $stmt->fetch();
 if(!$course) die('Course not found');
 
+// Debug output to check the values (remove after testing)
+/*
+echo "Course expires_at: " . $course['expires_at'] . "<br>";
+echo "Current time: " . date('Y-m-d H:i:s') . "<br>";
+echo "Enroll status: " . $course['enroll_status'] . "<br>";
+*/
 
-
-// Fetch all courses with enrollment info
+// Fetch all courses with enrollment info (for other queries you might need)
 $stmt = $pdo->prepare("
     SELECT 
         c.id, 
@@ -27,7 +48,7 @@ $stmt = $pdo->prepare("
         c.created_at, 
         c.expires_at AS course_expires_at,
         CASE 
-            WHEN e.status = 'ongoing' AND c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
+            WHEN c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
             ELSE COALESCE(e.status, 'notenrolled')
         END AS enroll_status,
         e.progress, 
@@ -42,13 +63,12 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-
-
+// Fetch user's enrolled courses
 $stmt = $pdo->prepare("
     SELECT c.id, c.title, c.description, c.thumbnail, c.created_at, c.expires_at,
            e.progress, e.total_time_seconds, 
            CASE 
-               WHEN e.status = 'ongoing' AND c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
+               WHEN c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
                ELSE e.status 
            END AS enroll_status
     FROM courses c
@@ -56,8 +76,9 @@ $stmt = $pdo->prepare("
     WHERE e.user_id = ?
     ORDER BY c.id DESC
 ");
-$stmt->execute([$userId]);
-$myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// $stmt->execute([$userId]);
+// $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 <!doctype html>
@@ -104,50 +125,51 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div> 
             </div>
 
-
-<div class="modern-card-actions mt-3">
-<button onclick="window.location.href='<?= BASE_URL ?>/public/course_view.php?id=<?= $course['id'] ?>'"
- class="btn btn-primary">
- <i class="fas fa-sign-in-alt"></i> Enroll Now 
-</button>
-                    
-
-<?php if ($course['enroll_status'] === 'expired'): ?>
-<a href="#"
-class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
-onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">Expired</a>
-<?php else: ?>
-    <a href="#" class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
-onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">expired ito</a>
-<?php endif; ?>
-
-
-            </div>
+            <div class="modern-card-actions mt-3">
+    <?php if ($course['enroll_status'] === 'expired'): ?>
+        <!-- Course is expired - show disabled expired button -->
+        <button class="btn btn-secondary" disabled>
+            <i class="fas fa-clock"></i> Course Expired
+        </button>
+    
+    <?php elseif ($course['enroll_status'] === 'ongoing'): ?>
+        <!-- User is already enrolled - show continue button -->
+        <button onclick="window.location.href='<?= BASE_URL ?>/public/course_view.php?id=<?= $course['id'] ?>'"
+         class="btn btn-success">
+            <i class="fas fa-play-circle"></i> Continue Course
+        </button>
+    
+    <?php elseif ($course['enroll_status'] === 'notenrolled'): ?>
+        <!-- Course is available and user not enrolled - show enroll button -->
+        <a href="<?= BASE_URL ?>/public/enroll.php?course_id=<?= $course['id'] ?>"
+            class="btn btn-primary"
+            onclick="return confirm('Enroll in this course?');">
+            <i class="fas fa-sign-in-alt"></i> Enroll Now
+        </a>
+    
+    <?php else: ?>
+        <!-- Fallback for any other status -->
+        <button class="btn btn-secondary" disabled>
+            <i class="fas fa-question-circle"></i> Status: <?= htmlspecialchars($course['enroll_status']) ?>
+        </button>
+    <?php endif; ?>
+</div>
         </div>
 
         <!-- Preview Section -->
-        <div>
-           
-                <h4>Course Preview</h4>
-            </div>
+        <div class="mt-4">
+            <h4>Course Preview</h4>
             <div class="modern-course-info-content">
-                <!-- TEST1 -->
                 <?= $course['summary'] ?? '<p>No preview available.</p>' ?>
             </div>
         </div>
     </div>
+
+    <script>
+    $(document).ready(function() {
+        const enrollStatus = "<?= $course['enroll_status'] ?? 'notenrolled' ?>";
+        console.log('Enroll status:', enrollStatus);
+    });
+    </script>
 </body>
-<script>
- //disable Enroll now button if course is expired or user already enrolled
-$(document).ready(function() {
-    const enrollStatus = "<?= $course['enroll_status'] ?? 'notenrolled' ?>";
-
-    if (enrollStatus === 'expired') {
-        $('.modern-card-actions .btn-primary').addClass('disabled').text('Course Expired').attr('role', 'button').css('pointer-events', 'none');
-    } else if (enrollStatus === 'ongoing') {
-        $('.modern-card-actions .btn-primary').addClass('disabled').text('Already Enrolled').attr('role', 'button').css('pointer-events', 'none');
-    }   
-});
-</script>
-
 </html>
