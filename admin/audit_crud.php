@@ -5,9 +5,9 @@ require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_login();
 
-// Check if user is superadmin
-if (!is_superadmin()) {
-echo 'Super Admin Only';
+// Check if user is superadmin and admin
+if (!is_superadmin() && !is_admin()) {
+echo 'Authorized Role Only';
 exit;
 }
 
@@ -99,19 +99,7 @@ table {
   max-height: 80px;
   overflow-y: auto;       /* show scrollbar if needed */
 }
-.stats-card {
-background: white;
-border-radius: 10px;
-padding: 20px;
-box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-text-align: center;
-margin-bottom: 20px;
-}
-.stats-number {
-font-size: 32px;
-font-weight: bold;
-color: #007bff;
-}
+
 
 /* Add this to your existing CSS */
 .card {
@@ -232,16 +220,13 @@ color: #007bff;
 </td>
 <td>
 <?php if ($course['role'] == 'admin'): ?>
-<span class="badge bg-primary">Admin</span>
+    <span class="badge bg-primary">Admin</span>
 <?php elseif ($course['role'] == 'proponent'): ?>
-<span class="badge bg-info">Proponent</span>
+    <span class="badge bg-info">Proponent</span>
 <?php elseif ($course['role'] == 'superadmin'): ?>
-<span class="badge bg-secondary">Super Admin</span>
+    <span class="badge bg-secondary">Super Admin</span>
 <?php else: ?>
-   <?php foreach ($users as $user): ?>
-    <
-<?= htmlspecialchars($user['role'] ?? '') ?>
-<?php endforeach; ?>
+    <span class="badge bg-secondary"><?= htmlspecialchars($course['role'] ?? 'Unknown') ?></span>
 <?php endif; ?>
 </td>
 </tr>

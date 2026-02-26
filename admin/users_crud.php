@@ -368,7 +368,7 @@ $totalPending = count($pendingUsers);
 </div>
 </div>
 
-                     <!-- Add User Form -->
+<!-- Add User Form -->
 <?php if ($act === 'addform'): ?>
 <div class="card p-4 mb-4">
 <h5 class="mb-3">Add New User</h5>
@@ -396,7 +396,7 @@ $totalPending = count($pendingUsers);
 </div>
 <div class="col-md-6 mb-3">
 <label>Role</label>
-<select name="role" class="form-control" required>
+<select name="role" class="form-control" id="roleSelect" required>
 <option value="user">Student</option>
 <option value="proponent">Proponent</option>
 <option value="admin">Admin</option>
@@ -404,18 +404,24 @@ $totalPending = count($pendingUsers);
 </div>
 </div>
 
-                    <!-- Department Checkboxes -->
-<div class="mb-3">
-<label>Departments (Select multiple)</label>
-<div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
-<?php foreach($departments as $dept): ?>
-<div style="margin-bottom: 8px;">
-<input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
-<label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
-</div>
-<?php endforeach; ?>
-</div>
-<small class="text-muted">Select all departments the user belongs to</small>
+<!-- Department Checkboxes with Search - Hidden by default -->
+<div class="mb-3" id="departmentsSection" style="display: none;">
+    <label>Departments</label>
+    
+    <!-- Search Bar -->
+    <div class="mb-2">
+        <input type="text" id="departmentSearch" class="form-control" placeholder="Search departments..." style="margin-bottom: 10px;">
+    </div>
+    
+    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;" id="departmentContainer">
+        <?php foreach($departments as $dept): ?>
+        <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
+            <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
+            <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <small class="text-muted">Select all departments the user belongs to</small>
 </div>
 
 <div class="mt-3">
@@ -426,7 +432,7 @@ $totalPending = count($pendingUsers);
 </div>
 <?php endif; ?>
 
-                     <!-- Edit User Form -->
+<!-- Edit User Form -->
 <?php if ($act === 'edit' && isset($user)): ?>
 <div class="card p-4 mb-4">
 <h5 class="mb-3">Edit User - <?= htmlspecialchars($user['username']) ?></h5>
@@ -459,7 +465,7 @@ $totalPending = count($pendingUsers);
 </div>
 <div class="col-md-6 mb-3">
 <label>Role</label>
-<select name="role" class="form-control">
+<select name="role" class="form-control" id="roleSelect">
 <option value="user" <?= $user['role'] === 'user' ? 'selected' : '' ?>>Student</option>
 <option value="proponent" <?= $user['role'] === 'proponent' ? 'selected' : '' ?>>Proponent</option>
 <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
@@ -467,23 +473,28 @@ $totalPending = count($pendingUsers);
 </div>
 </div>
 
-                    <!-- Department Checkboxes for Edit -->
-<div class="mb-3">
-<label>Departments</label>
-<div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
-<?php foreach($departments as $dept): ?>
-<div style="margin-bottom: 8px;">
-<input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" 
-id="edit_dept_<?= $dept['id'] ?>"
-<?= in_array($dept['id'], $user['department_ids'] ?? []) ? 'checked' : '' ?>>
-<label for="edit_dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
-</div>
-<?php endforeach; ?>
-</div>
+<!-- Department Checkboxes with Search - Hidden by default -->
+<div class="mb-3" id="departmentsSection" style="display: none;">
+    <label>Departments</label>
+    
+    <!-- Search Bar -->
+    <div class="mb-2">
+        <input type="text" id="departmentSearch" class="form-control" placeholder="Search departments..." style="margin-bottom: 10px;">
+    </div>
+    
+    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;" id="departmentContainer">
+        <?php foreach($departments as $dept): ?>
+        <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
+            <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
+            <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <small class="text-muted">Select all departments the user belongs to</small>
 </div>
 
 <div class="mt-3">
-<button class="btn btn-primary">Update User</button>
+<button type="submit" class="btn btn-primary">Create User</button>
 <a href="users_crud.php" class="btn btn-secondary">Cancel</a>
 </div>
 </form>
@@ -611,7 +622,7 @@ $deptNames = !empty($u['department_names']) ? explode('||', $u['department_names
 <td><?= htmlspecialchars($u['email']) ?></td>
 <td>
 <?php if ($u['role'] === 'admin'): ?>
-<span class="badge bg-primary">Admin</span>
+<span class="badge bg-danger">Admin</span>
 <?php elseif ($u['role'] === 'proponent'): ?>
 <span class="badge bg-info">Proponent</span>
 <?php elseif ($u['role'] === 'superadmin'): ?>
@@ -664,6 +675,49 @@ alert.style.opacity = '0';
 setTimeout(() => alert.remove(), 500);
 });
 }, 3000);
+
+// Department search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('departmentSearch');
+    if (searchInput) {
+        const departmentItems = document.querySelectorAll('.department-item');
+        
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            departmentItems.forEach(function(item) {
+                const departmentName = item.getAttribute('data-department-name');
+                
+                if (searchTerm === '' || departmentName.includes(searchTerm)) {
+                    item.style.display = ''; // Show
+                } else {
+                    item.style.display = 'none'; // Hide
+                }
+            });
+        });
+    }
+
+    // Role-based department visibility
+    const roleSelect = document.getElementById('roleSelect');
+    const departmentsSection = document.getElementById('departmentsSection');
+    
+    if (roleSelect && departmentsSection) {
+        function toggleDepartments() {
+            const selectedRole = roleSelect.value;
+            if (selectedRole === 'proponent' || selectedRole === 'admin') {
+                departmentsSection.style.display = 'block';
+            } else {
+                departmentsSection.style.display = 'none';
+            }
+        }
+        
+        // Initial check
+        toggleDepartments();
+        
+        // Listen for changes
+        roleSelect.addEventListener('change', toggleDepartments);
+    }
+});
 </script>
 
 </body>

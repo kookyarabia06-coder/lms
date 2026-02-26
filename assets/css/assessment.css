@@ -1,0 +1,407 @@
+/* assessment.css - Clean and Minimalist Design */
+
+/* Base Styles & Variables */
+:root {
+    --primary-color: #4361ee;
+    --primary-hover: #3a56d4;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --bg-hover: #f9fafb;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    --transition: all 0.2s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Noto Sans", sans-serif;
+    background: #f8fafc;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Main Container */
+.asmpg-main-container {
+    margin-left: 280px; /* Adjust based on your sidebar width */
+    padding: 2rem 3rem;
+    min-height: 100vh;
+    background: #f8fafc;
+}
+
+/* Header Section */
+.asmpg-header {
+    margin-bottom: 2rem;
+    animation: slideDown 0.3s ease;
+}
+
+.asmpg-title {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin-bottom: 0.5rem;
+}
+
+/* Alert Messages */
+.toast-message {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 1000;
+    min-width: 320px;
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    border: none;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    font-size: 0.95rem;
+    animation: slideIn 0.3s ease;
+}
+
+.alert-success {
+    background: #ecfdf5;
+    color: #065f46;
+    border-left: 4px solid var(--success-color);
+}
+
+.alert-danger {
+    background: #fef2f2;
+    color: #991b1b;
+    border-left: 4px solid var(--danger-color);
+}
+
+/* Centered Content */
+.centered-content {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* Button Group */
+.asmpg-button-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    justify-content: flex-end;
+}
+
+.asmpg-btn-create,
+.asmpg-btn-preview {
+    padding: 0.625rem 2rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: var(--transition);
+    background: white;
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.asmpg-btn-create {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.asmpg-btn-create:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
+}
+
+.asmpg-btn-preview {
+    background: white;
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.asmpg-btn-preview:hover {
+    background: var(--bg-hover);
+    border-color: #d1d5db;
+}
+
+/* Form Styles */
+.asmpg-form {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: var(--card-shadow);
+}
+
+.asmpg-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.asmpg-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    transition: var(--transition);
+    background: white;
+}
+
+.asmpg-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+textarea.asmpg-input {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Questions Container */
+#questionsContainer {
+    margin: 2rem 0;
+}
+
+.asmpg-question-container {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    transition: var(--transition);
+    animation: fadeIn 0.3s ease;
+}
+
+.asmpg-question-container:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.asmpg-question-header {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+/* Options */
+.asmpg-option-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    transition: var(--transition);
+    background: #fafafa;
+}
+
+.asmpg-option-item:hover {
+    background: var(--bg-hover);
+    border-color: #d1d5db;
+}
+
+.asmpg-option-item.asmpg-selected {
+    background: #eef2ff;
+    border-color: var(--primary-color);
+}
+
+.asmpg-radio {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    margin: 0;
+}
+
+.asmpg-option-letter {
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 1.5rem;
+    font-size: 1rem;
+}
+
+.asmpg-option-input {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: white;
+    transition: var(--transition);
+}
+
+.asmpg-option-item:hover .asmpg-option-input {
+    border-color: var(--border-color);
+}
+
+.asmpg-option-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+}
+
+/* Add Question Button */
+.asmpg-btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 2rem;
+    background: transparent;
+    color: var(--primary-color);
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: var(--transition);
+    width: 100%;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.asmpg-btn-add:hover {
+    border-color: var(--primary-color);
+    background: #f8fafc;
+    color: var(--primary-hover);
+}
+
+.asmpg-btn-add i {
+    font-size: 1.1rem;
+}
+
+/* Remove Question Button */
+.asmpg-btn-remove {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem !important;
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    border: 1px solid #fecaca !important;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 1rem;
+}
+
+.asmpg-btn-remove:hover {
+    background: #fecaca !important;
+    color: #b91c1c !important;
+    border-color: #fca5a5 !important;
+}
+
+.asmpg-btn-remove i {
+    font-size: 0.9rem;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .asmpg-main-container {
+        margin-left: 0;
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .asmpg-main-container {
+        padding: 1rem;
+    }
+    
+    .asmpg-button-group {
+        flex-direction: column;
+    }
+    
+    .asmpg-btn-create,
+    .asmpg-btn-preview {
+        width: 100%;
+    }
+    
+    .asmpg-form {
+        padding: 1.5rem;
+    }
+    
+    .asmpg-option-item {
+        flex-wrap: wrap;
+    }
+    
+    .asmpg-option-input {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 0.5rem;
+    }
+}
+
+/* Loading States */
+.asmpg-btn-create:disabled,
+.asmpg-btn-preview:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Focus Visible for Accessibility */
+:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Placeholder Styling */
+::placeholder {
+    color: #9ca3af;
+    opacity: 0.7;
+}
+
+/* Selection Styling */
+::selection {
+    background: var(--primary-color);
+    color: white;
+}

@@ -65,7 +65,7 @@ return $filename;
 */
 function canModifyCourse($course_id, $pdo) {
 if (is_admin() || is_superadmin()) {
-return true;
+return true; 
 }
 
 $stmt = $pdo->prepare("SELECT proponent_id FROM courses WHERE id = :id");
@@ -74,6 +74,12 @@ $course = $stmt->fetch();
 
 return $course && $course['proponent_id'] == $_SESSION['user']['id'];
 }
+
+
+
+
+
+
 
 /**
 * Save course departments
@@ -171,7 +177,7 @@ if (!$course) {
 exit('Course not found');
 }
 
-// Check if user can edit this course
+// filter check user for course ownership or admin
 if (!canModifyCourse($id, $pdo)) {
 http_response_code(403);
 exit('Access denied: You can only edit your own courses');
@@ -240,46 +246,33 @@ exit;
 /* =========================
 FETCH COURSES WITH UPDATED AT AND DEPARTMENTS
 ========================= */
-
-// First, check if updated_at column exists and add it if not
 try {
-$pdo->query("SELECT updated_at FROM courses LIMIT 1");
+    $pdo->query("SELECT updated_at FROM courses LIMIT 1");
 } catch (Exception $e) {
-// Column doesn't exist, add it
-$pdo->exec("ALTER TABLE courses ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL AFTER created_at");
+    // Column doesn't exist, add it
+    $pdo->exec("ALTER TABLE courses ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL AFTER created_at");
 }
 
-$stmt = $pdo->query("
-SELECT c.*, u.username 
-FROM courses c 
-LEFT JOIN users u ON c.proponent_id = u.id 
-ORDER BY c.updated_at DESC, c.created_at DESC
-");
+// Build query with ownership filter
+$query = "
+    SELECT c.*, u.username 
+    FROM courses c 
+    LEFT JOIN users u ON c.proponent_id = u.id 
+";
+
+// Add WHERE clause for proponents (only their courses), but not for admins/superadmins
+$whereClause = "";
+$params = [];
+if (!is_admin() && !is_superadmin()) {
+    $whereClause = "WHERE c.proponent_id = :user_id";
+    $params[':user_id'] = $_SESSION['user']['id'];
+}
+
+$query .= $whereClause . " ORDER BY c.updated_at DESC, c.created_at DESC";
+
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
 $courses = $stmt->fetchAll();
-
-// Fetch departments for each course
-foreach ($courses as &$course) {
-$dept_stmt = $pdo->prepare("
-SELECT d.id, d.name 
-FROM departments d
-INNER JOIN course_departments cd ON d.id = cd.department_id
-WHERE cd.course_id = :course_id
-ORDER BY d.name
-");
-$dept_stmt->execute([':course_id' => $course['id']]);
-$course['departments'] = $dept_stmt->fetchAll();
-}
-//get departments for user profile 
-$user_departments = [];
-if (isset($_SESSION['user']['id'])) {
-$stmt = $pdo->prepare("SELECT d.id, d.name FROM departments d
-JOIN user_departments ud ON ud.department_id = d.id
-WHERE ud.user_id = ?");
-
-
-$stmt->execute([$_SESSION['user']['id']]);
-$user_departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
 //departments for course form
 $stmt = $pdo->prepare("SELECT d.id, d.name FROM departments d
@@ -330,8 +323,13 @@ margin-bottom: 0.25rem;
 <div class="modern-courses-wrapper">
 <h3 class="mb-4">Courses Management</h3>
 
+<a href="?act=addform" class="btn btn-success mb-3">Add New Course</a>
+
+
 <?php if ($act === 'addform' || $act === 'edit'): ?>
 <?php $editing = ($act === 'edit'); ?>
+
+
 
 <div class="card p-4 mb-4 shadow-sm bg-white rounded">
 <form method="post" enctype="multipart/form-data">
@@ -399,7 +397,7 @@ placeholder="Course Summary"><?= $editing ? htmlspecialchars($course['summary'])
 
 
 
-
+<!-- date -->
 <div class="row">
 <div class="col-md-6 mb-3">
 <label>Expiration Date</label>
@@ -453,19 +451,13 @@ value="<?= ($editing && !empty($course['expires_at']))
 <?php endif; ?>
 </div>
 
-<button class="btn btn-primary">
-<i class="fas fa-file-alt">
-<a href="../admin/assessment_crud.php" class="text-white">Create Assessment</a>
- </i>
-</button>
-</div>
-
 <button class="btn btn-primary"><?= $editing ? 'Update Course' : 'Add Course' ?></button>
 <a href="courses_crud.php" class="btn btn-secondary ms-2">Back</a>
 </form>
 </div>
 
 <?php else: ?>
+
 
 
 <div class="modern-courses-grid">

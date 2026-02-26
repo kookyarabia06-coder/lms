@@ -53,6 +53,10 @@ function get_role_display_name($role) {
     ];
     return $roles[$role] ?? ucfirst($role);
 }
+
+$stmt=$pdo->prepare("SELECT d.name FROM departments d
+    JOIN user_departments ud ON ud.department_id = d.id
+    WHERE ud.user_id = ?");
 ?>
 <!doctype html>
 <html lang="en">
@@ -127,6 +131,22 @@ function get_role_display_name($role) {
                     echo 'Unknown';
                 }
                 ?>
+
+                <p>Departments:</p>
+                <ul>
+                    <?php
+                    $stmt->execute([$u['id']]);
+                    $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    if ($departments) {
+                        foreach ($departments as $dept) {
+                            echo '<TH> <BR>' . htmlspecialchars($dept['name']) . '</TH>';
+                        }
+                    } else {
+                        echo '<li>No departments assigned</li>';
+                    }
+                    ?>
+
+
             </p>
         </div>
 

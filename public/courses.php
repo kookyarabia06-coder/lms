@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_login();
-
+// PLSSSSSS WAG GALAWIN UNG DEPARTMENT HAHAHAHAHAH
 $user = $_SESSION['user'];
 $userId = $user['id'] ?? 0;
 $isAdmin = is_admin();
@@ -18,7 +18,14 @@ $stmt->execute([$userId]);
 $ongoingCount = $stmt->fetch(PDO::FETCH_ASSOC)['ongoing_count'];
 $hasOngoingCourse = $ongoingCount > 0;
 
-// enroll info
+// First, check if course_departments table exists
+try {
+    $pdo->query("SELECT 1 FROM course_departments LIMIT 1");
+} catch (Exception $e) {
+    // Table doesn't exist, we'll just show no departments
+}
+
+// enroll info with departments
 $stmt = $pdo->prepare("
     SELECT 
         c.id, 
@@ -34,6 +41,18 @@ $stmt = $pdo->prepare("
         e.enrolled_at,
         e.completed_at,
         c.proponent_id,
+        (
+            SELECT GROUP_CONCAT(d.name SEPARATOR '||') 
+            FROM departments d
+            INNER JOIN course_departments cd ON d.id = cd.department_id
+            WHERE cd.course_id = c.id
+        ) AS department_names,
+        (
+            SELECT GROUP_CONCAT(d.id SEPARATOR ',') 
+            FROM departments d
+            INNER JOIN course_departments cd ON d.id = cd.department_id
+            WHERE cd.course_id = c.id
+        ) AS department_ids,
         -- Determine display status
         CASE 
             WHEN e.id IS NULL THEN 'notenrolled'
@@ -54,6 +73,15 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Process department names into arrays
+foreach ($courses as &$course) {
+    if (!empty($course['department_names'])) {
+        $course['departments'] = explode('||', $course['department_names']);
+    } else {
+        $course['departments'] = [];
+    }
+}
 
 $stmt = $pdo->prepare('SELECT u.id, u.fname, u.lname 
 FROM enrollments e
@@ -159,6 +187,33 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         color: white;
         font-size: 24px;
         border-radius: 8px 8px 0 0;
+    }
+    
+    /* Department badge styles */
+    .department-badge {
+        display: inline-block;
+        background-color: #e9ecef;
+        color: #495057;
+        padding: 0.25rem 0.5rem;
+        margin: 0.125rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border: 1px solid #dee2e6;
+    }
+    
+    .department-container {
+        margin: 10px 0;
+        padding: 5px 0;
+        border-top: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .department-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+        font-weight: 600;
     }
 </style>
 </head>
@@ -281,6 +336,22 @@ onerror="this.src='<?= BASE_URL ?>/uploads/images/Course Image.png'">
                             <?php if (strlen($c['description'] ?? '') > 120): ?>...<?php endif; ?>
                         </p>
                         
+                        <!-- Department Display DONT TOCH THIS FUCKING THING  -->
+                        <?php if (!empty($c['departments'])): ?>
+                        <div class="department-container">
+                            <div class="department-label">
+                                Departments:
+                            </div>
+                            <div>
+                                <?php foreach ($c['departments'] as $dept): ?>
+                                    <span class="department-badge">
+                                        <?= htmlspecialchars($dept) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
                         <!-- Course Dates -->
                         <div class="modern-course-info">
                             <?php
@@ -355,7 +426,7 @@ class="modern-btn-primary modern-btn-sm">
 <?php if ($canEnroll || $isAdmin): ?>
                          <!-- testing pero second part -->
  <a href="<?= BASE_URL ?>/public/enroll.php?course_id=<?= $c['id'] ?>"
-class="modern-btn-success modern-btn-sm"
+class="modern-btn-primary modern-btn-sm"
 onclick="return confirm('Enroll in this course?');">
 <i class="fas fa-sign-in-alt"></i> Enroll Now
 </a>

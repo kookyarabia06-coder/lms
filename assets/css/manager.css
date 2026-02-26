@@ -1,19 +1,113 @@
-.card { margin-bottom: 20px; border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-        .card-header { background: white; border-bottom: 2px solid #f0f0f0; padding: 15px 20px; font-weight: 600; border-radius: 12px 12px 0 0 !important; }
-        .table-actions a { margin-right: 5px; }
-        .stats-number { font-size: 20px; font-weight: bold; line-height: 1.2; }
-        .stats-label { font-size: 20px; opacity: 0.9; }
-        .stats-card { background: #f1ecec; border-radius: 10px; padding: 5px 10px; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,0.08); display: inline-block;}
-        .badge-pending { background: #ffc107; color: #000; padding: 5px 20px; border-radius: 20px; font-size: 12px; }
-        .badge-confirmed { background: #28a745; color: white; padding: 5px 10px; border-radius: 10px; font-size: 8px; }
-        .table th { background: #f8f9fa; border-top: none;}
-        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
-        .status-pending { background: #ffc107; }
-        .status-confirmed { background: #28a745; }
-        .fixed-table {table-layout: fixed; width: 100%; overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}
-        .fixed-table th ,
-/* Custom tooltip for department badges */
-.fixed-table td:nth-child(4) {position: relative; cursor: help;}
+/* Card Styles */
+.card {
+    margin-bottom: 20px;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.card-header {
+    background: white;
+    border-bottom: 2px solid #f0f0f0;
+    padding: 15px 20px;
+    font-weight: 600;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+/* Stats Cards */
+.stats-number {
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1.2;
+}
+
+.stats-label {
+    font-size: 20px;
+    opacity: 0.9;
+}
+
+.stats-card {
+    background: #f1ecec;
+    border-radius: 10px;
+    padding: 5px 10px;
+    text-align: left;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    display: inline-block;
+}
+
+/* Badges */
+.badge-pending {
+    background: #ffc107;
+    color: #000;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+
+.badge-confirmed {
+    background: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+/* Table Styles */
+.table th {
+    background: #f8f9fa;
+    border-top: none;
+}
+
+.table-actions a {
+    margin-right: 5px;
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-pending {
+    background: #ffc107;
+}
+
+.status-confirmed {
+    background: #28a745;
+}
+
+/* Fixed Table Layout */
+.fixed-table {
+    table-layout: fixed;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Set all data text to 16px */
+.fixed-table td,
+.fixed-table-pending td,
+.table td,
+.stats-number,
+.stats-label,
+.stats-card,
+.status-indicator,
+.card-header,
+.table th,
+.table-actions a {
+    font-size: 13px;
+}
+
+/* Department Tooltip */
+.fixed-table td:nth-child(4) {
+    position: relative;
+    cursor: help;
+}
 
 .fixed-table td:nth-child(4):hover::before {
     content: attr(data-departments);
@@ -25,10 +119,10 @@
     color: white;
     padding: 8px 12px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 10px;
     white-space: nowrap;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .fixed-table td:nth-child(4):hover::after {
@@ -39,20 +133,50 @@
     transform: translateX(-50%);
     border: 6px solid transparent;
     border-top-color: #333;
-    margin-bottom: -6px;
 }
-        .fixed-table td:nth-child(1) { width: 30%; } /* Title column - adjust as needed */
-        .fixed-table th:nth-child(1) { width: 5%; } /* ID */
-        .fixed-table th:nth-child(2) { width: 10%; } /* Username */
-        .fixed-table th:nth-child(3) { width: 15%; } /* Full name */
-        .fixed-table th:nth-child(4) { width: 25%; } /* Departments */
-        .fixed-table th:nth-child(5) { width: 15%; } /* Email */
-        .fixed-table th:nth-child(6) { width: 10%; } /* Role */
-        .fixed-table th:nth-child(7) { width: 10%; } /* joined */
-        .fixed-table th:nth-child(8) { width: 10%; } /* Status */
-        .fixed-table th:nth-child(9) { width: 20%; } /* Actions */
 
+/* Fixed Table Column Widths */
+.fixed-table td:nth-child(1) {
+    width: 30%; /* Title column - adjust as needed */
+}
 
+.fixed-table th:nth-child(1) {
+    width: 5%; /* ID */
+}
+
+.fixed-table th:nth-child(2) {
+    width: 10%; /* Username */
+}
+
+.fixed-table th:nth-child(3) {
+    width: 15%; /* Full name */
+}
+
+.fixed-table th:nth-child(4) {
+    width: 25%; /* Departments */
+}
+
+.fixed-table th:nth-child(5) {
+    width: 15%; /* Email */
+}
+
+.fixed-table th:nth-child(6) {
+    width: 10%; /* Role */
+}
+
+.fixed-table th:nth-child(7) {
+    width: 10%; /* Joined */
+}
+
+.fixed-table th:nth-child(8) {
+    width: 10%; /* Status */
+}
+
+.fixed-table th:nth-child(9) {
+    width: 20%; /* Actions */
+}
+
+/* Pending Table Styles */
 .fixed-table-pending {
     table-layout: fixed;
     width: 100%;
@@ -61,17 +185,32 @@
     white-space: nowrap;
 }
 
+/* Pending Table Column Widths */
 .fixed-table-pending th:nth-child(1),
-.fixed-table-pending td:nth-child(1) { width: 5%; } /* ID */
+.fixed-table-pending td:nth-child(1) {
+    width: 5%; /* ID */
+}
 
-.fixed-table-pending td:nth-child(2) { width: 10%; } /* Username */
+.fixed-table-pending td:nth-child(2) {
+    width: 10%; /* Username */
+}
 
-.fixed-table-pending td:nth-child(3) { width: 15%; } /* Full Name */
+.fixed-table-pending td:nth-child(3) {
+    width: 15%; /* Full Name */
+}
 
-.fixed-table-pending td:nth-child(4) { width: 20%; } /* Email */
+.fixed-table-pending td:nth-child(4) {
+    width: 20%; /* Email */
+}
 
-.fixed-table-pending td:nth-child(5) { width: 10%; } /* Registered */
+.fixed-table-pending td:nth-child(5) {
+    width: 10%; /* Registered */
+}
 
-.fixed-table-pending td:nth-child(6) { width: 8%; } /* Status */
+.fixed-table-pending td:nth-child(6) {
+    width: 8%; /* Status */
+}
 
-.fixed-table-pending td:nth-child(7) { width: 32%; } /* Actions */
+.fixed-table-pending td:nth-child(7) {
+    width: 32%; /* Actions */
+}
