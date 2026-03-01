@@ -18,6 +18,44 @@ $id  = isset($_GET['id']) ? (int)$_GET['id'] : null;
 $dept_stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
 $departments = $dept_stmt->fetchAll();
 
+// First, check if course_departments table exists and create it if not
+try {
+$pdo->query("SELECT 1 FROM course_departments LIMIT 1");
+} catch (Exception $e) {
+// Table doesn't exist, create it
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS `course_departments` (
+`course_id` int(11) NOT NULL,
+`department_id` int(11) NOT NULL,
+PRIMARY KEY (`course_id`, `department_id`),
+KEY `department_id` (`department_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+");
+
+// Add foreign key constraints if the tables exist
+try {
+$pdo->exec("
+ALTER TABLE `course_departments`
+ADD CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
+");
+} catch (Exception $e) {
+// Foreign keys might already exist or tables don't exist yet - ignore
+}
+}
+
+// Check if updated_at column exists and add it if not
+try {
+$pdo->query("SELECT updated_at FROM courses LIMIT 1");
+} catch (Exception $e) {
+// Column doesn't exist, add it
+try {
+$pdo->exec("ALTER TABLE courses ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL AFTER created_at");
+} catch (Exception $e) {
+// Column might already exist
+}
+}
+
 // Fetch course departments if editing
 $course_departments = [];
 if ($act === 'edit' && $id) {
@@ -30,19 +68,40 @@ $dept_course_stmt->execute([':course_id' => $id]);
 $course_departments = $dept_course_stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
-/**
-* Calculate expiration date
-*/
-function calculateExpiry($expires_at, $valid_days) {
-if (!empty($valid_days)) {
-return date('Y-m-d', strtotime("+{$valid_days} days"));
+// Get departments for user profile (for filtering in form)
+$user_departments = [];
+if (isset($_SESSION['user']['id'])) {
+// Check if user_departments table exists
+try {
+$pdo->query("SELECT 1 FROM user_departments LIMIT 1");
+$stmt = $pdo->prepare("
+SELECT d.id, d.name 
+FROM departments d
+JOIN user_departments ud ON ud.department_id = d.id
+WHERE ud.user_id = ?
+ORDER BY d.name
+");
+$stmt->execute([$_SESSION['user']['id']]);
+$user_departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+// If table doesn't exist, show all departments
+$user_departments = $departments;
 }
-return $expires_at ?: null;
 }
 
 /**
-* Handle file upload
-*/
+ * Calculate expiration date
+ */
+function calculateExpiry($expires_at, $valid_days) {
+if (!empty($valid_days) && is_numeric($valid_days) && $valid_days > 0) {
+return date('Y-m-d', strtotime("+{$valid_days} days"));
+}
+return !empty($expires_at) ? $expires_at : null;
+}
+
+/**
+ * Handle file upload
+ */
 function uploadFile($input, $dir, $allowed = []) {
 if (!isset($_FILES[$input]) || $_FILES[$input]['error'] !== UPLOAD_ERR_OK) {
 return null;
@@ -54,15 +113,24 @@ return null;
 }
 
 $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-move_uploaded_file($_FILES[$input]['tmp_name'], __DIR__ . "/../uploads/$dir/$filename");
+$upload_dir = __DIR__ . "/../uploads/$dir/";
 
+// Create directory if it doesn't exist
+if (!is_dir($upload_dir)) {
+mkdir($upload_dir, 0777, true);
+}
+
+if (move_uploaded_file($_FILES[$input]['tmp_name'], $upload_dir . $filename)) {
 return $filename;
 }
 
+return null;
+}
+
 /**
-* Check if current user can edit/delete course
-* Returns true for admins OR if user owns the course
-*/
+ * Check if current user can edit/delete course
+ * Returns true for admins OR if user owns the course
+ */
 function canModifyCourse($course_id, $pdo) {
 if (is_admin() || is_superadmin()) {
 return true;
@@ -76,44 +144,30 @@ return $course && $course['proponent_id'] == $_SESSION['user']['id'];
 }
 
 /**
-* Save course departments
-*/
+ * Save course departments
+ */
 function saveCourseDepartments($course_id, $department_ids, $pdo) {
 // Delete existing department associations
 $stmt = $pdo->prepare("DELETE FROM course_departments WHERE course_id = :course_id");
 $stmt->execute([':course_id' => $course_id]);
 
 // Insert new department associations
-if (!empty($department_ids)) {
+if (!empty($department_ids) && is_array($department_ids)) {
 $insert_stmt = $pdo->prepare("
 INSERT INTO course_departments (course_id, department_id) 
 VALUES (:course_id, :department_id)
 ");
 
 foreach ($department_ids as $dept_id) {
+// Skip empty values
+if (empty($dept_id)) continue;
+
 $insert_stmt->execute([
 ':course_id' => $course_id,
 ':department_id' => $dept_id
 ]);
 }
 }
-}
-
-// First, check if course_departments table exists and create it if not
-try {
-$pdo->query("SELECT 1 FROM course_departments LIMIT 1");
-} catch (Exception $e) {
-// Table doesn't exist, create it
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS `course_departments` (
-`course_id` int(11) NOT NULL,
-`department_id` int(11) NOT NULL,
-PRIMARY KEY (`course_id`, `department_id`),
-KEY `department_id` (`department_id`),
-CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE,
-CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-");
 }
 
 /* =========================
@@ -184,15 +238,20 @@ $_POST['expires_at'] ?? null,
 $_POST['valid_days'] ?? null
 );
 
+// Handle file uploads
+$thumbnail = uploadFile('thumbnail', 'images', ['jpg','jpeg','png','webp']);
+$pdf = uploadFile('file_pdf', 'pdf', ['pdf']);
+$video = uploadFile('file_video', 'video', ['mp4','webm']);
+
 $stmt = $pdo->prepare("
 UPDATE courses SET
 title       = :title,
 description = :description,
 summary     = :summary,
 expires_at  = :expires_at,
-thumbnail   = :thumbnail,
-file_pdf    = :pdf,
-file_video  = :video,
+thumbnail   = COALESCE(:thumbnail, thumbnail),
+file_pdf    = COALESCE(:pdf, file_pdf),
+file_video  = COALESCE(:video, file_video),
 updated_at  = NOW()
 WHERE id = :id
 ");
@@ -202,9 +261,9 @@ $stmt->execute([
 ':description' => $_POST['description'],
 ':summary'     => $_POST['summary'],
 ':expires_at'  => $expires_at,
-':thumbnail'   => uploadFile('thumbnail','images',['jpg','jpeg','png','webp']) ?? $course['thumbnail'],
-':pdf'         => uploadFile('file_pdf','pdf',['pdf']) ?? $course['file_pdf'],
-':video'       => uploadFile('file_video','video',['mp4','webm']) ?? $course['file_video'],
+':thumbnail'   => $thumbnail,
+':pdf'         => $pdf,
+':video'       => $video,
 ':id'          => $id
 ]);
 
@@ -241,20 +300,26 @@ exit;
 FETCH COURSES WITH UPDATED AT AND DEPARTMENTS
 ========================= */
 
-// First, check if updated_at column exists and add it if not
-try {
-$pdo->query("SELECT updated_at FROM courses LIMIT 1");
-} catch (Exception $e) {
-// Column doesn't exist, add it
-$pdo->exec("ALTER TABLE courses ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL AFTER created_at");
-}
-
+// Build query based on user role
+if (is_admin() || is_superadmin()) {
+// Admins see all courses
 $stmt = $pdo->query("
 SELECT c.*, u.username 
 FROM courses c 
 LEFT JOIN users u ON c.proponent_id = u.id 
 ORDER BY c.updated_at DESC, c.created_at DESC
 ");
+} else {
+// Proponents see only their courses
+$stmt = $pdo->prepare("
+SELECT c.*, u.username 
+FROM courses c 
+LEFT JOIN users u ON c.proponent_id = u.id 
+WHERE c.proponent_id = :user_id
+ORDER BY c.updated_at DESC, c.created_at DESC
+");
+$stmt->execute([':user_id' => $_SESSION['user']['id']]);
+}
 $courses = $stmt->fetchAll();
 
 // Fetch departments for each course
@@ -262,32 +327,15 @@ foreach ($courses as &$course) {
 $dept_stmt = $pdo->prepare("
 SELECT d.id, d.name 
 FROM departments d
-INNER JOIN course_departments cd ON d.id = cd.department_id
-WHERE cd.course_id = :course_id
+JOIN course_departments cd ON d.id = cd.department_id
+WHERE cd.course_id = ?
 ORDER BY d.name
 ");
-$dept_stmt->execute([':course_id' => $course['id']]);
+$dept_stmt->execute([$course['id']]);
 $course['departments'] = $dept_stmt->fetchAll();
 }
-//get departments for user profile 
-$user_departments = [];
-if (isset($_SESSION['user']['id'])) {
-$stmt = $pdo->prepare("SELECT d.id, d.name FROM departments d
-JOIN user_departments ud ON ud.department_id = d.id
-WHERE ud.user_id = ?");
-
-
-$stmt->execute([$_SESSION['user']['id']]);
-$user_departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-//departments for course form
-$stmt = $pdo->prepare("SELECT d.id, d.name FROM departments d
-JOIN course_departments cd ON cd.department_id = d.id
-WHERE cd.course_id = ?");
 
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -319,6 +367,10 @@ padding: 0.5rem;
 .department-selector .form-check {
 margin-bottom: 0.25rem;
 }
+.btn-group-action {
+display: flex;
+gap: 5px;
+}
 </style>
 </head>
 <body>
@@ -335,7 +387,6 @@ margin-bottom: 0.25rem;
 
 <div class="card p-4 mb-4 shadow-sm bg-white rounded">
 <form method="post" enctype="multipart/form-data">
-
 <div class="mb-3">
 <label>Course Title</label>
 <input name="title" class="form-control" placeholder="Title" required
@@ -352,58 +403,53 @@ value="<?= $editing ? htmlspecialchars($course['description']) : '' ?>">
 <label>Course Summary</label>
 <textarea name="summary" class="form-control" rows="4" required
 placeholder="Course Summary"><?= $editing ? htmlspecialchars($course['summary']) : '' ?></textarea>
-
-
 </div>
 
-
-
-<!-- NEW: Department Selection dropdown - filtered by user's departments -->
+<!-- Department Selection - Multiple select with checkboxes -->
 <div class="mb-3">
-    <label>Course Department</label>
-    <select class="form-select" name="departments[]" style="max-height: 150px;">
-        <?php if (empty($user_departments)): ?>
-            <option disabled>No departments available for your account.</option>
-        <?php else: ?>
-            <?php 
-            // Get selected departments from POST if form was submitted, otherwise from database
-            $selected_depts = [];
-            
-            // Check if form was submitted (POST data exists)
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['departments'])) {
-                $selected_depts = $_POST['departments'];
-            } 
-            // Otherwise use the course_departments from database (for edit mode)
-            else if (!empty($course_departments)) {
-                $selected_depts = $course_departments;
-            }
-            
-            // Check if any department is selected
-            $has_selected = !empty($selected_depts);
-            ?>
-            
-            <!-- Only show placeholder if no department is selected -->
-            <?php if (!$has_selected): ?>
-                <option value="" disabled selected>-- Select a department --</option>
-            <?php endif; ?>
-            
-            <?php foreach ($user_departments as $dept): ?>
-                <option value="<?= $dept['id'] ?>" 
-                    <?php if (in_array($dept['id'], $selected_depts)): ?>selected<?php endif; ?>>
-                    <?= htmlspecialchars($dept['name']) ?>
-                </option>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </select>
+<label class="form-label fw-bold">Course Departments</label>
+<div class="department-selector border p-3 rounded">
+<?php 
+// Determine which departments to show
+$display_departments = $departments;
+
+if (empty($display_departments)): ?>
+<p class="text-muted mb-0">No departments available.</p>
+<?php else: 
+// Get selected departments from POST if form was submitted, otherwise from database
+$selected_depts = [];
+
+// Check if form was submitted (POST data exists)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['departments'])) {
+$selected_depts = $_POST['departments'];
+} 
+// Otherwise use the course_departments from database (for edit mode)
+else if ($editing && !empty($course_departments)) {
+$selected_depts = $course_departments;
+}
+
+foreach ($display_departments as $dept): 
+?>
+<div class="form-check">
+<input class="form-check-input" type="checkbox" 
+name="departments[]" 
+value="<?= $dept['id'] ?>" 
+id="dept_<?= $dept['id'] ?>"
+<?= in_array($dept['id'], $selected_depts) ? 'checked' : '' ?>>
+<label class="form-check-label" for="dept_<?= $dept['id'] ?>">
+<?= htmlspecialchars($dept['name']) ?>
+</label>
+</div>
+<?php endforeach; ?>
+<?php endif; ?>
+</div>
+<small class="text-muted">You can select multiple departments</small>
 </div>
 
-
-
-
+<!-- Date fields -->
 <div class="row">
 <div class="col-md-6 mb-3">
 <label>Expiration Date</label>
-
 <input type="date" name="expires_at" id="expires_at" class="form-control"
 value="<?= $editing && $course['expires_at'] ? $course['expires_at'] : '' ?>">
 </div>
@@ -421,54 +467,67 @@ value="<?= ($editing && !empty($course['expires_at']))
 
 <div class="mb-3">
 <label>Thumbnail</label>
-<input type="file" name="thumbnail" class="form-control">
+<input type="file" name="thumbnail" class="form-control" accept="image/jpeg,image/png,image/webp">
 <?php if ($editing && $course['thumbnail']): ?>
 <div class="mt-2">
 <img src="<?= BASE_URL ?>/uploads/images/<?= $course['thumbnail'] ?>" width="120" class="border rounded">
+<small class="text-muted d-block">Leave empty to keep current image</small>
 </div>
 <?php endif; ?>
 </div>
 
 <div class="mb-3">
 <label>PDF</label>
-<input type="file" name="file_pdf" class="form-control">
+<input type="file" name="file_pdf" class="form-control" accept=".pdf">
 <?php if ($editing && $course['file_pdf']): ?>
 <div class="mt-2">
 <a href="<?= BASE_URL ?>/uploads/pdf/<?= $course['file_pdf'] ?>" target="_blank" class="btn btn-sm btn-outline-primary">
 <i class="fas fa-file-pdf"></i> View PDF
 </a>
+<small class="text-muted d-block">Leave empty to keep current file</small>
 </div>
 <?php endif; ?>
 </div>
 
 <div class="mb-3">
 <label>Video</label>
-<input type="file" name="file_video" class="form-control">
+<input type="file" name="file_video" class="form-control" accept="video/mp4,video/webm">
 <?php if ($editing && $course['file_video']): ?>
 <div class="mt-2">
 <a href="<?= BASE_URL ?>/uploads/video/<?= $course['file_video'] ?>" target="_blank" class="btn btn-sm btn-outline-primary">
 <i class="fas fa-video"></i> View Video
 </a>
+<small class="text-muted d-block">Leave empty to keep current file</small>
 </div>
 <?php endif; ?>
 </div>
 
-<button class="btn btn-primary">
-<i class="fas fa-file-alt">
-<a href="../admin/assessment_crud.php" class="text-white">Create Assessment</a>
- </i>
+<div class="d-flex gap-2">
+<button type="submit" class="btn btn-primary">
+<?= $editing ? 'Update Course' : 'Add Course' ?>
 </button>
-</div>
 
-<button class="btn btn-primary"><?= $editing ? 'Update Course' : 'Add Course' ?></button>
-<a href="courses_crud.php" class="btn btn-secondary ms-2">Back</a>
+<?php if ($editing): ?>
+<a href="../admin/assessment_crud.php?course_id=<?= $id ?>" class="btn btn-info">
+<i class="fas fa-file-alt"></i> Create Assessment
+</a>
+<?php endif; ?>
+
+<a href="courses_crud.php" class="btn btn-secondary">Back</a>
+</div>
 </form>
 </div>
 
 <?php else: ?>
 
+<a href="?act=addform" class="btn btn-success mb-3">Add New Course</a>
 
 <div class="modern-courses-grid">
+<?php if (empty($courses)): ?>
+<div class="alert alert-info">
+<i class="fas fa-info-circle"></i> No courses found. Click "Add New Course" to create one.
+</div>
+<?php else: ?>
 <?php foreach ($courses as $c): ?>
 <div class="modern-course-card">
 <div class="modern-card-img">
@@ -480,10 +539,10 @@ value="<?= ($editing && !empty($course['expires_at']))
 </div>
 <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>
 
-<!--  departments huhuhuhuhu -->
+<!-- Display departments -->
 <?php if (!empty($c['departments'])): ?>
 <div class="mb-2">
-<strong>Department:</strong><br>
+<strong>Departments:</strong><br>
 <?php foreach ($c['departments'] as $dept): ?>
 <span class="department-badge"><?= htmlspecialchars($dept['name']) ?></span>
 <?php endforeach; ?>
@@ -504,7 +563,6 @@ $updatedDate = !empty($c['updated_at'])
 ?>
 <p><strong>Start:</strong> <span><?= $startDate ?></span></p>
 <p><strong>Expires:</strong> <span><?= $expiryDate ?></span></p>
-
 <p><strong>Last Edited:</strong> 
 <span class="<?= $c['updated_at'] ? 'text-primary' : 'text-muted' ?>">
 <?= $updatedDate ?>
@@ -514,25 +572,26 @@ $updatedDate = !empty($c['updated_at'])
 </span>
 </p>
 </div>
-<div class="modern-card-actions">
-<a href="<?= BASE_URL ?>/proponent/view_course.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">View</a>
+
+<div class="btn-group-action">
+<a href="<?= BASE_URL ?>/proponent/view_course.php?id=<?= $c['id'] ?>" class="btn btn-sm btn-primary">View</a>
 
 <?php if (canModifyCourse($c['id'], $pdo)): ?>
-<a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>
-<a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
+<a href="?act=edit&id=<?= $c['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
+<a href="?act=delete&id=<?= $c['id'] ?>" class="btn btn-sm btn-danger"
 onclick="return confirm('Delete this course?')">Delete</a>
-<?php else: ?>
-<span class="btn btn-secondary btn-sm ms-2" disabled>Read Only</span>
 <?php endif; ?>
 </div>  
 </div>
 </div>
 <?php endforeach; ?>
+<?php endif; ?>
 </div>
 
 <?php endif; ?>
 
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
