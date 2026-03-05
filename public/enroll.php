@@ -9,10 +9,19 @@ if(!isset($_SESSION['user'])) {
 }
 
 $userId = $_SESSION['user']['id'];
-$courseId = intval($_POST['course_id'] ?? 0);
+
+// Check both GET and POST for course_id
+$courseId = 0;
+if (isset($_POST['course_id'])) {
+    $courseId = intval($_POST['course_id']);
+} elseif (isset($_GET['course_id'])) {
+    $courseId = intval($_GET['course_id']);
+}
 
 if(!$courseId) {
-    die('Invalid course ID.');
+    $_SESSION['error_message'] = 'Invalid course ID. Please try again.';
+    header('Location: courses.php'); // Students go to courses.php
+    exit;
 }
 
 // Check if course exists and is active
@@ -21,7 +30,9 @@ $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 
 if(!$course) {
-    die('Course not found or inactive.');
+    $_SESSION['error_message'] = 'Course not found or inactive.';
+    header('Location: courses.php'); // Students go to courses.php
+    exit;
 }
 
 // Check if user is already enrolled
@@ -32,7 +43,7 @@ $enrollment = $stmt->fetch();
 if($enrollment) {
     // Already enrolled, redirect back with message
     $_SESSION['message'] = "You are already enrolled in '{$course['title']}'";
-    header('Location: courses.php');
+    header('Location: courses.php'); // Students go to courses.php
     exit;
 }
 
@@ -40,7 +51,7 @@ if($enrollment) {
 $stmt = $pdo->prepare("INSERT INTO enrollments (user_id, course_id, enrolled_at, status, progress, total_time_seconds) VALUES (?, ?, NOW(), 'ongoing', 0, 0)");
 $stmt->execute([$userId, $courseId]);
 
-$_SESSION['message'] = "Successfully enrolled in '{$course['title']}'";
+$_SESSION['success_message'] = "Successfully enrolled in '{$course['title']}'";
 header("Location: course_view.php?id={$courseId}");
 exit;
 ?>

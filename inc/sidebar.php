@@ -74,7 +74,7 @@ function get_role_icon($role = '') {
                 <?php if($u && (is_proponent() || is_admin() ||  is_superadmin())): ?>
                     <!-- Admin users go to courses_crud.php -->
                     <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
-                        <i class="fa fa-list"></i> All Courses
+                        <i class="fa fa-gear"></i> Manage Courses
                     </a>
                 <?php else: ?>
                     <!-- Non-admin users go to courses.php -->
@@ -92,8 +92,8 @@ function get_role_icon($role = '') {
             <?php endif; ?>
             <?php if($u && (is_proponent() || is_admin())): ?>
                <li class="nav-item">
-                <a class="nav-link" href="<?= BASE_URL ?>/admin/manage_crud.php">
-                    <i class="fa fa-cog"></i> Manage Courses
+                <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
+                    <i class="fa-solid fa-folder-tree"></i> All Courses
                 </a>
               
         

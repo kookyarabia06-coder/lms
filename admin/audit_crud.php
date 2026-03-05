@@ -4,234 +4,135 @@ require_once __DIR__ . '/../inc/auth.php';
 require_login();
 
 // Check if user is superadmin
-if (!is_superadmin()) {
-echo 'Super Admin Only';
-exit;
+if (!is_superadmin() && !is_admin()) {
+    echo '<div class="alert alert-danger m-4">Authorized Access Only</div>';
+    exit;
 }
 
-// Handle AJAX request for real-time data
-if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_audit_data') {
-header('Content-Type: application/json');
-
+// Check if audit_log table exists
 try {
-// Get latest timestamp from client to only send new data
-$last_timestamp = isset($_GET['last_timestamp']) ? $_GET['last_timestamp'] : null;
-
-// Get course activities with old and new values from audit_log
-$sql = "
-SELECT 
-c.id as course_id,
-c.title,
-c.created_at,
-c.updated_at,
-u.id as user_id,
-u.username,
-u.fname,
-u.lname,
-u.role,
-a.old_data,
-a.new_data,
-a.changed_fields,
-a.action as audit_action,
-a.created_at as audit_time,
-CASE 
-WHEN a.action = 'UPDATE' THEN 'EDITED'
-WHEN a.action = 'INSERT' THEN 'ADDED'
-WHEN a.action = 'DELETE' THEN 'DELETED'
-ELSE 
-CASE 
-WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
-ELSE 'ADDED'
-END
-END as action_type
-FROM courses c
-LEFT JOIN users u ON c.proponent_id = u.id
-LEFT JOIN audit_log a ON a.table_name = 'courses' AND a.record_id = c.id
-WHERE 1=1
-";
-
-$params = [];
-
-// If last_timestamp provided, only get newer records
-if ($last_timestamp) {
-$sql .= " AND COALESCE(a.created_at, c.updated_at, c.created_at) > ?";
-$params[] = $last_timestamp;
-}
-
-$sql .= " ORDER BY COALESCE(a.created_at, c.updated_at, c.created_at) DESC";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// If no audit_log data, use fallback
-if (empty($course_actions) || !isset($course_actions[0]['old_data'])) {
-$stmt = $pdo->prepare("
-SELECT 
-c.id as course_id,
-c.title,
-c.created_at,
-c.updated_at,
-u.id as user_id,
-u.username,
-u.fname,
-u.lname,
-u.role,
-NULL as old_data,
-NULL as new_data,
-NULL as changed_fields,
-NULL as audit_action,
-NULL as audit_time,
-CASE 
-WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
-ELSE 'ADDED'
-END as action_type
-FROM courses c
-LEFT JOIN users u ON c.proponent_id = u.id
-ORDER BY c.updated_at DESC, c.created_at DESC
-");
-$stmt->execute();
-$course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// Format data for JSON response
-$formatted_data = [];
-foreach ($course_actions as $course) {
-$changes = parseFieldChanges(
-$course['old_data'] ?? null, 
-$course['new_data'] ?? null,
-$course['changed_fields'] ?? null
-);
-
-$formatted_data[] = [
-'course_id' => $course['course_id'],
-'title' => htmlspecialchars($course['title'] ?? 'Untitled'),
-'created_at' => date('M d, Y', strtotime($course['created_at'])),
-'created_time' => date('h:i A', strtotime($course['created_at'])),
-'updated_at' => !empty($course['updated_at']) ? date('M d, Y', strtotime($course['updated_at'])) : null,
-'updated_time' => !empty($course['updated_at']) ? date('h:i A', strtotime($course['updated_at'])) : null,
-'old_values' => $changes['old'],
-'new_values' => $changes['new'],
-'action_type' => $course['action_type'],
-'username' => $course['username'] ?? null,
-'fullname' => trim(($course['fname'] ?? '') . ' ' . ($course['lname'] ?? '')),
-'role' => $course['role'] ?? null,
-'audit_time' => !empty($course['audit_time']) ? date('h:i A', strtotime($course['audit_time'])) : null,
-'timestamp' => strtotime($course['audit_time'] ?? $course['updated_at'] ?? $course['created_at'])
-];
-}
-
-// Get the latest timestamp for next poll
-$latest_timestamp = null;
-if (!empty($course_actions)) {
-$latest = $course_actions[0];
-$latest_timestamp = date('Y-m-d H:i:s', strtotime($latest['audit_time'] ?? $latest['updated_at'] ?? $latest['created_at']));
-}
-
-echo json_encode([
-'success' => true,
-'data' => $formatted_data,
-'count' => count($formatted_data),
-'latest_timestamp' => $latest_timestamp
-]);
-
+    $pdo->query("SELECT 1 FROM audit_log LIMIT 1");
+    $audit_table_exists = true;
 } catch (Exception $e) {
-echo json_encode([
-'success' => false,
-'error' => $e->getMessage()
-]);
-}
-exit;
+    $audit_table_exists = false;
 }
 
-// Function to parse old/new values
-function parseFieldChanges($old_data, $new_data, $changed_fields) {
-$result = [
-'old' => [],
-'new' => []
-];
-
-if ($old_data && $new_data) {
-$old = json_decode($old_data, true);
-$new = json_decode($new_data, true);
-$fields = json_decode($changed_fields, true);
-
-if ($fields && is_array($fields)) {
-foreach ($fields as $field) {
-if (isset($old[$field]) || isset($new[$field])) {
-$result['old'][$field] = $old[$field] ?? 'NULL';
-$result['new'][$field] = $new[$field] ?? 'NULL';
-}
-}
-}
+// Set current user ID for triggers
+if ($audit_table_exists) {
+    $pdo->exec("SET @current_user_id = " . intval($_SESSION['user']['id']));
 }
 
-return $result;
+// Get all course activities with audit trail
+if ($audit_table_exists) {
+    $sql = "
+    SELECT 
+        c.id as course_id,
+        c.title,
+        c.description,
+        c.created_at,
+        c.updated_at,
+        c.expires_at,
+        u.id as creator_id,
+        u.username as creator_username,
+        u.fname as creator_fname,
+        u.lname as creator_lname,
+        u.role as creator_role,
+        a.id as audit_id,
+        a.old_data,
+        a.new_data,
+        a.changed_fields,
+        a.action as audit_action,
+        a.created_at as audit_time,
+        a.user_id as editor_id,
+        au.username as editor_username,
+        au.fname as editor_fname,
+        au.lname as editor_lname,
+        au.role as editor_role,
+        CASE 
+            WHEN a.action = 'UPDATE' THEN 'EDITED'
+            WHEN a.action = 'INSERT' THEN 'ADDED'
+            WHEN a.action = 'DELETE' THEN 'DELETED'
+            ELSE 'VIEWED'
+        END as action_type
+    FROM courses c
+    LEFT JOIN users u ON c.proponent_id = u.id
+    LEFT JOIN audit_log a ON a.table_name = 'courses' AND a.record_id = c.id
+    LEFT JOIN users au ON a.user_id = au.id
+    ORDER BY COALESCE(a.created_at, c.updated_at, c.created_at) DESC
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+} else {
+    // Fallback query without audit_log
+    $sql = "
+    SELECT 
+        c.id as course_id,
+        c.title,
+        c.description,
+        c.created_at,
+        c.updated_at,
+        c.expires_at,
+        c.proponent_id,
+        u.id as creator_id,
+        u.username as creator_username,
+        u.fname as creator_fname,
+        u.lname as creator_lname,
+        u.role as creator_role,
+        NULL as old_data,
+        NULL as new_data,
+        NULL as changed_fields,
+        NULL as audit_action,
+        NULL as audit_time,
+        NULL as editor_id,
+        NULL as editor_username,
+        NULL as editor_fname,
+        NULL as editor_lname,
+        NULL as editor_role,
+        CASE 
+            WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
+            ELSE 'ADDED'
+        END as action_type
+    FROM courses c
+    LEFT JOIN users u ON c.proponent_id = u.id
+    ORDER BY c.updated_at DESC, c.created_at DESC
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
 }
-
-// Initial data load for page render
-$stmt = $pdo->prepare("
-SELECT 
-c.id as course_id,
-c.title,
-c.created_at,
-c.updated_at,
-u.id as user_id,
-u.username,
-u.fname,
-u.lname,
-u.role,
-a.old_data,
-a.new_data,
-a.changed_fields,
-a.action as audit_action,
-a.created_at as audit_time,
-CASE 
-WHEN a.action = 'UPDATE' THEN 'EDITED'
-WHEN a.action = 'INSERT' THEN 'ADDED'
-WHEN a.action = 'DELETE' THEN 'DELETED'
-ELSE 
-CASE 
-WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
-ELSE 'ADDED'
-END
-END as action_type
-FROM courses c
-LEFT JOIN users u ON c.proponent_id = u.id
-LEFT JOIN audit_log a ON a.table_name = 'courses' AND a.record_id = c.id
-ORDER BY COALESCE(a.created_at, c.updated_at, c.created_at) DESC
-");
-$stmt->execute();
 $course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// If no audit_log data, use fallback
-if (empty($course_actions) || !isset($course_actions[0]['old_data'])) {
-$stmt = $pdo->prepare("
-SELECT 
-c.id as course_id,
-c.title,
-c.created_at,
-c.updated_at,
-u.id as user_id,
-u.username,
-u.fname,
-u.lname,
-u.role,
-NULL as old_data,
-NULL as new_data,
-NULL as changed_fields,
-NULL as audit_action,
-NULL as audit_time,
-CASE 
-WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
-ELSE 'ADDED'
-END as action_type
-FROM courses c
-LEFT JOIN users u ON c.proponent_id = u.id
-ORDER BY c.updated_at DESC, c.created_at DESC
-");
-$stmt->execute();
-$course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Function to format changes nicely
+function formatChanges($old_data, $new_data, $changed_fields) {
+    if (!$old_data || !$new_data || !$changed_fields) {
+        return 'No detailed changes';
+    }
+    
+    $old = json_decode($old_data, true);
+    $new = json_decode($new_data, true);
+    $fields = json_decode($changed_fields, true);
+    
+    if (!is_array($fields) || empty($fields)) {
+        return 'No field changes recorded';
+    }
+    
+    $changes = [];
+    foreach ($fields as $field) {
+        $old_val = $old[$field] ?? 'NULL';
+        $new_val = $new[$field] ?? 'NULL';
+        
+        // Format based on field type
+        if (in_array($field, ['thumbnail', 'file_pdf', 'file_video'])) {
+            if ($old_val != $new_val) {
+                $changes[] = "$field: " . basename($old_val) . " → " . basename($new_val);
+            }
+        } else {
+            if ($old_val != $new_val) {
+                $changes[] = "$field: '" . substr($old_val, 0, 30) . "' → '" . substr($new_val, 0, 30) . "'";
+            }
+        }
+    }
+    
+    return empty($changes) ? 'No visible changes' : implode('<br>', $changes);
 }
 ?>
 
@@ -240,732 +141,342 @@ $course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Course Activity - LMS</title>
+<title>Course Audit Trail - LMS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-.action-badge {
-padding: 4px 10px;
-border-radius: 20px;
-font-size: 11px;
-font-weight: 600;
-display: inline-block;
-}
+    body {
+        background: #f4f6f9;
+    }
+    
+    .main-content-wrapper {
+        margin-left: 280px;
+        padding: 20px;
+    }
+    
+    .action-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
+    }
 
-.action-added {
-background: #28a73b;
-color: white;
-}
+    .action-added {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
 
-.action-deleted {
-background: #e00000;
-color: white;
-}
+    .action-edited {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeeba;
+    }
 
-.action-edited {
-background: #ffc107;
-color: black;
-}
+    .action-deleted {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
 
-table {
-table-layout: fixed;
-width: 100%;
-}
+    .table th {
+        background: #343a40;
+        color: white;
+        font-size: 12px;
+        white-space: nowrap;
+        padding: 10px 8px;
+    }
 
-.table th {
-background: #343a40;
-color: white;
-font-size: 14px;
-white-space: nowrap;
-height: 50px;           
-max-height: 60px;       
-overflow: hidden;       
-}
+    .table td {
+        font-size: 12px;
+        vertical-align: middle;
+        padding: 10px 8px;
+    }
 
-.table td {
-font-size: 12px;
-vertical-align: middle;
-height: auto;
-min-height: 40px;
-padding: 8px 5px;
-word-wrap: break-word;
-}
+    .card {
+        border: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 10px;
+    }
 
-.stats-card {
-background: white;
-border-radius: 10px;
-padding: 20px;
-box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-text-align: center;
-margin-bottom: 20px;
-}
+    .card-header {
+        background: white;
+        border-bottom: 2px solid #f4f6f9;
+        padding: 15px 20px;
+    }
 
-.stats-number {
-font-size: 32px;
-font-weight: bold;
-color: #007bff;
-}
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+        border-radius: 0 0 10px 10px;
+    }
 
-.card {
-max-height: 700px; 
-display: flex;
-flex-direction: column;
-}
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #343a40;
+    }
 
-.card-body {
-flex: 1;
-overflow-y: auto;
-min-height: 0; 
-padding: 0;
-}
+    .changes-cell {
+        max-width: 300px;
+        font-size: 11px;
+        line-height: 1.4;
+    }
 
-.table-responsive {
-max-height: 600px; 
-overflow-y: auto;
-overflow-x: auto;
-}
+    .user-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8f9fa;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        border: 1px solid #dee2e6;
+    }
 
-.table thead th {
-position: sticky;
-top: 0;
-z-index: 10;
-background: #b8b9bb; 
-}
+    .user-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #6c757d;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
 
-/* Column width allocations */
-th:nth-child(1), td:nth-child(1) { width: 5%; }  /* Course ID */
-th:nth-child(2), td:nth-child(2) { width: 12%; } /* Course Title */
-th:nth-child(3), td:nth-child(3) { width: 8%; }  /* Created At */
-th:nth-child(4), td:nth-child(4) { width: 8%; }  /* Last Updated */
-th:nth-child(5), td:nth-child(5) { width: 10%; } /* Old Value */
-th:nth-child(6), td:nth-child(6) { width: 10%; } /* New Value */
-th:nth-child(7), td:nth-child(7) { width: 6%; }  /* Action */
-th:nth-child(8), td:nth-child(8) { width: 10%; } /* Done By */
-th:nth-child(9), td:nth-child(9) { width: 6%; }  /* Role */
+    .role-badge {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
+    }
 
-.value-changes {
-font-size: 11px;
-background: #f8f9fa;
-border-radius: 4px;
-padding: 4px;
-margin: 2px 0;
-}
+    .role-superadmin {
+        background: #6c5ce7;
+        color: white;
+    }
 
-.old-value {
-color: #dc3545;
-text-decoration: line-through;
-background: #ffe6e6;
-padding: 2px 4px;
-border-radius: 3px;
-display: inline-block;
-margin: 2px 0;
-}
+    .role-admin {
+        background: #0984e3;
+        color: white;
+    }
 
-.new-value {
-color: #28a745;
-background: #e6ffe6;
-padding: 2px 4px;
-border-radius: 3px;
-display: inline-block;
-margin: 2px 0;
-}
+    .role-proponent {
+        background: #00b894;
+        color: white;
+    }
 
-.field-name {
-font-weight: bold;
-color: #495057;
-font-size: 10px;
-text-transform: uppercase;
-margin-top: 2px;
-}
+    .role-student {
+        background: #fdcb6e;
+        color: #2d3436;
+    }
 
-.change-item {
-border-bottom: 1px dashed #dee2e6;
-padding: 3px 0;
-}
+    .audit-time {
+        font-size: 11px;
+        color: #636e72;
+        white-space: nowrap;
+    }
 
-.change-item:last-child {
-border-bottom: none;
-}
+    .db-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
 
-.tooltip-icon {
-cursor: help;
-color: #6c757d;
-margin-left: 3px;
-font-size: 10px;
-}
-
-/* Search Bar Styles */
-.search-box {
-position: relative;
-width: 100%;
-max-width: 400px;
-}
-
-.search-box i {
-position: absolute;
-left: 12px;
-top: 50%;
-transform: translateY(-50%);
-color: #6c757d;
-font-size: 14px;
-}
-
-.search-box input {
-width: 100%;
-padding: 10px 12px 10px 36px;
-border: 1px solid #dee2e6;
-border-radius: 24px;
-font-size: 14px;
-outline: none;
-transition: all 0.2s;
-}
-
-.search-box input:focus {
-border-color: #007bff;
-box-shadow: 0 1px 4px rgba(0,123,255,0.2);
-}
-
-.search-box input::placeholder {
-color: #6c757d;
-}
-
-/* Real-time update indicator */
-.update-indicator {
-display: inline-block;
-width: 10px;
-height: 10px;
-border-radius: 50%;
-background-color: #28a745;
-margin-right: 5px;
-animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-0% {
-opacity: 1;
-}
-50% {
-opacity: 0.3;
-}
-100% {
-opacity: 1;
-}
-}
-
-.new-row {
-animation: highlight 2s ease-out;
-}
-
-@keyframes highlight {
-0% {
-background-color: #fff3cd;
-}
-100% {
-background-color: transparent;
-}
-}
-
-.last-updated {
-font-size: 12px;
-color: #6c757d;
-}
-
-.control-panel {
-display: flex;
-justify-content: space-between;
-align-items: center;
-margin-bottom: 20px;
-flex-wrap: wrap;
-gap: 15px;
-}
-
-.refresh-control {
-display: flex;
-align-items: center;
-gap: 15px;
-}
-
-.auto-refresh-toggle {
-display: flex;
-align-items: center;
-gap: 8px;
-}
-
-.auto-refresh-toggle .form-check-input:checked {
-background-color: #28a745;
-border-color: #28a745;
-}
-
-.refresh-btn {
-border-radius: 24px;
-padding: 8px 20px;
-}
-
-.stats-updated {
-font-size: 12px;
-color: #6c757d;
-}
+    .search-box {
+        margin-bottom: 20px;
+        max-width: 300px;
+    }
 </style>
 </head>
-
 <body>
+
 <!-- Sidebar -->
 <div class="lms-sidebar-container">
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
+    <?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
 
 <!-- Main Content -->
 <div class="main-content-wrapper">
-<div class="container-fluid py-4">
-<h3 class="mb-4">Audit Trail - Course Changes <span class="update-indicator" id="liveIndicator" title="Live updates active"></span></h3>
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4>
+                <i class="fas fa-history text-primary me-2"></i>
+                Course Audit Trail
+            </h4>
+            <span class="badge bg-secondary"><?= count($course_actions) ?> total records</span>
+        </div>
 
-<!-- Control Panel -->
-<div class="control-panel">
-<!-- Search Bar -->
-<div class="search-box">
-<i class="fas fa-search"></i>
-<input type="text" id="auditSearch" placeholder="Search by course title, username, or action...">
-</div>
+        <?php if (!$audit_table_exists): ?>
+        <div class="db-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Limited Functionality:</strong> audit_log table not found. Showing basic course data only.
+            <button class="btn btn-sm btn-warning ms-3" onclick="document.getElementById('sqlScript').style.display='block'">Show Setup SQL</button>
+            <div id="sqlScript" style="display: none; margin-top: 15px;">
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 11px;">
+-- Run this SQL to create audit_log table and triggers
+CREATE TABLE IF NOT EXISTS `audit_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `table_name` varchar(255) NOT NULL,
+  `record_id` int(11) NOT NULL,
+  `action` enum('INSERT','UPDATE','DELETE') NOT NULL,
+  `old_data` longtext DEFAULT NULL,
+  `new_data` longtext DEFAULT NULL,
+  `changed_fields` longtext DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `table_name` (`table_name`,`record_id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-<!-- Refresh Controls -->
-<div class="refresh-control">
-<div class="auto-refresh-toggle">
-<div class="form-check form-switch">
-<input class="form-check-input" type="checkbox" id="autoRefresh" checked>
-<label class="form-check-label" for="autoRefresh">Auto-refresh</label>
-</div>
-<select class="form-select form-select-sm" id="refreshInterval" style="width: auto;" <?= BASE_URL ?>>
-<option value="5">5 sec</option>
-<option value="10" selected>10 sec</option>
-<option value="30">30 sec</option>
-<option value="60">1 min</option>
-</select>
-</div>
-<button class="btn btn-outline-primary refresh-btn" id="manualRefresh">
-<i class="fas fa-sync-alt"></i> Refresh Now
-</button>
-<span class="last-updated" id="lastUpdated">
-<i class="far fa-clock"></i> Last updated: just now
-</span>
-</div>
-</div>
+-- Create triggers (see original code for full trigger definitions)
+                </pre>
+            </div>
+        </div>
+        <?php endif; ?>
 
-<!-- Statistics Cards (Dynamic) -->
-<div class="row mb-4" id="statsContainer">
-<!-- Will be populated by JavaScript -->
-</div>
+        <!-- Simple Search -->
+        <div class="search-box">
+            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search by title, user, action...">
+        </div>
 
-<!-- Course Activity Table -->
-<div class="card">
-<div class="card-header text-black d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Course Creation & Edit History</h5>
-<span class="badge bg-success" id="recordCount"><?= count($course_actions) ?> records</span>
-</div>
-<div class="card-body p-0">
-<div class="table-responsive">
-<table class="table table-hover mb-0">
-<thead>
-<tr>
-<th>ID</th>
-<th>Course Title</th>
-<th>Created</th>
-<th>Updated</th>
-<th>Old Value <i class="fas fa-info-circle tooltip-icon" title="Previous values before change"></i></th>
-<th>New Value <i class="fas fa-info-circle tooltip-icon" title="New values after change"></i></th>
-<th>Action</th>
-<th>Done By</th>
-<th>Role</th>
-</tr>
-</thead>
-<tbody id="auditTableBody">
-<!-- Will be populated by JavaScript -->
-</tbody>
-</table>
-</div>
-</div>
-</div>
-</div>
+        <!-- Audit Table -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-list-alt me-2 text-primary"></i>Course Change History</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0" id="auditTable">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Course</th>
+                                <th>Action</th>
+                                <th>Changes</th>
+                                <th>User</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($course_actions as $course): ?>
+                            <?php
+                                // Determine who performed the action
+                                if (!empty($course['editor_username'])) {
+                                    $user_name = trim($course['editor_fname'] . ' ' . $course['editor_lname']);
+                                    $user_name = $user_name ?: $course['editor_username'];
+                                    $user_role = $course['editor_role'];
+                                    $user_avatar = substr($course['editor_fname'] ?: $course['editor_username'], 0, 1);
+                                } elseif ($course['action_type'] == 'ADDED' && !empty($course['creator_username'])) {
+                                    $user_name = trim($course['creator_fname'] . ' ' . $course['creator_lname']);
+                                    $user_name = $user_name ?: $course['creator_username'];
+                                    $user_role = $course['creator_role'];
+                                    $user_avatar = substr($course['creator_fname'] ?: $course['creator_username'], 0, 1);
+                                } else {
+                                    $user_name = 'System';
+                                    $user_role = 'system';
+                                    $user_avatar = 'S';
+                                }
+
+                                // Format date/time
+                                $display_time = $course['audit_time'] ?? $course['updated_at'] ?? $course['created_at'];
+                                $formatted_time = date('M d, Y h:i A', strtotime($display_time));
+
+                                // Get changes description
+                                $changes = formatChanges($course['old_data'], $course['new_data'], $course['changed_fields']);
+                                
+                                // Role badge class
+                                $role_class = 'role-' . strtolower(str_replace(' ', '', $user_role));
+                            ?>
+                            <tr>
+                                <td class="audit-time"><?= htmlspecialchars($formatted_time) ?></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($course['title'] ?: 'Untitled') ?></strong>
+                                    <br><small class="text-muted">ID: <?= $course['course_id'] ?></small>
+                                </td>
+                                <td>
+                                    <span class="action-badge action-<?= strtolower($course['action_type']) ?>">
+                                        <?php if ($course['action_type'] == 'ADDED'): ?>
+                                            <i class="fas fa-plus-circle me-1"></i>Added
+                                        <?php elseif ($course['action_type'] == 'EDITED'): ?>
+                                            <i class="fas fa-edit me-1"></i>Edited
+                                        <?php elseif ($course['action_type'] == 'DELETED'): ?>
+                                            <i class="fas fa-trash me-1"></i>Deleted
+                                        <?php else: ?>
+                                            <i class="fas fa-eye me-1"></i><?= $course['action_type'] ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </td>
+                                <td class="changes-cell"><?= $changes ?></td>
+                                <td>
+                                    <div class="user-badge">
+                                        <span class="user-avatar"><?= strtoupper($user_avatar) ?></span>
+                                        <span><?= htmlspecialchars($user_name) ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?php if ($user_role && $user_role != 'system'): ?>
+                                    <span class="role-badge <?= $role_class ?>">
+                                        <?= ucfirst(htmlspecialchars($user_role)) ?>
+                                    </span>
+                                    <?php else: ?>
+                                    <span class="role-badge bg-secondary text-white">System</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            
+                            <?php if (empty($course_actions)): ?>
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <i class="fas fa-info-circle text-muted mb-2 fa-2x"></i>
+                                    <p class="text-muted">No course activities found</p>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-// Store current data and state
-let currentData = <?= json_encode($course_actions) ?>;
-let lastTimestamp = null;
-let refreshInterval = null;
-let isAutoRefresh = true;
-let searchTerm = '';
-
-// Function to parse field changes (matches PHP function)
-function parseFieldChanges(oldData, newData, changedFields) {
-const result = { old: {}, new: {} };
-
-if (oldData && newData) {
-try {
-const old = JSON.parse(oldData);
-const new_ = JSON.parse(newData);
-const fields = JSON.parse(changedFields);
-
-if (Array.isArray(fields)) {
-fields.forEach(field => {
-if (old.hasOwnProperty(field) || new_.hasOwnProperty(field)) {
-result.old[field] = old[field] !== undefined ? old[field] : 'NULL';
-result.new[field] = new_[field] !== undefined ? new_[field] : 'NULL';
-}
-});
-}
-} catch (e) {
-console.error('Error parsing field changes:', e);
-}
-}
-
-return result;
-}
-
-// Function to format value display
-function formatValue(value, type = 'old') {
-if (value === null || value === undefined) return '';
-const str = String(value);
-const className = type === 'old' ? 'old-value' : 'new-value';
-return `<span class="${className}">${escapeHtml(str.substring(0, 30))}${str.length > 30 ? '...' : ''}</span>`;
-}
-
-// Function to escape HTML
-function escapeHtml(text) {
-const div = document.createElement('div');
-div.textContent = text;
-return div.innerHTML;
-}
-
-// Function to render table rows
-function renderTableRows(data) {
-if (!data || data.length === 0) {
-return `
-<tr>
-<td colspan="9" class="text-center py-5 text-muted">
-<i class="fas fa-info-circle fa-2x mb-3"></i>
-<p>No course activities found</p>
-</td>
-</tr>
-`;
-}
-
-return data.map(item => {
-const changes = parseFieldChanges(item.old_data, item.new_data, item.changed_fields);
-
-// Build old values HTML
-let oldValuesHtml = '';
-if (Object.keys(changes.old).length > 0) {
-oldValuesHtml = '<div class="value-changes">';
-for (const [field, value] of Object.entries(changes.old)) {
-oldValuesHtml += `
-<div class="change-item">
-<div class="field-name">${escapeHtml(field.charAt(0).toUpperCase() + field.slice(1))}:</div>
-${formatValue(value, 'old')}
-</div>
-`;
-}
-oldValuesHtml += '</div>';
-} else if (item.action_type === 'ADDED') {
-oldValuesHtml = '<span class="text-muted"><em>New course</em></span>';
-} else {
-oldValuesHtml = '<span class="text-muted"><em>No old data</em></span>';
-}
-
-// Build new values HTML
-let newValuesHtml = '';
-if (Object.keys(changes.new).length > 0) {
-newValuesHtml = '<div class="value-changes">';
-for (const [field, value] of Object.entries(changes.new)) {
-newValuesHtml += `
-<div class="change-item">
-<div class="field-name">${escapeHtml(field.charAt(0).toUpperCase() + field.slice(1))}:</div>
-${formatValue(value, 'new')}
-</div>
-`;
-}
-newValuesHtml += '</div>';
-} else if (item.action_type === 'ADDED') {
-newValuesHtml = '<span class="text-success"><em>Initial values</em></span>';
-} else {
-newValuesHtml = '<span class="text-muted"><em>Current values</em></span>';
-}
-
-// Action badge
-let actionBadge = '';
-if (item.action_type === 'ADDED') {
-actionBadge = '<span class="action-badge action-added"><i class="fas fa-plus-circle me-1"></i>Added</span>';
-} else if (item.action_type === 'EDITED') {
-actionBadge = '<span class="action-badge action-edited"><i class="fas fa-edit me-1"></i>Edited</span>';
-} else if (item.action_type === 'DELETED') {
-actionBadge = '<span class="action-badge action-deleted"><i class="fas fa-trash me-1"></i>Deleted</span>';
-}
-
-// Role badge
-let roleBadge = '';
-if (item.role === 'admin') {
-roleBadge = '<span class="badge bg-primary">Admin</span>';
-} else if (item.role === 'proponent') {
-roleBadge = '<span class="badge bg-info">Proponent</span>';
-} else if (item.role === 'superadmin') {
-roleBadge = '<span class="badge bg-secondary">Super Admin</span>';
-} else {
-roleBadge = '<span class="badge bg-secondary">Unknown</span>';
-}
-
-// Done by HTML
-let doneByHtml = '<span class="text-muted">Unknown</span>';
-if (item.username) {
-doneByHtml = `
-<div class="d-flex align-items-center">
-<div>
-<strong>${escapeHtml(item.username)}</strong>
-<br>
-<small class="text-muted">${escapeHtml(item.fname || '')} ${escapeHtml(item.lname || '')}</small>
-${item.audit_time ? `<br><small class="text-muted"><i class="far fa-clock"></i> ${escapeHtml(item.audit_time)}</small>` : ''}
-</div>
-</div>
-`;
-}
-
-return `
-<tr data-timestamp="${item.timestamp || ''}">
-<td><span class="fw-bold">#${escapeHtml(item.course_id)}</span></td>
-<td>${escapeHtml(item.title || 'Untitled')}</td>
-<td>
-<small>
-${escapeHtml(item.created_at)}<br>
-<span class="text-muted">${escapeHtml(item.created_time)}</span>
-</small>
-</td>
-<td>
-${item.updated_at ? 
-`<small>${escapeHtml(item.updated_at)}<br><span class="text-muted">${escapeHtml(item.updated_time)}</span></small>` : 
-'<span class="text-muted">Never updated</span>'}
-</td>
-<td>${oldValuesHtml}</td>
-<td>${newValuesHtml}</td>
-<td>${actionBadge}</td>
-<td>${doneByHtml}</td>
-<td>${roleBadge}</td>
-</tr>
-`;
-}).join('');
-}
-
-// debuging function to update statistics cards based on current data
-function updateStatistics(data) {
-const total = data.length;
-const added = data.filter(item => item.action_type === 'ADDED').length;
-const edited = data.filter(item => item.action_type === 'EDITED').length;
-const withChanges = data.filter(item => item.changed_fields).length;
-
-document.getElementById('statsContainer').innerHTML = `
-<div class="col-md-3">
-<div class="stats-card">
-<div class="stats-number">${total}</div>
-<div class="stats-label">Total Activities</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="stats-card">
-<div class="stats-number">${added}</div>
-<div class="stats-label">Courses Added</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="stats-card">
-<div class="stats-number">${edited}</div>
-<div class="stats-label">Courses Edited</div>
-</div>
-</div>
-<div class="col-md-3">
-<div class="stats-card">
-<div class="stats-number">${withChanges}</div>
-<div class="stats-label">With Field Changes</div>
-</div>
-</div>
-`;
-
-document.getElementById('recordCount').textContent = `${total} records`;
-}
-
-// searrch filter function
-function filterData(data) {
-if (!searchTerm) return data;
-
-return data.filter(item => {
-const title = (item.title || '').toLowerCase();
-const username = (item.username || '').toLowerCase();
-const action = (item.action_type || '').toLowerCase();
-const term = searchTerm.toLowerCase();
-
-return title.includes(term) || username.includes(term) || action.includes(term);
-});
-}
-
-// lasttimestampzxc base on the most recent record's audit_time, updated_at, or created_at
-function refreshData(showAnimation = true) {
-const url = window.location.href + '?ajax=get_audit_data' + (lastTimestamp ? `&last_timestamp=${encodeURIComponent(lastTimestamp)}` : '');
-
-fetch(url)
-.then(response => response.json())
-.then(result => {
-if (result.success) {
-if (result.data.length > 0) {
-// Update last timestamp
-if (result.latest_timestamp) {
-lastTimestamp = result.latest_timestamp;
-}
-
-// Merge new data with existing data (avoid duplicates)
-const existingIds = new Set(currentData.map(item => item.course_id + '_' + (item.audit_time || item.updated_at || item.created_at)));
-const newItems = result.data.filter(item => 
-!existingIds.has(item.course_id + '_' + (item.audit_time || item.updated_at || item.created_at))
-);
-
-if (newItems.length > 0) {
-// Add new items to beginning of array
-currentData = [...newItems, ...currentData];
-
-// Re-render with animation for new rows
-const filteredData = filterData(currentData);
-document.getElementById('auditTableBody').innerHTML = renderTableRows(filteredData);
-
-// Highlight new rows
-if (showAnimation) {
-setTimeout(() => {
-document.querySelectorAll('#auditTableBody tr').forEach((row, index) => {
-if (index < newItems.length) {
-row.classList.add('new-row');
-}
-});
-}, 10);
-}
-
-// Update statistics
-updateStatistics(currentData);
-
-// Show notification
-showNotification(`${newItems.length} new update(s) received`);
-}
-}
-
-// Update last updated time
-document.getElementById('lastUpdated').innerHTML = `<i class="far fa-clock"></i> Last updated: just now`;
-}
-})
-.catch(error => {
-console.error('Error refreshing data:', error);
-document.getElementById('lastUpdated').innerHTML = `<i class="far fa-clock"></i> Last updated: error - will retry`;
-});
-}
-
-// Function to show notification
-function showNotification(message) {
-const notification = document.createElement('div');
-notification.className = 'alert alert-info alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
-notification.style.zIndex = '9999';
-notification.innerHTML = `
-<i class="fas fa-info-circle me-2"></i>
-${message}
-<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-`;
-document.body.appendChild(notification);
-
-setTimeout(() => {
-notification.remove();
-}, 3000);
-}
-
-// Function to start auto-refresh
-function startAutoRefresh(interval) {
-if (refreshInterval) {
-clearInterval(refreshInterval);
-}
-refreshInterval = setInterval(() => refreshData(true), interval * 1000);
-}
-
-// Function to stop auto-refresh
-function stopAutoRefresh() {
-if (refreshInterval) {
-clearInterval(refreshInterval);
-refreshInterval = null;
-}
-}
-
-// Initialize page
-document.addEventListener('DOMContentLoaded', function() {
-// Initial render
-const filteredData = filterData(currentData);
-document.getElementById('auditTableBody').innerHTML = renderTableRows(filteredData);
-updateStatistics(currentData);
-
-// Set initial last timestamp
-if (currentData.length > 0) {
-const latest = currentData[0];
-lastTimestamp = latest.audit_time || latest.updated_at || latest.created_at;
-}
-
-// Search functionality
-const searchInput = document.getElementById('auditSearch');
-searchInput.addEventListener('keyup', function() {
-searchTerm = this.value;
-const filteredData = filterData(currentData);
-document.getElementById('auditTableBody').innerHTML = renderTableRows(filteredData);
-});
-
-// Auto-refresh toggle
-const autoRefreshCheckbox = document.getElementById('autoRefresh');
-const refreshIntervalSelect = document.getElementById('refreshInterval');
-
-autoRefreshCheckbox.addEventListener('change', function() {
-isAutoRefresh = this.checked;
-if (isAutoRefresh) {
-startAutoRefresh(parseInt(refreshIntervalSelect.value));
-document.getElementById('liveIndicator').style.opacity = '1';
-} else {
-stopAutoRefresh();
-document.getElementById('liveIndicator').style.opacity = '0.3';
-}
-});
-
-// Refresh interval change
-refreshIntervalSelect.addEventListener('change', function() {
-if (isAutoRefresh) {
-startAutoRefresh(parseInt(this.value));
-}
-});
-
-// Manual refresh button
-document.getElementById('manualRefresh').addEventListener('click', function() {
-const icon = this.querySelector('i');
-icon.classList.add('fa-spin');
-refreshData(true).finally(() => {
-setTimeout(() => icon.classList.remove('fa-spin'), 500);
-});
-});
-
-// Start auto-refresh by default
-startAutoRefresh(10);
-
-// Update last updated time every second
-setInterval(() => {
-const lastUpdatedEl = document.getElementById('lastUpdated');
-const currentText = lastUpdatedEl.innerHTML;
-if (currentText.includes('just now')) {
-// Already showing just now
-} else if (currentText.includes('seconds ago')) {
-// Update logic could be added here
-}
-}, 1000);
-
-// Initialize tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-tooltipTriggerList.map(function(tooltipTriggerEl) {
-return new bootstrap.Tooltip(tooltipTriggerEl);
-});
+// Simple client-side search
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const table = document.getElementById('auditTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        let found = false;
+        const cells = row.getElementsByTagName('td');
+        
+        for (let cell of cells) {
+            if (cell.textContent.toLowerCase().includes(searchTerm)) {
+                found = true;
+                break;
+            }
+        }
+        
+        row.style.display = found ? '' : 'none';
+    }
 });
 </script>
 

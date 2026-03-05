@@ -15,6 +15,29 @@ if (!$courseId) {
     die('Invalid course ID');
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Fetch course with enrollment info for current user
 $stmt = $pdo->prepare('
     SELECT 
@@ -30,12 +53,71 @@ $stmt = $pdo->prepare('
     LEFT JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
     WHERE c.id = ? AND c.is_active = 1
 ');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 $stmt->execute([$userId, $courseId]);
 $course = $stmt->fetch();
 
 if (!$course) {
     die('Course not found');
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Check if course is expired
 $isExpired = false;
@@ -50,6 +132,35 @@ $enrollStatus = $course['enroll_status'] ?? 'notenrolled';
 if ($isExpired && $enrollStatus === 'ongoing') {
     $enrollStatus = 'expired';
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // CHECK IF USER HAS ANY ACTIVE ENROLLMENT (excluding current course)
 $stmt = $pdo->prepare("
@@ -79,6 +190,32 @@ if ($hasActiveEnrollment) {
         $activeCourseTitle = $activeCourse['title'];
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Fetch all courses with enrollment info (for other queries you might need)
 $stmt = $pdo->prepare("
@@ -121,6 +258,26 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Handle enrollment POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enroll'])) {
