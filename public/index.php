@@ -169,11 +169,11 @@ require_once __DIR__ . '/../inc/config.php';
                     <span>iMISS</span>
                 </div>
 
-                <div class="bottom-note" style="margin-top: 0.5rem; margin-left: 128px;">
-                    <span><a href="#">Privacy Policy |</a>
-                    <span><a href="#"> Terms and Condition |</a>
-                    <span><a href="<?= BASE_URL ?>/public/contact_form.php"> Contact Us</a>
-                </div>
+               <div class="bottom-note" style="margin-top: 0.5rem; margin-left: 128px;">
+             <span onclick="window.location.href='#'" style="cursor: pointer;">Privacy Policy |</span>
+            <span onclick="window.location.href='#'" style="cursor: pointer;"> Terms and Condition |</span>
+            <span onclick="window.location.href='<?= BASE_URL ?>/public/contact_form.php'" style="cursor: pointer;"> Contact Us</span>
+            </div>
             </div>
         </div>
     </div>

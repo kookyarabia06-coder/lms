@@ -12,7 +12,7 @@ if (!is_admin() && !is_proponent() && !is_superadmin()) {
 }
 
 // Set maximum file upload size (in bytes)
-define('MAX_FILE_SIZE', 20 * 1024 * 1024); // 20MB
+define('MAX_FILE_SIZE', 250 * 1024 * 1024); // 250MB
 
 // Check if POST data exists (if not, might be file size issue)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST)) {
@@ -839,31 +839,28 @@ $max_post_size = ini_get('post_max_size');
                         placeholder="Course Summary"><?= htmlspecialchars($summary_value) ?></textarea>
                 </div>
 
-                <!-- Department Selection -->
+                <!-- Department Selection - Dropdown (Single Select) -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Course Departments</label>
-                    <div class="department-selector border p-3 rounded">
+                    <label class="form-label fw-bold">Course Department</label>
+                    <select name="departments[]" class="form-control">
+                        <option value="">-- Select Department --</option>
                         <?php 
                         $display_departments = (is_superadmin() || is_admin()) ? $all_departments : $user_departments;
                         
-                        if (empty($display_departments)): ?>
-                            <p class="text-muted mb-0">No departments available.</p>
-                        <?php else: 
+                        if (!empty($display_departments)): 
                             foreach ($display_departments as $dept): 
                         ?>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" 
-                                    name="departments[]" 
-                                    value="<?= $dept['id'] ?>" 
-                                    id="dept_<?= $dept['id'] ?>"
-                                    <?= in_array($dept['id'], $selected_depts) ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="dept_<?= $dept['id'] ?>">
-                                    <?= htmlspecialchars($dept['name']) ?>
-                                </label>
-                            </div>
-                        <?php endforeach; ?>
+                            <option value="<?= $dept['id'] ?>" <?= in_array($dept['id'], $selected_depts) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($dept['name']) ?>
+                            </option>
+                        <?php 
+                            endforeach; 
+                        else: 
+                        ?>
+                            <option value="" disabled>No departments available</option>
                         <?php endif; ?>
-                    </div>
+                    </select>
+                    <small class="text-muted">Select the department this course belongs to</small>
                 </div>
 
                 <!-- Date -->
@@ -1013,31 +1010,28 @@ $max_post_size = ini_get('post_max_size');
                         placeholder="Course Summary"><?= htmlspecialchars($summary_value) ?></textarea>
                 </div>
 
-                <!-- Department Selection -->
+                <!-- Department Selection - Dropdown (Single Select) -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Course Departments</label>
-                    <div class="department-selector border p-3 rounded">
+                    <label class="form-label fw-bold">Course Department</label>
+                    <select name="departments[]" class="form-control">
+                        <option value="">-- Select Department --</option>
                         <?php 
                         $display_departments = (is_superadmin() || is_admin()) ? $all_departments : $user_departments;
                         
-                        if (empty($display_departments)): ?>
-                            <p class="text-muted mb-0">No departments available.</p>
-                        <?php else: 
+                        if (!empty($display_departments)): 
                             foreach ($display_departments as $dept): 
                         ?>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" 
-                                    name="departments[]" 
-                                    value="<?= $dept['id'] ?>" 
-                                    id="dept_<?= $dept['id'] ?>"
-                                    <?= in_array($dept['id'], $selected_depts) ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="dept_<?= $dept['id'] ?>">
-                                    <?= htmlspecialchars($dept['name']) ?>
-                                </label>
-                            </div>
-                        <?php endforeach; ?>
+                            <option value="<?= $dept['id'] ?>" <?= in_array($dept['id'], $selected_depts) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($dept['name']) ?>
+                            </option>
+                        <?php 
+                            endforeach; 
+                        else: 
+                        ?>
+                            <option value="" disabled>No departments available</option>
                         <?php endif; ?>
-                    </div>
+                    </select>
+                    <small class="text-muted">Select the department this course belongs to</small>
                 </div>
 
                 <!-- Date -->

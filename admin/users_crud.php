@@ -14,6 +14,93 @@ exit;
 
 $act = $_GET['act'] ?? '';
 
+// Handle ADD DEPARTMENT
+if ($act === 'add_department' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start();
+    
+    $dept_name = trim($_POST['department_name'] ?? '');
+    
+    if (empty($dept_name)) {
+        $_SESSION['error'] = "Department name is required";
+        header('Location: users_crud.php' . (isset($_GET['form']) ? '?act=' . $_GET['form'] : ''));
+        exit;
+    }
+    
+    // Check if department already exists
+    $checkStmt = $pdo->prepare("SELECT id FROM departments WHERE name = ?");
+    $checkStmt->execute([$dept_name]);
+    if ($checkStmt->fetch()) {
+        $_SESSION['error'] = "Department already exists";
+        header('Location: users_crud.php' . (isset($_GET['form']) ? '?act=' . $_GET['form'] : ''));
+        exit;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("INSERT INTO departments (name) VALUES (?)");
+        $stmt->execute([$dept_name]);
+        $_SESSION['success'] = "Department added successfully";
+    } catch (Exception $e) {
+        $_SESSION['error'] = "Failed to add department: " . $e->getMessage();
+    }
+    
+    // Redirect back to the same form
+    if (isset($_GET['form']) && $_GET['form'] === 'add') {
+        header('Location: users_crud.php?act=addform');
+    } elseif (isset($_GET['form']) && $_GET['form'] === 'edit' && isset($_GET['user_id'])) {
+        header('Location: users_crud.php?act=edit&id=' . $_GET['user_id']);
+    } else {
+        header('Location: users_crud.php');
+    }
+    exit;
+}
+
+// Handle EDIT DEPARTMENT
+if ($act === 'edit_department' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start();
+    
+    $dept_id = (int)($_POST['department_id'] ?? 0);
+    $dept_name = trim($_POST['department_name'] ?? '');
+    
+    if (empty($dept_name)) {
+        $_SESSION['error'] = "Department name is required";
+        header('Location: users_crud.php' . (isset($_GET['form']) ? '?act=' . $_GET['form'] : ''));
+        exit;
+    }
+    
+    if ($dept_id <= 0) {
+        $_SESSION['error'] = "Invalid department ID";
+        header('Location: users_crud.php' . (isset($_GET['form']) ? '?act=' . $_GET['form'] : ''));
+        exit;
+    }
+    
+    // Check if department name already exists (excluding current department)
+    $checkStmt = $pdo->prepare("SELECT id FROM departments WHERE name = ? AND id != ?");
+    $checkStmt->execute([$dept_name, $dept_id]);
+    if ($checkStmt->fetch()) {
+        $_SESSION['error'] = "Department name already exists";
+        header('Location: users_crud.php' . (isset($_GET['form']) ? '?act=' . $_GET['form'] : ''));
+        exit;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("UPDATE departments SET name = ? WHERE id = ?");
+        $stmt->execute([$dept_name, $dept_id]);
+        $_SESSION['success'] = "Department updated successfully";
+    } catch (Exception $e) {
+        $_SESSION['error'] = "Failed to update department: " . $e->getMessage();
+    }
+    
+    // Redirect back to the same form
+    if (isset($_GET['form']) && $_GET['form'] === 'add') {
+        header('Location: users_crud.php?act=addform');
+    } elseif (isset($_GET['form']) && $_GET['form'] === 'edit' && isset($_GET['user_id'])) {
+        header('Location: users_crud.php?act=edit&id=' . $_GET['user_id']);
+    } else {
+        header('Location: users_crud.php');
+    }
+    exit;
+}
+
 // Fetch all departments for dropdown/checkboxes
 $deptStmt = $pdo->query("SELECT id, name FROM departments ORDER BY name ASC");
 $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -404,9 +491,19 @@ $totalPending = count($pendingUsers);
 </div>
 </div>
 
-<!-- Department Checkboxes with Search - Hidden by default -->
+<!-- Department Checkboxes with Search and Action Buttons - Hidden by default -->
 <div class="mb-3" id="departmentsSection" style="display: none;">
-    <label>Departments</label>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="fw-bold">Departments</label>
+        <div>
+            <button type="button" class="btn btn-sm btn-primary me-1" data-bs-toggle="modal" data-bs-target="#addDepartmentModal" data-form-type="add">
+                <i class="fas fa-plus"></i> Add
+            </button>
+            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editDepartmentModal" data-form-type="add">
+                <i class="fas fa-edit"></i> Edit
+            </button>
+        </div>
+    </div>
     
     <!-- Search Bar -->
     <div class="mb-2">
@@ -414,12 +511,16 @@ $totalPending = count($pendingUsers);
     </div>
     
     <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;" id="departmentContainer">
-        <?php foreach($departments as $dept): ?>
-        <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
-            <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
-            <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
-        </div>
-        <?php endforeach; ?>
+        <?php if (empty($departments)): ?>
+            <p class="text-muted text-center">No departments available. Click "Add" to create one.</p>
+        <?php else: ?>
+            <?php foreach($departments as $dept): ?>
+            <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
+                <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
+                <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
     <small class="text-muted">Select all departments the user belongs to</small>
 </div>
@@ -473,9 +574,19 @@ $totalPending = count($pendingUsers);
 </div>
 </div>
 
-<!-- Department Checkboxes with Search - Hidden by default -->
+<!-- Department Checkboxes with Search and Action Buttons - Hidden by default -->
 <div class="mb-3" id="departmentsSection" style="display: none;">
-    <label>Departments</label>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="fw-bold">Departments</label>
+        <div>
+            <button type="button" class="btn btn-sm btn-primary me-1" data-bs-toggle="modal" data-bs-target="#addDepartmentModal" data-form-type="edit" data-user-id="<?= $user['id'] ?>">
+                <i class="fas fa-plus"></i> Add
+            </button>
+            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editDepartmentModal" data-form-type="edit" data-user-id="<?= $user['id'] ?>">
+                <i class="fas fa-edit"></i> Edit
+            </button>
+        </div>
+    </div>
     
     <!-- Search Bar -->
     <div class="mb-2">
@@ -483,23 +594,88 @@ $totalPending = count($pendingUsers);
     </div>
     
     <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;" id="departmentContainer">
-        <?php foreach($departments as $dept): ?>
-        <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
-            <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>">
-            <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
-        </div>
-        <?php endforeach; ?>
+        <?php if (empty($departments)): ?>
+            <p class="text-muted text-center">No departments available. Click "Add" to create one.</p>
+        <?php else: ?>
+            <?php foreach($departments as $dept): ?>
+            <div style="margin-bottom: 8px;" class="department-item" data-department-name="<?= strtolower(htmlspecialchars($dept['name'])) ?>">
+                <input type="checkbox" name="departments[]" value="<?= $dept['id'] ?>" id="dept_<?= $dept['id'] ?>"
+                    <?= in_array($dept['id'], $user['department_ids'] ?? []) ? 'checked' : '' ?>>
+                <label for="dept_<?= $dept['id'] ?>"><?= htmlspecialchars($dept['name']) ?></label>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
     <small class="text-muted">Select all departments the user belongs to</small>
 </div>
 
 <div class="mt-3">
-<button type="submit" class="btn btn-primary">Create User</button>
+<button type="submit" class="btn btn-primary">Update User</button>
 <a href="users_crud.php" class="btn btn-secondary">Cancel</a>
 </div>
 </form>
 </div>
 <?php endif; ?>
+
+<!-- Add Department Modal -->
+<div class="modal fade" id="addDepartmentModal" tabindex="-1" aria-labelledby="addDepartmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="" id="addDepartmentForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDepartmentModalLabel">Add New Department</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="department_name" class="form-label">Department Name</label>
+                        <input type="text" class="form-control" id="department_name" name="department_name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Department</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Modal -->
+<div class="modal fade" id="editDepartmentModal" tabindex="-1" aria-labelledby="editDepartmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="" id="editDepartmentForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editDepartmentModalLabel">Edit Department</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_department_select" class="form-label">Select Department</label>
+                        <select class="form-control" id="edit_department_select" required>
+                            <option value="">-- Select Department to Edit --</option>
+                            <?php foreach($departments as $dept): ?>
+                            <option value="<?= $dept['id'] ?>" data-name="<?= htmlspecialchars($dept['name']) ?>">
+                                <?= htmlspecialchars($dept['name']) ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_department_name" class="form-label">New Department Name</label>
+                        <input type="text" class="form-control" id="edit_department_name" name="department_name" required>
+                        <input type="hidden" name="department_id" id="edit_department_id">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update Department</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
                   <!-- Pending Users Table -->
 <div class="card shadow-sm mb-4">
@@ -717,7 +893,72 @@ document.addEventListener('DOMContentLoaded', function() {
         // Listen for changes
         roleSelect.addEventListener('change', toggleDepartments);
     }
+    
+    // Handle Add Department modal form action
+    const addDepartmentModal = document.getElementById('addDepartmentModal');
+    if (addDepartmentModal) {
+        addDepartmentModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const formType = button.getAttribute('data-form-type');
+            const userId = button.getAttribute('data-user-id');
+            const form = document.getElementById('addDepartmentForm');
+            
+            if (formType === 'add') {
+                form.action = '?act=add_department&form=add';
+            } else if (formType === 'edit' && userId) {
+                form.action = '?act=add_department&form=edit&user_id=' + userId;
+            }
+        });
+    }
+    
+    // Handle Edit Department modal
+    const editDepartmentModal = document.getElementById('editDepartmentModal');
+    if (editDepartmentModal) {
+        const departmentSelect = document.getElementById('edit_department_select');
+        const departmentNameInput = document.getElementById('edit_department_name');
+        const departmentIdInput = document.getElementById('edit_department_id');
+        const editForm = document.getElementById('editDepartmentForm');
+        
+        // When modal is opened
+        editDepartmentModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const formType = button.getAttribute('data-form-type');
+            const userId = button.getAttribute('data-user-id');
+            
+            // Clear previous values
+            departmentSelect.value = '';
+            departmentNameInput.value = '';
+            departmentIdInput.value = '';
+            
+            // Set form action
+            if (formType === 'add') {
+                editForm.action = '?act=edit_department&form=add';
+            } else if (formType === 'edit' && userId) {
+                editForm.action = '?act=edit_department&form=edit&user_id=' + userId;
+            }
+        });
+        
+        // When department is selected from dropdown
+        departmentSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                const deptName = selectedOption.getAttribute('data-name');
+                departmentNameInput.value = deptName;
+                departmentIdInput.value = selectedOption.value;
+            } else {
+                departmentNameInput.value = '';
+                departmentIdInput.value = '';
+            }
+        });
+    }
 });
+
+// Track mouse position for tooltip positioning
+document.addEventListener('mousemove', function(e) {
+    document.documentElement.style.setProperty('--mouse-x', e.clientX + 'px');
+    document.documentElement.style.setProperty('--mouse-y', e.clientY + 'px');
+});
+
 </script>
 
 </body>

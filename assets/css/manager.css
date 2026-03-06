@@ -84,9 +84,6 @@
 .fixed-table {
     table-layout: fixed;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* Set all data text to 16px */
@@ -103,38 +100,6 @@
     font-size: 13px;
 }
 
-/* Department Tooltip */
-.fixed-table td:nth-child(4) {
-    position: relative;
-    cursor: help;
-}
-
-.fixed-table td:nth-child(4):hover::before {
-    content: attr(data-departments);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 10px;
-    white-space: nowrap;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.fixed-table td:nth-child(4):hover::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: #333;
-}
-
 /* Fixed Table Column Widths */
 .fixed-table td:nth-child(1) {
     width: 30%; /* Title column - adjust as needed */
@@ -149,11 +114,11 @@
 }
 
 .fixed-table th:nth-child(3) {
-    width: 15%; /* Full name */
+    width: 23%; /* Full name */
 }
 
 .fixed-table th:nth-child(4) {
-    width: 25%; /* Departments */
+    width: 23%; /* Departments */
 }
 
 .fixed-table th:nth-child(5) {
@@ -176,13 +141,73 @@
     width: 20%; /* Actions */
 }
 
+/* Add these rules to handle text overflow */
+.fixed-table td,
+.fixed-table-pending td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0; /* This forces the cell to respect its width */
+}
+
+/* Special handling for the department column */
+.fixed-table td:nth-child(4) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    cursor: help;
+}
+
+/* Ensure the badges inside department column also respect the overflow */
+.fixed-table td:nth-child(4) span.badge {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Department Tooltip - Fixed positioning to work with overflow hidden */
+.fixed-table td:nth-child(4):hover::before {
+    content: attr(data-departments);
+    position: fixed;
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    
+    /* Center near the cursor */
+    top: var(--mouse-y, 50%);
+    left: var(--mouse-x, 50%);
+    transform: translate(-50%, -100%);
+    margin-top: -10px; /* Offset above cursor */
+}
+
+.fixed-table td:nth-child(4):hover::after {
+    content: '';
+    position: fixed;
+    border: 6px solid transparent;
+    border-top-color: #333;
+    z-index: 10000;
+    pointer-events: none;
+    
+    /* Position arrow below the tooltip */
+    top: var(--mouse-y, 50%);
+    left: var(--mouse-x, 50%);
+    transform: translate(-50%, -24px);
+}
+
 /* Pending Table Styles */
 .fixed-table-pending {
     table-layout: fixed;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* Pending Table Column Widths */
@@ -196,7 +221,7 @@
 }
 
 .fixed-table-pending td:nth-child(3) {
-    width: 15%; /* Full Name */
+    width: 20%; /* Full Name */
 }
 
 .fixed-table-pending td:nth-child(4) {
@@ -212,5 +237,35 @@
 }
 
 .fixed-table-pending td:nth-child(7) {
-    width: 32%; /* Actions */
+    width: 20%; /* Actions */
+}
+
+/* ===== FIXED HEIGHT TABLES WITH INTERNAL SCROLLING ===== */
+.card-body.p-0 {
+    max-height: 400px; /* Fixed height for both tables */
+    overflow-y: auto;
+    position: relative;
+}
+
+/* Different heights for each table (optional - remove if you want same height) */
+.card:first-of-type .card-body.p-0 {
+    max-height: 300px; /* Pending users table */
+}
+
+.card:last-of-type .card-body.p-0 {
+    max-height: 450px; /* Confirmed users table */
+}
+
+/* Keep table header sticky when scrolling */
+.card-body.p-0 table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 10;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure the department tooltip works with scrolling */
+.card-body.p-0 {
+    position: relative;
 }

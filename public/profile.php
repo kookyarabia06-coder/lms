@@ -132,19 +132,19 @@ $stmt=$pdo->prepare("SELECT d.name FROM departments d
                 }
                 ?>
 
-                <p>Departments:</p>
+               
                 <ul>
-                    <?php
+                   <?php
                     $stmt->execute([$u['id']]);
                     $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    if ($departments) {
-                        foreach ($departments as $dept) {
-                            echo '<TH> <BR>' . htmlspecialchars($dept['name']) . '</TH>';
-                        }
-                    } else {
-                        echo '<li>No departments assigned</li>';
-                    }
-                    ?>
+                if ($departments) {
+             foreach ($departments as $dept) {
+              echo '<span class="department-badge">' . htmlspecialchars($dept['name']) . '</span>';
+             }
+        } else {
+       echo '<span class="no-departments">No departments assigned</span>';
+        }
+        ?>
 
 
             </p>
