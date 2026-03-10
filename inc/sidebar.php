@@ -40,7 +40,8 @@ function get_role_icon($role = '') {
                          alt="armmc logo" 
                          class="logo-img">
             <ul class="nav flex-column">
-                <li class="nav-item" color>
+                <!-- Profile Section (ALWAYS SHOWN) -->
+                <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/profile.php">
                         <div class="profile-icon-mini">
                             <i class="fas <?= get_role_icon($u['role'] ?? '') ?>"></i>
@@ -57,61 +58,69 @@ function get_role_icon($role = '') {
                     </a>
                 </li>
 
-                <li class="nav-item" color>
+                <!-- DIVIDER 1: After Profile (ALWAYS SHOWN) -->
+                <li class="nav-divider"></li>
+
+                <!-- Main Navigation (ALWAYS SHOWN) -->
+                <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">
                         <i class="fa fa-tachometer-alt"></i> Dashboard
                     </a>
                 </li>
 
-                <!-- Courses parent menu -->
-<li class="nav-item">
-    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
-    </a>
-    <div class="collapse" id="coursesSubMenu">
-        <ul class="nav flex-column ms-3">
-            <li class="nav-item">
-                <?php if($u && (is_proponent() || is_admin() ||  is_superadmin())): ?>
-                    <!-- Admin users go to courses_crud.php -->
-                    <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
-                        <i class="fa fa-gear"></i> Manage Courses
+                <!-- Courses menu (ALWAYS SHOWN - but content varies by role) -->
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
+                        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
                     </a>
-                <?php else: ?>
-                    <!-- Non-admin users go to courses.php -->
-                    <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
-                        <i class="fa fa-list"></i> All Courses
-                    </a>
-                <?php endif; ?>
-            </li>
-            <?php if($u && is_student()): ?>
-            <li class="nav-item">
-                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
-                    <i class="fa fa-graduation-cap"></i> My Courses
-                </a>
-            </li>
-            <?php endif; ?>
-            <?php if($u && (is_proponent() || is_admin())): ?>
-               <li class="nav-item">
-                <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
-                    <i class="fa-solid fa-folder-tree"></i> All Courses
-                </a>
-              
-        
-               
-            </li>
-            <?php endif; ?>
-        </ul>
-    </div>
+                    <div class="collapse" id="coursesSubMenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                                    <!-- Admin users go to courses_crud.php -->
+                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
+                                        <i class="fa fa-gear"></i> Manage Courses
+                                    </a>
+                                <?php else: ?>
+                                    <!-- Non-admin users go to courses.php -->
+                                    <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
+                                        <i class="fa fa-list"></i> All Courses
+                                    </a>
+                                <?php endif; ?>
+                            </li>
+                            <?php if($u && is_student()): ?>
+                            <li class="nav-item">
+                                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
+                                    <i class="fa fa-graduation-cap"></i> My Courses
+                                </a>
+                            </li>
+                            <?php endif; ?>
+                            <?php if($u && (is_proponent() || is_admin())): ?>
+                               <li class="nav-item">
+                                    <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
+                                        <i class="fa-solid fa-folder-tree"></i> All Courses
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </li>
 
-   
-
-                <?php if($u && ( is_admin() || is_superadmin())): ?>
+                <!-- Track if admin section has any items -->
+                <?php 
+                $hasAdminItems = false;
+                $adminContent = '';
+                
+                ob_start(); // Start capturing admin section content
+                ?>
+                
+                <!-- Admin Section -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <?php $hasAdminItems = true; ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
                             <i class="fa fa-users"></i> User Management
-                        </a></li>
-                         <li class="nav-item">
-                        
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/news_crud.php">
@@ -120,37 +129,49 @@ function get_role_icon($role = '') {
                     </li>
                 <?php endif; ?>
 
-<!-- super admin -->
-                   <?php if($u && (is_superadmin() || is_admin())): ?>
-</li><a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
-                           <i class="fa-solid fa-clock-rotate-left"></i> Audit Trail
+                <!-- Super Admin -->
+                <?php if($u && (is_superadmin() || is_admin())): ?>
+                    <?php $hasAdminItems = true; ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Audit Trail
                         </a>
-                         <?php endif; ?>
+                    </li>
+                <?php endif; ?>
 
+                <!-- Contact Messages -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <?php $hasAdminItems = true; ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/admin_contacts.php">
+                            <i class="fa fa-envelope"></i> Contact Messages
+                            <?php
+                            // Get unread count
+                            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE is_read = 0");
+                            $countStmt->execute();
+                            $unread = $countStmt->fetchColumn();
+                            if ($unread > 0):
+                            ?>
+                                <span class="badge bg-danger float-end"><?= $unread ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                <?php endif; ?>
+                
+                <?php 
+                $adminContent = ob_get_clean(); // Get the captured content
+                ?>
 
-<?php if($u && (is_admin() || is_superadmin())): ?>
-    <li class="nav-item">
-        <a class="nav-link" href="<?= BASE_URL ?>/admin/admin_contacts.php">
-            <i class="fa fa-envelope"></i> Contact Messages
-            <?php
-            // Get unread count
-            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE is_read = 0");
-            $countStmt->execute();
-            $unread = $countStmt->fetchColumn();
-            if ($unread > 0):
-            ?>
-                <span class="badge bg-danger float-end"><?= $unread ?></span>
-            <?php endif; ?>
-        </a>
-    </li>
-<?php endif; ?>
+                <!-- Only show DIVIDER 2 and admin section if there are admin items -->
+                <?php if ($hasAdminItems): ?>
+                    <li class="nav-divider"></li>
+                    <?php echo $adminContent; ?>
+                <?php endif; ?>
 
+                <!-- DIVIDER 3: Before Logout (ALWAYS SHOWN) -->
+                <li class="nav-divider"></li>
 
-
-
-
-
-
+                <!-- Logout (ALWAYS SHOWN) -->
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/logout.php">
                         <i class="fa fa-sign-out-alt"></i> Logout

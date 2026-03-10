@@ -146,6 +146,7 @@ function formatChanges($old_data, $new_data, $changed_fields) {
 <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
 <style>
     body {
         background: #f4f6f9;
@@ -156,89 +157,135 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         padding: 20px;
     }
     
+    /* Card Styles - Updated to match second CSS */
+    .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+    
+    .card-header {
+        background: white;
+        border-bottom: 2px solid #f0f0f0;
+        padding: 15px 20px;
+        font-weight: 600;
+        border-radius: 12px 12px 0 0 !important;
+    }
+    
+    /* Badge Styles - Updated to match second CSS pattern */
     .action-badge {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 10px;
         font-weight: 600;
         display: inline-block;
         white-space: nowrap;
     }
-
+    
     .action-added {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-
-    .action-edited {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeeba;
-    }
-
-    .action-deleted {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-    }
-
-    .table th {
-        background: #343a40;
+        background: #28a745;
         color: white;
-        font-size: 12px;
-        white-space: nowrap;
-        padding: 10px 8px;
-    }
-
-    .table td {
-        font-size: 12px;
-        vertical-align: middle;
-        padding: 10px 8px;
-    }
-
-    .card {
         border: none;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .action-edited {
+        background: #ffc107;
+        color: #000;
+        border: none;
+    }
+    
+    .action-deleted {
+        background: #dc3545;
+        color: white;
+        border: none;
+    }
+    
+    /* Table Styles - Updated to match second CSS */
+    .table th {
+        background: #f8f9fa;
+        border-top: none;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        padding: 12px 8px;
+        color: #495057;
+    }
+    
+    .table td {
+        font-size: 13px;
+        vertical-align: middle;
+        padding: 12px 8px;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    /* Status Indicator - New from second CSS */
+    .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    
+    .status-pending {
+        background: #ffc107;
+    }
+    
+    .status-confirmed {
+        background: #28a745;
+    }
+    
+    .status-deleted {
+        background: #dc3545;
+    }
+    
+    .status-edited {
+        background: #ffc107;
+    }
+    
+    /* Role Badges - Updated colors to match second CSS pattern */
+    .role-badge {
+        padding: 5px 10px;
         border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
     }
-
-    .card-header {
-        background: white;
-        border-bottom: 2px solid #f4f6f9;
-        padding: 15px 20px;
+    
+    .role-superadmin {
+        background: #6c5ce7;
+        color: white;
     }
-
-    .table-responsive {
-        max-height: 600px;
-        overflow-y: auto;
-        border-radius: 0 0 10px 10px;
+    
+    .role-admin {
+        background: #0984e3;
+        color: white;
     }
-
-    .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: #343a40;
+    
+    .role-proponent {
+        background: #00b894;
+        color: white;
     }
-
-    .changes-cell {
-        max-width: 300px;
-        font-size: 11px;
-        line-height: 1.4;
+    
+    .role-student {
+        background: #fdcb6e;
+        color: #2d3436;
     }
-
+    
+    /* User Badge - Updated styling */
     .user-badge {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         background: #f8f9fa;
-        padding: 4px 10px;
+        padding: 4px 12px;
         border-radius: 20px;
         font-size: 12px;
         border: 1px solid #dee2e6;
     }
-
+    
     .user-avatar {
         width: 24px;
         height: 24px;
@@ -252,56 +299,127 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         font-weight: bold;
         text-transform: uppercase;
     }
-
-    .role-badge {
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 10px;
-        font-weight: 600;
-        display: inline-block;
-        white-space: nowrap;
+    
+    /* Changes Cell - Updated */
+    .changes-cell {
+        max-width: 300px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #495057;
     }
-
-    .role-superadmin {
-        background: #6c5ce7;
-        color: white;
-    }
-
-    .role-admin {
-        background: #0984e3;
-        color: white;
-    }
-
-    .role-proponent {
-        background: #00b894;
-        color: white;
-    }
-
-    .role-student {
-        background: #fdcb6e;
-        color: #2d3436;
-    }
-
+    
+    /* Audit Time - Updated */
     .audit-time {
         font-size: 11px;
-        color: #636e72;
+        color: #6c757d;
         white-space: nowrap;
     }
-
-    .db-warning {
-        background: #fff3cd;
-        border: 1px solid #ffeeba;
-        color: #856404;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+    
+    /* Table Responsive - Updated */
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+        border-radius: 0 0 12px 12px;
+        position: relative;
     }
-
+    
+    /* Sticky Header - Updated to match second CSS */
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f8f9fa;
+        box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Search Box - Updated */
     .search-box {
         margin-bottom: 20px;
         max-width: 300px;
     }
+    
+    .search-box .form-control {
+        border-radius: 20px;
+        border: 1px solid #dee2e6;
+        padding: 8px 15px;
+        font-size: 13px;
+    }
+    
+    .search-box .form-control:focus {
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.15);
+        border-color: #80bdff;
+    }
+    
+    /* DB Warning - Updated */
+    .db-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 13px;
+    }
+    
+    /* Stats Cards - New from second CSS pattern */
+    .stats-card {
+        background: white;
+        border-radius: 10px;
+        padding: 15px 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        display: inline-block;
+        margin-bottom: 20px;
+    }
+    
+    .stats-number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #343a40;
+        line-height: 1.2;
+    }
+    
+    .stats-label {
+        font-size: 13px;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    /* Table Actions - New */
+    .table-actions a {
+        margin-right: 8px;
+        font-size: 13px;
+        color: #007bff;
+        text-decoration: none;
+    }
+    
+    .table-actions a:hover {
+        text-decoration: underline;
+    }
+    
+    .table-actions a.text-danger:hover {
+        color: #bd2130 !important;
+    }
+    
+    /* Badge variants - New */
+    .badge-pending {
+        background: #ffc107;
+        color: #000;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+    
+    .badge-confirmed {
+        background: #28a745;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+    }
 </style>
+
 </head>
 <body>
 
@@ -316,7 +434,7 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4>
                 <i class="fas fa-history text-primary me-2"></i>
-                Course Audit Trail
+                Audit Trail
             </h4>
             <span class="badge bg-secondary"><?= count($course_actions) ?> total records</span>
         </div>
@@ -358,7 +476,7 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
         <!-- Audit Table -->
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-list-alt me-2 text-primary"></i>Course Change History</h6>
+                <h6 class="mb-0"><i class="fas fa-list-alt me-2 text-primary"></i>Audit Trail</h6>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">

@@ -24,8 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST)) {
 
 $act = $_GET['act'] ?? '';
 $id  = isset($_GET['id']) ? (int)$_GET['id'] : null;
-$assessment_id = isset($_GET['assessment_id']) ? (int)$_GET['assessment_id'] : null;
-$action = $_GET['action'] ?? '';
 
 // First, check if course_departments table exists and create it if not
 try {
@@ -188,113 +186,6 @@ function saveCourseDepartments($course_id, $department_ids, $pdo) {
     }
 }
 
-/**
- * Save assessment function
- */
-function saveAssessment($course_id, $data, $pdo) {
-    if (empty($data['assessment_id'])) {
-        // Insert new assessment
-        $stmt = $pdo->prepare("
-            INSERT INTO assessments (course_id, title, description, passing_score, time_limit, attempts_allowed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([
-            $course_id,
-            $data['assessment_title'],
-            $data['assessment_description'],
-            $data['passing_score'] ?? 70,
-            $data['time_limit'] ?? null,
-            $data['attempts_allowed'] ?? 1
-        ]);
-        $assessment_id = $pdo->lastInsertId();
-    } else {
-        // Update existing assessment
-        $assessment_id = $data['assessment_id'];
-        $stmt = $pdo->prepare("
-            UPDATE assessments 
-            SET title = ?, description = ?, passing_score = ?, time_limit = ?, attempts_allowed = ?, updated_at = NOW()
-            WHERE id = ? AND course_id = ?
-        ");
-        $stmt->execute([
-            $data['assessment_title'],
-            $data['assessment_description'],
-            $data['passing_score'] ?? 70,
-            $data['time_limit'] ?? null,
-            $data['attempts_allowed'] ?? 1,
-            $assessment_id,
-            $course_id
-        ]);
-    }
-    
-    // Save questions
-    saveQuestions($assessment_id, $data, $pdo);
-    
-    return $assessment_id;
-}
-
-/**
- * Save questions function
- */
-function saveQuestions($assessment_id, $data, $pdo) {
-    // Delete existing questions
-    $stmt = $pdo->prepare("DELETE FROM assessment_questions WHERE assessment_id = ?");
-    $stmt->execute([$assessment_id]);
-    
-    if (isset($data['questions']) && is_array($data['questions'])) {
-        foreach ($data['questions'] as $index => $question) {
-            // Skip empty questions
-            if (empty($question['text'])) continue;
-            
-            // Insert question
-            $stmt = $pdo->prepare("
-                INSERT INTO assessment_questions (assessment_id, question_text, question_type, points, order_number)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $assessment_id,
-                $question['text'],
-                $question['type'],
-                $question['points'] ?? 1,
-                $index
-            ]);
-            
-            $question_id = $pdo->lastInsertId();
-            
-            // Save options for multiple choice
-            if ($question['type'] == 'multiple_choice' && isset($question['options'])) {
-                foreach ($question['options'] as $opt_index => $option) {
-                    if (empty($option['text'])) continue;
-                    
-                    $stmt = $pdo->prepare("
-                        INSERT INTO assessment_options (question_id, option_text, is_correct, order_number)
-                        VALUES (?, ?, ?, ?)
-                    ");
-                    $stmt->execute([
-                        $question_id,
-                        $option['text'],
-                        isset($option['is_correct']) ? 1 : 0,
-                        $opt_index
-                    ]);
-                }
-            }
-            
-            // Save for true/false
-            if ($question['type'] == 'true_false' && isset($question['correct_answer'])) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO assessment_options (question_id, option_text, is_correct, order_number)
-                    VALUES (?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $question_id,
-                    $question['correct_answer'] == 'true' ? 'True' : 'False',
-                    1,
-                    0
-                ]);
-            }
-        }
-    }
-}
-
 /* =========================
 HANDLE ALL POST REQUESTS FIRST
 ========================= */
@@ -360,11 +251,6 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             saveCourseDepartments($course_id, $_POST['departments'], $pdo);
         }
 
-        // Save assessment if provided
-        if (isset($_POST['save_assessment']) && $_POST['save_assessment'] == 1) {
-            saveAssessment($course_id, $_POST, $pdo);
-        }
-
         $_SESSION['success_message'] = 'Course added successfully!';
         header('Location: courses_crud.php');
         exit;
@@ -383,7 +269,7 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Handle EDIT COURSE
-if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['save_assessment'])) {
+if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Fetch the course to verify it exists
     $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id");
@@ -465,23 +351,6 @@ if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_
 
     $_SESSION['success_message'] = 'Course updated successfully!';
     header('Location: courses_crud.php');
-    exit;
-}
-
-// Handle ASSESSMENT SAVE
-if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_assessment'])) {
-    saveAssessment($id, $_POST, $pdo);
-    $_SESSION['success_message'] = 'Assessment saved successfully!';
-    header('Location: ?act=edit&id=' . $id);
-    exit;
-}
-
-// Handle ASSESSMENT DELETION
-if ($act === 'edit' && $id && $action === 'delete_assessment' && $assessment_id) {
-    $stmt = $pdo->prepare("DELETE FROM assessments WHERE id = ? AND course_id = ?");
-    $stmt->execute([$assessment_id, $id]);
-    $_SESSION['success_message'] = 'Assessment deleted successfully!';
-    header('Location: ?act=edit&id=' . $id);
     exit;
 }
 
@@ -568,9 +437,6 @@ foreach ($courses_list as &$course_item) {
 // If editing, get the specific course data
 $edit_course = null;
 $course_departments = [];
-$assessments = [];
-$editing_assessment = null;
-$assessment_questions = [];
 
 if ($act === 'edit' && $id) {
     // Fetch the specific course for editing
@@ -602,42 +468,6 @@ if ($act === 'edit' && $id) {
     } catch (Exception $e) {
         $course_departments = [];
     }
-
-    // Fetch assessments for this course
-    $stmt = $pdo->prepare("
-        SELECT a.*, 
-        (SELECT COUNT(*) FROM assessment_questions WHERE assessment_id = a.id) as question_count
-        FROM assessments a 
-        WHERE a.course_id = ? 
-        ORDER BY a.created_at DESC
-    ");
-    $stmt->execute([$id]);
-    $assessments = $stmt->fetchAll();
-
-    // Fetch assessment data if editing a specific assessment
-    if ($assessment_id && $action === 'edit_assessment') {
-        $stmt = $pdo->prepare("SELECT * FROM assessments WHERE id = ? AND course_id = ?");
-        $stmt->execute([$assessment_id, $id]);
-        $editing_assessment = $stmt->fetch();
-        
-        if ($editing_assessment) {
-            // Get questions with their options
-            $stmt = $pdo->prepare("
-                SELECT q.*, 
-                (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', o.id, 'text', o.option_text, 'is_correct', o.is_correct)) 
-                 FROM assessment_options o WHERE o.question_id = q.id) as options
-                FROM assessment_questions q
-                WHERE q.assessment_id = ?
-                ORDER BY q.order_number ASC
-            ");
-            $stmt->execute([$assessment_id]);
-            $assessment_questions = $stmt->fetchAll();
-            
-            foreach ($assessment_questions as &$q) {
-                $q['options'] = json_decode($q['options'], true) ?? [];
-            }
-        }
-    }
 }
 
 // Get session messages
@@ -662,118 +492,6 @@ $max_post_size = ini_get('post_max_size');
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-    <style>
-        /* Assessment Form Styles */
-        .assessment-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        
-        .assessment-card {
-            background: white;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
-        .assessment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e9ecef;
-        }
-        
-        .assessment-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #495057;
-        }
-        
-        .assessment-meta {
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-        
-        .question-form {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .question-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .question-text {
-            font-weight: 600;
-            color: #495057;
-        }
-        
-        .remove-question {
-            color: #dc3545;
-            cursor: pointer;
-            font-size: 1.2rem;
-        }
-        
-        .remove-question:hover {
-            color: #bd2130;
-        }
-        
-        .options-container {
-            margin-top: 10px;
-            padding: 10px;
-            background: white;
-            border-radius: 5px;
-        }
-        
-        .option-item {
-            background: #f1f3f5;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 8px;
-        }
-        
-        .add-assessment-btn {
-            margin-top: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .btn-add-question {
-            background: #e7f5ff;
-            color: #1971c2;
-            border: 1px dashed #4dabf7;
-            margin-top: 10px;
-        }
-        
-        .btn-add-question:hover {
-            background: #d0ebff;
-            color: #1864ab;
-        }
-        
-        .btn-add-option {
-            background: #f1f3f5;
-            color: #495057;
-            border: 1px dashed #adb5bd;
-            margin-top: 5px;
-        }
-        
-        .btn-add-option:hover {
-            background: #e9ecef;
-        }
-    </style>
 </head>
 <body>
 
@@ -893,67 +611,6 @@ $max_post_size = ini_get('post_max_size');
                 <div class="mb-3">
                     <label>Video (Max: <?= $max_upload_size ?>)</label>
                     <input type="file" name="file_video" class="form-control" accept="video/mp4,video/webm">
-                </div>
-
-                <!-- Assessment Section - Button to show/hide -->
-                <div class="mb-3">
-                    <button type="button" class="btn btn-outline-primary" id="toggleAssessmentBtn" onclick="toggleAssessmentForm()">
-                        <i class="fas fa-clipboard-list me-2"></i>Add Assessment to Course
-                    </button>
-                </div>
-
-                <!-- Assessment Form (Hidden by default) -->
-                <div id="assessmentForm" class="assessment-section" style="display: none;">
-                    <h5 class="mb-3 text-primary">
-                        <i class="fas fa-clipboard-list me-2"></i>Course Assessment
-                    </h5>
-                    
-                    <input type="hidden" name="save_assessment" value="1" id="saveAssessment">
-                    
-                    <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label class="fw-bold">Assessment Title</label>
-                            <input type="text" name="assessment_title" id="assessment_title" class="form-control" placeholder="e.g., Final Exam, Module 1 Quiz">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="fw-bold">Passing Score (%)</label>
-                            <input type="number" name="passing_score" id="passing_score" class="form-control" value="70" min="0" max="100">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="fw-bold">Description</label>
-                        <textarea name="assessment_description" id="assessment_description" class="form-control" rows="2" placeholder="Assessment description"></textarea>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="fw-bold">Time Limit (minutes)</label>
-                            <input type="number" name="time_limit" id="time_limit" class="form-control" placeholder="Leave empty for no limit">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fw-bold">Attempts Allowed</label>
-                            <input type="number" name="attempts_allowed" id="attempts_allowed" class="form-control" value="1" min="1">
-                        </div>
-                    </div>
-
-                    <hr class="my-3">
-
-                    <!-- Questions Container -->
-                    <div id="questionsContainer" class="mb-3">
-                        <!-- Questions will be added here dynamically -->
-                    </div>
-
-                    <!-- Add Question Button -->
-                    <button type="button" class="btn btn-add-question w-100" onclick="addQuestion()">
-                        <i class="fas fa-plus me-2"></i>Add New Question
-                    </button>
-
-                    <hr class="my-3">
-                    
-                    <small class="text-muted d-block">
-                        <i class="fas fa-info-circle"></i> Multiple choice questions will have 4 options by default. You can mark the correct answer(s) using the checkboxes.
-                    </small>
                 </div>
 
                 <hr>
@@ -1088,470 +745,23 @@ $max_post_size = ini_get('post_max_size');
                     <?php endif; ?>
                 </div>
 
+                <!-- Assessments Link -->
+                <div class="mb-4 p-3 bg-light rounded">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-clipboard-list text-primary me-2"></i>
+                            <strong>Course Assessments</strong>
+                            <p class="text-muted small mb-0">Manage quizzes and exams for this course</p>
+                        </div>
+                        <a href="assessment_crud.php?course_id=<?= $id ?>" class="btn btn-primary">
+                            <i class="fas fa-edit me-2"></i>Manage Assessments
+                        </a>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">Update Course</button>
                 <a href="courses_crud.php" class="btn btn-secondary ms-2">Back to Courses</a>
             </form>
-        </div>
-
-        <!-- Assessments Section -->
-        <div class="card p-4 mb-4 shadow-sm bg-white rounded">
-            <h5 class="mb-3">
-                <i class="fas fa-clipboard-list text-primary me-2"></i>
-                Course Assessments
-            </h5>
-            
-            <!-- Display existing assessments -->
-            <?php if (!empty($assessments)): ?>
-                <?php foreach ($assessments as $assess): ?>
-                <div class="assessment-card">
-                    <div class="assessment-header">
-                        <div>
-                            <span class="assessment-title"><?= htmlspecialchars($assess['title']) ?></span>
-                            <span class="badge bg-info ms-2"><?= $assess['question_count'] ?> Questions</span>
-                            <?php if ($assess['question_count'] > 0): ?>
-                                <span class="badge bg-success ms-1">Ready</span>
-                            <?php else: ?>
-                                <span class="badge bg-warning ms-1">No Questions</span>
-                            <?php endif; ?>
-                        </div>
-                        <div>
-                            <a href="?act=edit&id=<?= $id ?>&action=edit_assessment&assessment_id=<?= $assess['id'] ?>" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="?act=edit&id=<?= $id ?>&action=delete_assessment&assessment_id=<?= $assess['id'] ?>" 
-                               class="btn btn-sm btn-outline-danger"
-                               onclick="return confirm('Delete this assessment? All questions will also be deleted.')">
-                                <i class="fas fa-trash"></i> Delete
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <p class="text-muted small mb-2"><?= htmlspecialchars($assess['description'] ?: 'No description') ?></p>
-                    
-                    <div class="assessment-meta">
-                        <span class="me-3"><i class="fas fa-check-circle"></i> Passing: <?= $assess['passing_score'] ?>%</span>
-                        <?php if ($assess['time_limit']): ?>
-                            <span class="me-3"><i class="fas fa-clock"></i> Time: <?= $assess['time_limit'] ?> mins</span>
-                        <?php endif; ?>
-                        <span><i class="fas fa-redo"></i> Attempts: <?= $assess['attempts_allowed'] ?></span>
-                    </div>
-
-                    <!-- Show questions if editing this assessment -->
-                    <?php if ($assessment_id == $assess['id'] && $action === 'edit_assessment'): ?>
-                        <div class="mt-3 p-3 bg-white rounded border">
-                            <h6 class="text-primary">Edit Assessment Questions</h6>
-                            <form method="post" id="assessmentEditForm">
-                                <input type="hidden" name="save_assessment" value="1">
-                                <input type="hidden" name="assessment_id" value="<?= $assess['id'] ?>">
-                                <input type="hidden" name="assessment_title" value="<?= htmlspecialchars($assess['title']) ?>">
-                                <input type="hidden" name="assessment_description" value="<?= htmlspecialchars($assess['description']) ?>">
-                                <input type="hidden" name="passing_score" value="<?= $assess['passing_score'] ?>">
-                                <input type="hidden" name="time_limit" value="<?= $assess['time_limit'] ?>">
-                                <input type="hidden" name="attempts_allowed" value="<?= $assess['attempts_allowed'] ?>">
-                                
-                                <div id="editQuestionsContainer">
-                                    <!-- Existing questions will be loaded here -->
-                                </div>
-                                
-                                <button type="button" class="btn btn-add-question w-100" onclick="addEditQuestion()">
-                                    <i class="fas fa-plus me-2"></i>Add New Question
-                                </button>
-                                
-                                <hr>
-                                <button type="submit" class="btn btn-success">Save Changes</button>
-                                <a href="?act=edit&id=<?= $id ?>" class="btn btn-secondary">Cancel</a>
-                            </form>
-                        </div>
-
-                        <script>
-                            let editQuestionCount = 0;
-                            let existingQuestions = <?= json_encode($assessment_questions) ?>;
-                            
-                            function loadExistingQuestions() {
-                                existingQuestions.forEach((q, index) => {
-                                    addEditQuestion(q, index);
-                                });
-                            }
-                            
-                            function addEditQuestion(questionData = null, index = null) {
-                                const container = document.getElementById('editQuestionsContainer');
-                                const qIndex = index !== null ? index : editQuestionCount;
-                                const question = questionData || { text: '', type: 'multiple_choice', points: 1, options: [] };
-                                
-                                let optionsHtml = '';
-                                if (question.type === 'multiple_choice') {
-                                    // Create 4 options, filling in existing ones if available
-                                    for (let i = 0; i < 4; i++) {
-                                        const option = question.options && question.options[i] ? question.options[i] : { text: '', is_correct: false };
-                                        optionsHtml += `
-                                            <div class="option-item mb-2" id="edit_option_${qIndex}_${i}">
-                                                <div class="row">
-                                                    <div class="col-8">
-                                                        <input type="text" name="questions[${qIndex}][options][${i}][text]" 
-                                                               class="form-control" placeholder="Option ${i+1}" 
-                                                               value="${escapeHtml(option.text || '')}" required>
-                                                    </div>
-                                                    <div class="col-3">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" 
-                                                                   name="questions[${qIndex}][options][${i}][is_correct]"
-                                                                   ${option.is_correct ? 'checked' : ''}>
-                                                            <label class="form-check-label">Correct</label>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-1">
-                                                        ${i >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeEditOption(${qIndex}, ${i})">
-                                                            <i class="fas fa-times"></i>
-                                                        </span>` : ''}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        `;
-                                    }
-                                }
-                                
-                                const questionHtml = `
-                                    <div class="question-form" id="edit_question_${qIndex}">
-                                        <div class="question-header">
-                                            <span class="question-text">Question ${qIndex + 1}</span>
-                                            <span class="remove-question" onclick="removeEditQuestion(${qIndex})">
-                                                <i class="fas fa-times"></i>
-                                            </span>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label>Question Text</label>
-                                            <input type="text" name="questions[${qIndex}][text]" class="form-control" 
-                                                   value="${escapeHtml(question.text || '')}" required>
-                                        </div>
-                                        
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <label>Question Type</label>
-                                                <select name="questions[${qIndex}][type]" class="form-control" 
-                                                        onchange="toggleEditQuestionOptions(${qIndex}, this.value)">
-                                                    <option value="multiple_choice" ${question.type === 'multiple_choice' ? 'selected' : ''}>Multiple Choice</option>
-                                                    <option value="true_false" ${question.type === 'true_false' ? 'selected' : ''}>True/False</option>
-                                                    <option value="essay" ${question.type === 'essay' ? 'selected' : ''}>Essay</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <label>Points</label>
-                                                <input type="number" name="questions[${qIndex}][points]" class="form-control" 
-                                                       value="${question.points || 1}" min="1">
-                                            </div>
-                                        </div>
-                                        
-                                        <div id="edit_options_${qIndex}" class="options-container" 
-                                             style="display: ${question.type === 'multiple_choice' ? 'block' : 'none'};">
-                                            ${optionsHtml}
-                                        </div>
-                                        
-                                        <div id="edit_true_false_${qIndex}" style="display: ${question.type === 'true_false' ? 'block' : 'none'};">
-                                            <label>Correct Answer</label>
-                                            <select name="questions[${qIndex}][correct_answer]" class="form-control">
-                                                <option value="true" ${question.correct_answer === 'true' ? 'selected' : ''}>True</option>
-                                                <option value="false" ${question.correct_answer === 'false' ? 'selected' : ''}>False</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                `;
-                                
-                                container.insertAdjacentHTML('beforeend', questionHtml);
-                                
-                                if (questionData === null) {
-                                    editQuestionCount++;
-                                } else {
-                                    editQuestionCount = Math.max(editQuestionCount, qIndex + 1);
-                                }
-                            }
-                            
-                            function removeEditQuestion(id) {
-                                document.getElementById(`edit_question_${id}`).remove();
-                            }
-                            
-                            function toggleEditQuestionOptions(questionId, type) {
-                                const optionsDiv = document.getElementById(`edit_options_${questionId}`);
-                                const trueFalseDiv = document.getElementById(`edit_true_false_${questionId}`);
-                                
-                                if (type === 'multiple_choice') {
-                                    optionsDiv.style.display = 'block';
-                                    trueFalseDiv.style.display = 'none';
-                                    // Ensure we have 4 options
-                                    if (optionsDiv.children.length === 0) {
-                                        for (let i = 0; i < 4; i++) {
-                                            addEditOption(questionId, i);
-                                        }
-                                    }
-                                } else if (type === 'true_false') {
-                                    optionsDiv.style.display = 'none';
-                                    trueFalseDiv.style.display = 'block';
-                                } else {
-                                    optionsDiv.style.display = 'none';
-                                    trueFalseDiv.style.display = 'none';
-                                }
-                            }
-                            
-                            function addEditOption(questionId, optionIndex) {
-                                const optionsDiv = document.getElementById(`edit_options_${questionId}`);
-                                
-                                const optionHtml = `
-                                    <div class="option-item mb-2" id="edit_option_${questionId}_${optionIndex}">
-                                        <div class="row">
-                                            <div class="col-8">
-                                                <input type="text" name="questions[${questionId}][options][${optionIndex}][text]" 
-                                                       class="form-control" placeholder="Option ${optionIndex+1}" required>
-                                            </div>
-                                            <div class="col-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" 
-                                                           name="questions[${questionId}][options][${optionIndex}][is_correct]">
-                                                    <label class="form-check-label">Correct</label>
-                                                </div>
-                                            </div>
-                                            <div class="col-1">
-                                                ${optionIndex >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeEditOption(${questionId}, ${optionIndex})">
-                                                    <i class="fas fa-times"></i>
-                                                </span>` : ''}
-                                            </div>
-                                        </div>
-                                    </div>
-                                `;
-                                
-                                optionsDiv.insertAdjacentHTML('beforeend', optionHtml);
-                            }
-                            
-                            function removeEditOption(questionId, optionId) {
-                                if (optionId >= 4) {
-                                    document.getElementById(`edit_option_${questionId}_${optionId}`).remove();
-                                }
-                            }
-                            
-                            function escapeHtml(text) {
-                                if (!text) return '';
-                                const div = document.createElement('div');
-                                div.textContent = text;
-                                return div.innerHTML;
-                            }
-                            
-                            // Load existing questions on page load
-                            document.addEventListener('DOMContentLoaded', function() {
-                                if (existingQuestions && existingQuestions.length > 0) {
-                                    loadExistingQuestions();
-                                }
-                            });
-                        </script>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> No assessments created yet for this course.
-                </div>
-            <?php endif; ?>
-
-            <!-- Add Assessment Button -->
-            <button class="btn btn-outline-primary add-assessment-btn" onclick="window.location.href='?act=edit&id=<?= $id ?>&action=new_assessment'">
-                <i class="fas fa-plus me-2"></i>Create New Assessment
-            </button>
-
-            <!-- New Assessment Form -->
-            <?php if ($action === 'new_assessment'): ?>
-            <div id="newAssessmentForm" class="assessment-section">
-                <h6 class="mb-3 text-primary">Create New Assessment</h6>
-                <form method="post">
-                    <input type="hidden" name="save_assessment" value="1">
-                    
-                    <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label class="fw-bold">Assessment Title</label>
-                            <input type="text" name="assessment_title" class="form-control" required>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="fw-bold">Passing Score (%)</label>
-                            <input type="number" name="passing_score" class="form-control" value="70" min="0" max="100">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="fw-bold">Description</label>
-                        <textarea name="assessment_description" class="form-control" rows="2"></textarea>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="fw-bold">Time Limit (minutes)</label>
-                            <input type="number" name="time_limit" class="form-control" placeholder="Leave empty for no limit">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fw-bold">Attempts Allowed</label>
-                            <input type="number" name="attempts_allowed" class="form-control" value="1" min="1">
-                        </div>
-                    </div>
-
-                    <hr class="my-3">
-
-                    <!-- Questions Container -->
-                    <div id="newQuestionsContainer" class="mb-3">
-                        <!-- Questions will be added here dynamically -->
-                    </div>
-
-                    <!-- Add Question Button -->
-                    <button type="button" class="btn btn-add-question w-100" onclick="addNewQuestion()">
-                        <i class="fas fa-plus me-2"></i>Add New Question
-                    </button>
-
-                    <hr class="my-3">
-
-                    <button type="submit" class="btn btn-primary">Save Assessment</button>
-                    <a href="?act=edit&id=<?= $id ?>" class="btn btn-secondary">Cancel</a>
-                </form>
-            </div>
-
-            <script>
-                let newQuestionCount = 0;
-                
-                function addNewQuestion() {
-                    const container = document.getElementById('newQuestionsContainer');
-                    const qIndex = newQuestionCount;
-                    
-                    // Generate 4 default options for multiple choice
-                    let optionsHtml = '';
-                    for (let i = 0; i < 4; i++) {
-                        optionsHtml += `
-                            <div class="option-item mb-2" id="new_option_${qIndex}_${i}">
-                                <div class="row">
-                                    <div class="col-8">
-                                        <input type="text" name="questions[${qIndex}][options][${i}][text]" 
-                                               class="form-control" placeholder="Option ${i+1}" required>
-                                    </div>
-                                    <div class="col-3">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   name="questions[${qIndex}][options][${i}][is_correct]">
-                                            <label class="form-check-label">Correct</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-1">
-                                        ${i >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeNewOption(${qIndex}, ${i})">
-                                            <i class="fas fa-times"></i>
-                                        </span>` : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    
-                    const questionHtml = `
-                        <div class="question-form" id="new_question_${qIndex}">
-                            <div class="question-header">
-                                <span class="question-text">Question ${newQuestionCount + 1}</span>
-                                <span class="remove-question" onclick="removeNewQuestion(${qIndex})">
-                                    <i class="fas fa-times"></i>
-                                </span>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label>Question Text</label>
-                                <input type="text" name="questions[${qIndex}][text]" class="form-control" required>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label>Question Type</label>
-                                    <select name="questions[${qIndex}][type]" class="form-control" 
-                                            onchange="toggleNewQuestionOptions(${qIndex}, this.value)">
-                                        <option value="multiple_choice" selected>Multiple Choice</option>
-                                        <option value="true_false">True/False</option>
-                                        <option value="essay">Essay</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label>Points</label>
-                                    <input type="number" name="questions[${qIndex}][points]" class="form-control" value="1" min="1">
-                                </div>
-                            </div>
-                            
-                            <div id="new_options_${qIndex}" class="options-container">
-                                ${optionsHtml}
-                            </div>
-                            
-                            <div id="new_true_false_${qIndex}" style="display: none;">
-                                <label>Correct Answer</label>
-                                <select name="questions[${qIndex}][correct_answer]" class="form-control">
-                                    <option value="true">True</option>
-                                    <option value="false">False</option>
-                                </select>
-                            </div>
-                        </div>
-                    `;
-                    
-                    container.insertAdjacentHTML('beforeend', questionHtml);
-                    newQuestionCount++;
-                }
-                
-                function removeNewQuestion(id) {
-                    document.getElementById(`new_question_${id}`).remove();
-                }
-                
-                function toggleNewQuestionOptions(questionId, type) {
-                    const optionsDiv = document.getElementById(`new_options_${questionId}`);
-                    const trueFalseDiv = document.getElementById(`new_true_false_${questionId}`);
-                    
-                    if (type === 'multiple_choice') {
-                        optionsDiv.style.display = 'block';
-                        trueFalseDiv.style.display = 'none';
-                        // Ensure we have 4 options
-                        if (optionsDiv.children.length === 0) {
-                            for (let i = 0; i < 4; i++) {
-                                addNewOption(questionId, i);
-                            }
-                        }
-                    } else if (type === 'true_false') {
-                        optionsDiv.style.display = 'none';
-                        trueFalseDiv.style.display = 'block';
-                    } else {
-                        optionsDiv.style.display = 'none';
-                        trueFalseDiv.style.display = 'none';
-                    }
-                }
-                
-                function addNewOption(questionId, optionIndex) {
-                    const optionsDiv = document.getElementById(`new_options_${questionId}`);
-                    
-                    const optionHtml = `
-                        <div class="option-item mb-2" id="new_option_${questionId}_${optionIndex}">
-                            <div class="row">
-                                <div class="col-8">
-                                    <input type="text" name="questions[${questionId}][options][${optionIndex}][text]" 
-                                           class="form-control" placeholder="Option ${optionIndex+1}" required>
-                                </div>
-                                <div class="col-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" 
-                                               name="questions[${questionId}][options][${optionIndex}][is_correct]">
-                                        <label class="form-check-label">Correct</label>
-                                    </div>
-                                </div>
-                                <div class="col-1">
-                                    ${optionIndex >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeNewOption(${questionId}, ${optionIndex})">
-                                        <i class="fas fa-times"></i>
-                                    </span>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    optionsDiv.insertAdjacentHTML('beforeend', optionHtml);
-                }
-                
-                function removeNewOption(questionId, optionId) {
-                    if (optionId >= 4) {
-                        document.getElementById(`new_option_${questionId}_${optionId}`).remove();
-                    }
-                }
-            </script>
-            <?php endif; ?>
         </div>
 
     <?php else: ?>
@@ -1641,6 +851,7 @@ $max_post_size = ini_get('post_max_size');
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Expiration date and validity days logic
     const expires = document.getElementById('expires_at');
     const days = document.getElementById('valid_days');
 
@@ -1686,168 +897,205 @@ document.addEventListener('DOMContentLoaded', function () {
             bsAlert.close();
         }, 5000);
     });
-});
 
-// Toggle assessment form in add course
-function toggleAssessmentForm() {
-    const form = document.getElementById('assessmentForm');
-    const btn = document.getElementById('toggleAssessmentBtn');
+    // ===== UNSAVED CHANGES PRESERVATION =====
+    const courseForm = document.querySelector('form[enctype="multipart/form-data"]');
     
-    if (form.style.display === 'none' || form.style.display === '') {
-        form.style.display = 'block';
-        btn.innerHTML = '<i class="fas fa-times me-2"></i>Remove Assessment';
-        btn.classList.remove('btn-outline-primary');
-        btn.classList.add('btn-outline-danger');
-    } else {
-        form.style.display = 'none';
-        btn.innerHTML = '<i class="fas fa-clipboard-list me-2"></i>Add Assessment to Course';
-        btn.classList.remove('btn-outline-danger');
-        btn.classList.add('btn-outline-primary');
-    }
-}
-
-// For add course - add question to new assessment
-let questionCount = 0;
-
-function addQuestion() {
-    const container = document.getElementById('questionsContainer');
-    const qIndex = questionCount;
-    
-    // Generate 4 default options for multiple choice
-    let optionsHtml = '';
-    for (let i = 0; i < 4; i++) {
-        optionsHtml += `
-            <div class="option-item mb-2" id="option_${qIndex}_${i}">
-                <div class="row">
-                    <div class="col-8">
-                        <input type="text" name="questions[${qIndex}][options][${i}][text]" 
-                               class="form-control" placeholder="Option ${i+1}" required>
-                    </div>
-                    <div class="col-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" 
-                                   name="questions[${qIndex}][options][${i}][is_correct]">
-                            <label class="form-check-label">Correct</label>
-                        </div>
-                    </div>
-                    <div class="col-1">
-                        ${i >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeOption(${qIndex}, ${i})">
-                            <i class="fas fa-times"></i>
-                        </span>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    const questionHtml = `
-        <div class="question-form" id="question_${qIndex}">
-            <div class="question-header">
-                <span class="question-text">Question ${questionCount + 1}</span>
-                <span class="remove-question" onclick="removeQuestion(${qIndex})">
-                    <i class="fas fa-times"></i>
-                </span>
-            </div>
-            
-            <div class="mb-3">
-                <label>Question Text</label>
-                <input type="text" name="questions[${qIndex}][text]" class="form-control" required>
-            </div>
-            
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label>Question Type</label>
-                    <select name="questions[${qIndex}][type]" class="form-control" 
-                            onchange="toggleQuestionOptions(${qIndex}, this.value)">
-                        <option value="multiple_choice" selected>Multiple Choice</option>
-                        <option value="true_false">True/False</option>
-                        <option value="essay">Essay</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label>Points</label>
-                    <input type="number" name="questions[${qIndex}][points]" class="form-control" value="1" min="1">
-                </div>
-            </div>
-            
-            <div id="options_${qIndex}" class="options-container">
-                ${optionsHtml}
-            </div>
-            
-            <div id="true_false_${qIndex}" style="display: none;">
-                <label>Correct Answer</label>
-                <select name="questions[${qIndex}][correct_answer]" class="form-control">
-                    <option value="true">True</option>
-                    <option value="false">False</option>
-                </select>
-            </div>
-        </div>
-    `;
-    
-    container.insertAdjacentHTML('beforeend', questionHtml);
-    questionCount++;
-}
-
-function removeQuestion(id) {
-    document.getElementById(`question_${id}`).remove();
-}
-
-function toggleQuestionOptions(questionId, type) {
-    const optionsDiv = document.getElementById(`options_${questionId}`);
-    const trueFalseDiv = document.getElementById(`true_false_${questionId}`);
-    
-    if (type === 'multiple_choice') {
-        optionsDiv.style.display = 'block';
-        trueFalseDiv.style.display = 'none';
-        // Ensure we have 4 options
-        if (optionsDiv.children.length === 0) {
-            for (let i = 0; i < 4; i++) {
-                addOption(questionId, i);
+    if (courseForm) {
+        // Save form data to sessionStorage when user clicks the Manage Assessments link
+        const manageAssessmentsLink = document.querySelector('a[href*="assessment_crud.php"]');
+        if (manageAssessmentsLink) {
+            manageAssessmentsLink.addEventListener('click', function(e) {
+                // Store form data
+                const formData = {
+                    title: document.querySelector('input[name="title"]')?.value || '',
+                    description: document.querySelector('input[name="description"]')?.value || '',
+                    summary: document.querySelector('textarea[name="summary"]')?.value || '',
+                    expires_at: document.querySelector('input[name="expires_at"]')?.value || '',
+                    valid_days: document.querySelector('input[name="valid_days"]')?.value || '',
+                    departments: Array.from(document.querySelector('select[name="departments[]"]')?.selectedOptions || []).map(opt => opt.value)
+                };
+                
+                sessionStorage.setItem('pending_course_data', JSON.stringify(formData));
+                sessionStorage.setItem('pending_course_id', '<?= $id ?? '' ?>');
+                sessionStorage.setItem('pending_course_action', '<?= $act ?? '' ?>');
+                
+                // Allow the link to continue
+                return true;
+            });
+        }
+        
+        // Check if we have pending data to restore
+        const pendingData = sessionStorage.getItem('pending_course_data');
+        const pendingId = sessionStorage.getItem('pending_course_id');
+        const pendingAction = sessionStorage.getItem('pending_course_action');
+        
+        if (pendingData && pendingId == '<?= $id ?? '' ?>' && pendingAction == '<?= $act ?? '' ?>') {
+            try {
+                const restoredData = JSON.parse(pendingData);
+                
+                // Restore form fields
+                const titleInput = document.querySelector('input[name="title"]');
+                if (titleInput) titleInput.value = restoredData.title || '';
+                
+                const descInput = document.querySelector('input[name="description"]');
+                if (descInput) descInput.value = restoredData.description || '';
+                
+                const summaryTextarea = document.querySelector('textarea[name="summary"]');
+                if (summaryTextarea) summaryTextarea.value = restoredData.summary || '';
+                
+                const expiresInput = document.querySelector('input[name="expires_at"]');
+                if (expiresInput) expiresInput.value = restoredData.expires_at || '';
+                
+                const daysInput = document.querySelector('input[name="valid_days"]');
+                if (daysInput) daysInput.value = restoredData.valid_days || '';
+                
+                // Restore department selection
+                const deptSelect = document.querySelector('select[name="departments[]"]');
+                if (deptSelect && restoredData.departments && Array.isArray(restoredData.departments)) {
+                    Array.from(deptSelect.options).forEach(opt => {
+                        opt.selected = restoredData.departments.includes(opt.value);
+                    });
+                }
+                
+                // Clear the stored data
+                sessionStorage.removeItem('pending_course_data');
+                sessionStorage.removeItem('pending_course_id');
+                sessionStorage.removeItem('pending_course_action');
+                
+                // Insert at the top of the wrapper
+                const wrapper = document.querySelector('.modern-courses-wrapper');
+                if (wrapper) {
+                    wrapper.insertBefore(alertDiv, wrapper.querySelector('.card'));
+                    
+                    // Auto-dismiss after 5 seconds
+                    setTimeout(function() {
+                        const bsAlert = new bootstrap.Alert(alertDiv);
+                        bsAlert.close();
+                    }, 5000);
+                }
+            } catch (e) {
+                console.error('Error restoring form data:', e);
             }
         }
-    } else if (type === 'true_false') {
-        optionsDiv.style.display = 'none';
-        trueFalseDiv.style.display = 'block';
-    } else {
-        optionsDiv.style.display = 'none';
-        trueFalseDiv.style.display = 'none';
     }
-}
 
-function addOption(questionId, optionIndex) {
-    const optionsDiv = document.getElementById(`options_${questionId}`);
-    
-    const optionHtml = `
-        <div class="option-item mb-2" id="option_${questionId}_${optionIndex}">
-            <div class="row">
-                <div class="col-8">
-                    <input type="text" name="questions[${questionId}][options][${optionIndex}][text]" 
-                           class="form-control" placeholder="Option ${optionIndex+1}" required>
-                </div>
-                <div class="col-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" 
-                               name="questions[${questionId}][options][${optionIndex}][is_correct]">
-                        <label class="form-check-label">Correct</label>
-                    </div>
-                </div>
-                <div class="col-1">
-                    ${optionIndex >= 4 ? `<span class="text-danger" style="cursor: pointer;" onclick="removeOption(${questionId}, ${optionIndex})">
-                        <i class="fas fa-times"></i>
-                    </span>` : ''}
-                </div>
-            </div>
-        </div>
-    `;
-    
-    optionsDiv.insertAdjacentHTML('beforeend', optionHtml);
-}
-
-function removeOption(questionId, optionId) {
-    if (optionId >= 4) {
-        document.getElementById(`option_${questionId}_${optionId}`).remove();
+    // Check for return from assessment_crud.php
+    const returnMessage = sessionStorage.getItem('return_from_assessment');
+    if (returnMessage) {
+        sessionStorage.removeItem('return_from_assessment');
+        
+        // Show a message that they need to save the course
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-warning alert-dismissible fade show';
+        alertDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i> Remember to save your course changes!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const wrapper = document.querySelector('.modern-courses-wrapper');
+        if (wrapper) {
+            wrapper.insertBefore(alertDiv, wrapper.querySelector('.card'));
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(function() {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }, 5000);
+        }
     }
-}
+
+    // Optional: Auto-save functionality (uncomment if desired)
+    /*
+    let autoSaveTimer;
+    
+    function startAutoSave() {
+        if (autoSaveTimer) clearInterval(autoSaveTimer);
+        
+        autoSaveTimer = setInterval(function() {
+            const form = document.querySelector('form[enctype="multipart/form-data"]');
+            if (form) {
+                const formData = {
+                    title: document.querySelector('input[name="title"]')?.value || '',
+                    description: document.querySelector('input[name="description"]')?.value || '',
+                    summary: document.querySelector('textarea[name="summary"]')?.value || '',
+                    expires_at: document.querySelector('input[name="expires_at"]')?.value || '',
+                    valid_days: document.querySelector('input[name="valid_days"]')?.value || '',
+                    departments: Array.from(document.querySelector('select[name="departments[]"]')?.selectedOptions || []).map(opt => opt.value)
+                };
+                
+                sessionStorage.setItem('auto_save_course', JSON.stringify(formData));
+                sessionStorage.setItem('auto_save_time', new Date().toLocaleTimeString());
+                
+                // Show auto-save indicator
+                let indicator = document.getElementById('autoSaveIndicator');
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.id = 'autoSaveIndicator';
+                    indicator.style.cssText = `
+                        position: fixed;
+                        bottom: 20px;
+                        right: 20px;
+                        background: #28a745;
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        display: none;
+                        z-index: 9999;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    `;
+                    document.body.appendChild(indicator);
+                }
+                
+                indicator.textContent = `Auto-saved at ${new Date().toLocaleTimeString()}`;
+                indicator.style.display = 'block';
+                
+                setTimeout(() => {
+                    indicator.style.display = 'none';
+                }, 3000);
+            }
+        }, 30000); // 30 seconds
+    }
+    
+    // Start auto-save when on edit/add page
+    if (document.querySelector('form[enctype="multipart/form-data"]')) {
+        startAutoSave();
+        
+        // Check for auto-saved data
+        const autoSavedData = sessionStorage.getItem('auto_save_course');
+        const autoSaveTime = sessionStorage.getItem('auto_save_time');
+        
+        if (autoSavedData && autoSaveTime) {
+            if (confirm(`Found auto-saved data from ${autoSaveTime}. Would you like to restore it?`)) {
+                try {
+                    const restoredData = JSON.parse(autoSavedData);
+                    
+                    // Restore form fields
+                    document.querySelector('input[name="title"]').value = restoredData.title || '';
+                    document.querySelector('input[name="description"]').value = restoredData.description || '';
+                    document.querySelector('textarea[name="summary"]').value = restoredData.summary || '';
+                    document.querySelector('input[name="expires_at"]').value = restoredData.expires_at || '';
+                    document.querySelector('input[name="valid_days"]').value = restoredData.valid_days || '';
+                    
+                    // Restore department selection
+                    const deptSelect = document.querySelector('select[name="departments[]"]');
+                    if (deptSelect && restoredData.departments) {
+                        Array.from(deptSelect.options).forEach(opt => {
+                            opt.selected = restoredData.departments.includes(opt.value);
+                        });
+                    }
+                    
+                    // Clear auto-save data after restore
+                    sessionStorage.removeItem('auto_save_course');
+                    sessionStorage.removeItem('auto_save_time');
+                } catch (e) {
+                    console.error('Error restoring auto-saved data:', e);
+                }
+            }
+        }
+    }
+    */
+});
 </script>
 
 </body>
