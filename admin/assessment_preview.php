@@ -4,6 +4,25 @@ let existingQuestions = <?= json_encode($assessment_questions) ?>;
 
 function loadExistingQuestions() {
     existingQuestions.forEach((q, index) => {
+        // Format the options properly for multiple choice questions
+        if (q.question_type === 'multiple_choice') {
+            // If options is a string (JSON), parse it
+            if (typeof q.options === 'string') {
+                try {
+                    q.options = JSON.parse(q.options);
+                } catch (e) {
+                    q.options = [];
+                }
+            }
+            
+            // Ensure options is an array
+            if (!Array.isArray(q.options)) {
+                q.options = [];
+            }
+        }
+        
+        // Rename question_type to type for the JavaScript function
+        q.type = q.question_type;
         addQuestion(q, index);
     });
 }
@@ -11,11 +30,48 @@ function loadExistingQuestions() {
 function addQuestion(questionData = null, index = null) {
     const container = document.getElementById('questionsContainer');
     const qIndex = index !== null ? index : questionCount;
-    const question = questionData || { text: '', type: 'multiple_choice', points: 1, options: [] };
+    
+    // Default question structure
+    let question = {
+        text: '',
+        type: 'multiple_choice',
+        points: 1,
+        options: []
+    };
+    
+    // If questionData is provided, merge with defaults
+    if (questionData) {
+        question.text = questionData.text || questionData.question_text || '';
+        question.type = questionData.type || questionData.question_type || 'multiple_choice';
+        question.points = questionData.points || 1;
+        
+        // Handle options for multiple choice
+        if (question.type === 'multiple_choice') {
+            if (questionData.options && Array.isArray(questionData.options)) {
+                question.options = questionData.options;
+            } else {
+                // Create default 4 empty options
+                question.options = [
+                    { text: '', is_correct: false },
+                    { text: '', is_correct: false },
+                    { text: '', is_correct: false },
+                    { text: '', is_correct: false }
+                ];
+            }
+        }
+    } else {
+        // New question - create default 4 empty options
+        question.options = [
+            { text: '', is_correct: false },
+            { text: '', is_correct: false },
+            { text: '', is_correct: false },
+            { text: '', is_correct: false }
+        ];
+    }
     
     let optionsHtml = '';
     if (question.type === 'multiple_choice') {
-        // Create 4 options, filling in existing ones if available
+        // Create options based on question.options array
         for (let i = 0; i < 4; i++) {
             const option = question.options && question.options[i] ? question.options[i] : { text: '', is_correct: false };
             optionsHtml += `
@@ -94,7 +150,7 @@ function addQuestion(questionData = null, index = null) {
     
     container.insertAdjacentHTML('beforeend', questionHtml);
     
-    if (questionData === null) {
+    if (index === null) {
         questionCount++;
     } else {
         questionCount = Math.max(questionCount, qIndex + 1);
@@ -103,48 +159,6 @@ function addQuestion(questionData = null, index = null) {
 
 function removeQuestion(id) {
     document.getElementById(`question_${id}`).remove();
-    renumberQuestions();
-}
-
-function renumberQuestions() {
-    const container = document.getElementById('questionsContainer');
-    const questions = container.children;
-    
-    for (let i = 0; i < questions.length; i++) {
-        const question = questions[i];
-        const questionId = question.id.split('_')[1];
-        const newIndex = i;
-        
-        // Update question text
-        const questionText = question.querySelector('.question-text');
-        if (questionText) {
-            questionText.textContent = `Question ${newIndex + 1}`;
-        }
-        
-        // Update all input names
-        const inputs = question.querySelectorAll('[name^="questions["]');
-        inputs.forEach(input => {
-            const name = input.getAttribute('name');
-            const updatedName = name.replace(`questions[${questionId}]`, `questions[${newIndex}]`);
-            input.setAttribute('name', updatedName);
-        });
-        
-        // Update option IDs
-        const options = question.querySelectorAll('[id^="option_"]');
-        options.forEach(option => {
-            const oldId = option.id;
-            const parts = oldId.split('_');
-            if (parts.length === 4) {
-                const optionIndex = parts[3];
-                option.id = `option_${newIndex}_${optionIndex}`;
-            }
-        });
-        
-        // Update question ID
-        question.id = `question_${newIndex}`;
-    }
-    
-    questionCount = questions.length;
 }
 
 function toggleQuestionOptions(questionId, type) {
@@ -225,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (existingQuestions && existingQuestions.length > 0) {
         loadExistingQuestions();
     } else {
-        // Add one default question for new assessment
+        // Add one default question when no questions exist
         addQuestion();
     }
 });
