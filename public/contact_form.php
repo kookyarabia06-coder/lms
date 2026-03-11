@@ -45,235 +45,377 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Us - ARMMC Learning Management System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    
     <style>
-        /* Your exact CSS - unchanged */
+        /* EXACT CSS from the login page - unchanged */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        
+
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background-image: url('../uploads/images/armmc-bg.png');
+            background-size: cover;
+            background-position: center;
             min-height: 100vh;
-            padding: 20px;
-            background: linear-gradient(135deg, #1e3c72 10%, #2a5298 40%, #3498db 100%);
-        }
-        
-        .contact-container {
-            width: 100%;
-            max-width: 520px;
-            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.98));
-            border-radius: 16px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            animation: fadeIn 0.6s ease-out;
-        }
-        
-        .contact-header {
-            background: linear-gradient(135deg, #2980b9 0%, #1a75d2 100%);
-            color: white;
-            padding: 35px 30px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .contact-header h2 {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            letter-spacing: 0.5px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        .contact-header p {
-            opacity: 0.95;
-            font-size: 16px;
-            font-weight: 400;
-        }
-        
-        .alert {
-            margin: 20px 30px 0;
-            padding: 15px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        .alert-success {
-            background: linear-gradient(135deg, rgba(46, 204, 113, 0.1) 0%, rgba(46, 204, 113, 0.05) 100%);
-            border: 1px solid #2ecc71;
-            color: #2ecc71;
-        }
-        
-        .alert-error {
-            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1) 0%, rgba(231, 76, 60, 0.05) 100%);
-            border: 1px solid #e74c3c;
-            color: #e74c3c;
-        }
-        
-        .alert i {
-            font-size: 18px;
-        }
-        
-        form {
-            padding: 40px 35px;
-        }
-        
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 10px;
-            color: #2c3e50;
-            font-weight: 600;
-            font-size: 15px;
-        }
-        
-        .form-group label i {
-            margin-right: 8px;
-            color: #3498db;
-        }
-        
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 16px 20px;
-            border: 2px solid #e1e8f0;
-            border-radius: 10px;
-            font-size: 16px;
-            color: #2c3e50;
-            transition: all 0.3s;
-            background: linear-gradient(to right, #f8fafd, #ffffff);
-        }
-        
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #3498db;
-            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.2);
-            background: white;
-            animation: glow 1.5s infinite alternate;
-        }
-        
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: #a0aec0;
-        }
-        
-        .form-group textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-        
-        .btn-submit {
-            width: 100%;
-            padding: 18px;
-            background: linear-gradient(135deg, #3498db 0%, #1a75d2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.4s;
-            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            padding: 1.5rem;
         }
         
-        .btn-submit:hover:not(:disabled) {
-            background: linear-gradient(135deg, #2980b9 0%, #1665b8 100%);
-            box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4);
-            transform: translateY(-3px);
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 35, 102, 0.4);
+            z-index: -1;
         }
-        
-        .btn-submit:active:not(:disabled) {
-            transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+
+        /* main card - RESIZED for contact form */
+        .login-card {
+            max-width: 1100px; /* Reduced from 1280px */
+            width: 100%;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 3rem; /* Slightly reduced from 3.5rem */
+            box-shadow: 
+                0 30px 60px -20px rgba(0,40,80,0.25),
+                0 8px 20px -8px rgba(0,32,64,0.1),
+                inset 0 1px 1px rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.6);
+            padding: 2rem 2rem; /* Reduced from 3rem 2.5rem */
         }
-        
-        .btn-submit:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-            box-shadow: none;
+
+        /* two-column layout - EXACT same grid */
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem; /* Slightly reduced from 2.5rem */
+            align-items: center;
         }
-        
-        .btn-submit i {
-            font-size: 18px;
+
+        /* left side – company logo (resized to match) */
+        .logo-hero {
+            background: rgba(255,255,255,0.5);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border-radius: 2rem; /* Reduced from 2.5rem */
+            padding: 2rem 1.5rem; /* Reduced from 3rem 2rem */
+            box-shadow: 0 20px 30px -10px rgba(0,20,40,0.15);
+            border: 1px solid rgba(255,255,255,0.8);
+            transition: transform 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        
-        .back-link {
-            text-align: center;
-            margin: 0 35px 35px;
-            padding-top: 20px;
-            border-top: 1px solid #e1e8f0;
+
+        .logo-hero:hover {
+            transform: scale(1.01);
+            background: rgba(255,255,255,0.65);
         }
-        
-        .back-link a {
-            color: #3498db;
+
+        .logo-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .company-logo-png {
+            max-width: 280px; /* Reduced from 340px */
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+            filter: drop-shadow(0 12px 18px rgba(0,50,90,0.25));
+            background: transparent;
+            border-radius: 28px; /* Slightly reduced */
+            transition: filter 0.2s;
+        }
+
+        .logo-caption {
+            margin-top: 1.5rem; /* Reduced from 2rem */
+            font-weight: 400;
+            font-size: 1rem; /* Reduced from 1.1rem */
+            letter-spacing: 1.5px; /* Slightly reduced */
+            color: #1c3f5c;
+            opacity: 0.8;
+            text-transform: uppercase;
+            border-bottom: 2px solid #a3c6e9;
+            padding-bottom: 0.6rem; /* Reduced from 0.75rem */
+            display: inline-block;
+        }
+
+        /* === CONTACT FORM SPECIFIC STYLES - adjusted to fit resized card === */
+        .contact-container {
+            padding: 0.5rem 0; /* Reduced from 1rem 0.5rem */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .contact-header {
+            font-size: clamp(2rem, 4vw, 3rem); /* Slightly reduced */
             font-weight: 700;
-            text-decoration: none;
-            padding: 8px 20px;
-            border-radius: 8px;
-            transition: all 0.3s;
+            line-height: 1.2;
+            color: #0c2e45;
+            margin-bottom: 0.25rem; /* Reduced from 0.5rem */
+        }
+
+        .contact-header span {
+            background: linear-gradient(135deg, #1f6392, #0a3b58);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            border-bottom: 4px solid #6ab0f5;
+            display: inline-block;
+            padding-bottom: 2px;
+        }
+
+        .contact-subtitle {
+            font-size: 1rem; /* Reduced from 1.1rem */
+            color: #2b4e6b;
+            margin-bottom: 1.2rem; /* Reduced from 1.8rem */
+            line-height: 1.4; /* Slightly reduced */
+            font-weight: 400;
+            max-width: 450px; /* Slightly reduced */
+        }
+
+        /* contact form - sized to fit perfectly in the space */
+        .contact-form-wrapper {
+            width: 100%;
+            max-width: 400px; /* Reduced from 420px */
+            margin: 0.25rem 0 0.5rem; /* Reduced margins */
+        }
+
+        .contact-form-group {
+            margin-bottom: 1rem; /* Reduced from 1.4rem */
+            position: relative;
+        }
+
+        .contact-form-label {
+            display: block;
+            font-size: 0.85rem; /* Slightly reduced from 0.9rem */
+            font-weight: 600;
+            color: #144a6f;
+            margin-bottom: 0.3rem; /* Reduced from 0.4rem */
+            letter-spacing: 0.3px;
+        }
+
+        .contact-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .contact-input-icon {
+            position: absolute;
+            left: 1.1rem; /* Slightly reduced from 1.2rem */
+            color: #1f6fb0;
+            font-size: 0.95rem; /* Slightly reduced from 1rem */
+            opacity: 0.7;
+            z-index: 1;
+        }
+
+        .contact-form-input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.6rem; /* Reduced from 0.85rem 1rem 0.85rem 2.8rem */
+            border: 1.5px solid rgba(31, 111, 176, 0.2);
+            border-radius: 40px; /* Slightly reduced from 50px */
+            font-size: 0.9rem; /* Reduced from 0.95rem */
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(2px);
+            transition: all 0.2s;
+            color: #0c2e45;
+        }
+
+        .contact-form-input:focus {
+            outline: none;
+            border-color: #1f6fb0;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(31, 111, 176, 0.1);
+        }
+
+        .contact-form-input::placeholder {
+            color: #6f9ac0;
+            font-size: 0.85rem; /* Reduced from 0.9rem */
+        }
+
+        textarea.contact-form-input {
+            min-height: 100px; /* Reduced from 120px */
+            resize: vertical;
+            border-radius: 25px; /* Reduced from 30px */
+        }
+
+        .contact-btn-primary {
+            background: #1f6fb0;
+            border: none;
+            padding: 0.8rem 1.8rem; /* Reduced from 0.9rem 2rem */
+            border-radius: 40px; /* Reduced from 50px */
+            font-weight: 600;
+            font-size: 1rem; /* Reduced from 1.1rem */
+            color: white;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 10px 16px -10px #1f6fb0; /* Adjusted shadow */
+            border: 1px solid rgba(255,255,255,0.3);
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            font-size: 15px;
+            justify-content: center;
+            gap: 0.6rem; /* Reduced from 0.8rem */
+            width: 100%;
+            margin: 0.25rem 0 0.8rem; /* Reduced margins */
         }
-        
-        .back-link a:hover {
-            color: #1a75d2;
-            background-color: rgba(52, 152, 219, 0.1);
+
+        .contact-btn-primary i {
+            font-size: 1.1rem; /* Reduced from 1.2rem */
         }
-        
+
+        .contact-btn-primary:hover:not(:disabled) {
+            background: #0f558b;
+            transform: translateY(-2px); /* Reduced from -3px */
+            box-shadow: 0 18px 20px -12px #1f6fb0; /* Adjusted */
+        }
+
+        .contact-btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            background: #6f9ac0;
+            box-shadow: none;
+        }
+
+        /* Alert & Notification Styles */
+        .alert {
+            background: rgba(31, 111, 176, 0.1);
+            border: 1px solid rgba(31, 111, 176, 0.3);
+            border-radius: 40px; /* Reduced from 50px */
+            padding: 0.8rem 1.2rem; /* Reduced from 1rem 1.5rem */
+            margin-bottom: 1.2rem; /* Reduced from 1.5rem */
+            display: flex;
+            align-items: flex-start;
+            gap: 0.8rem; /* Reduced from 1rem */
+            font-size: 0.9rem; /* Added */
+        }
+
+        .alert-success {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            color: #28a745;
+        }
+
+        .alert-success i {
+            color: #28a745;
+        }
+
+        .alert-error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .alert-error i {
+            color: #dc3545;
+        }
+
+        .alert i {
+            font-size: 1.1rem; /* Reduced from 1.2rem */
+            margin-top: 0.1rem; /* Reduced from 0.2rem */
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        /* back link */
+        .contact-back-link {
+            margin-top: 1.2rem; /* Reduced from 1.8rem */
+            text-align: center;
+        }
+
+        .contact-back-link a {
+            color: #1f6fb0;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem; /* Reduced from 0.5rem */
+            font-size: 0.9rem; /* Reduced from 0.95rem */
+            transition: color 0.2s;
+            padding: 0.4rem 0.8rem; /* Reduced from 0.5rem 1rem */
+            border-radius: 40px; /* Reduced from 50px */
+        }
+
+        .contact-back-link a:hover {
+            color: #0f4a78;
+            background: rgba(31, 111, 176, 0.1);
+        }
+
+        .contact-back-link i {
+            font-size: 0.85rem; /* Reduced from 0.9rem */
+        }
+
+        /* bottom note */
+        .contact-bottom-note {
+            margin-top: 1.2rem; /* Reduced from 1.8rem */
+            font-size: 0.85rem; /* Reduced from 0.9rem */
+            color: #567e9f;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem; /* Reduced from 1rem */
+        }
+
+        .contact-bottom-note .line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #9bbcdd, transparent);
+            flex: 1;
+        }
+
+        /* responsiveness */
+        @media (max-width: 880px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+                gap: 1.5rem; /* Reduced from 2rem */
+            }
+            .logo-hero {
+                order: 1;
+            }
+            .contact-container {
+                order: 2;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .contact-form-wrapper {
+                margin: 0 auto;
+            }
+            .contact-subtitle {
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .login-card {
+                padding: 1.5rem 1rem; /* Reduced from 1.8rem 1.2rem */
+            }
+            .logo-caption {
+                font-size: 0.85rem; /* Reduced from 0.9rem */
+            }
+        }
+
         /* Animations */
-        @keyframes fadeIn {
-            from { 
-                opacity: 0; 
-                transform: translateY(20px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
-            }
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        @keyframes glow {
-            from {
-                box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.2);
-            }
-            to {
-                box-shadow: 0 0 0 6px rgba(52, 152, 219, 0.3);
-            }
-        }
-        
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -282,124 +424,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .fa-spinner {
             animation: spin 1s linear infinite;
         }
-        
-        /* Responsive design */
-        @media (max-width: 480px) {
-            .contact-container {
-                max-width: 100%;
-                border-radius: 12px;
-            }
-            
-            .contact-header,
-            form {
-                padding: 25px 20px;
-            }
-            
-            .contact-header h2 {
-                font-size: 28px;
-            }
-            
-            .btn-submit {
-                padding: 16px;
-                font-size: 16px;
-            }
-            
-            .alert {
-                margin: 15px 20px 0;
-            }
-            
-            .back-link {
-                margin: 0 20px 25px;
-            }
-        }
-
-        /* Optional: Add a subtle pattern overlay */
-        .contact-container::after {
-            display: none;
-        }
-
-        /* Custom styling for icons in header */
-        .contact-header h2 i {
-            margin-right: 10px;
-            font-size: 36px;
-            vertical-align: middle;
-        }
-
-        /* Focus state for better accessibility */
-        .btn-submit:focus,
-        .back-link a:focus,
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: 2px solid #3498db;
-            outline-offset: 2px;
-        }
-
-        /* Loading state button */
-        .btn-submit.loading {
-            position: relative;
-            pointer-events: none;
-        }
-
-        .btn-submit.loading i {
-            animation: spin 1s linear infinite;
-        }
     </style>
 </head>
 <body>
-    <div class="contact-container">
-        <div class="contact-header">
-            <h2><i class="fas fa-envelope"></i> Contact Us</h2>
-            <p>We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+    <div class="overlay"></div>
+    
+    <div class="login-card">
+        <div class="grid-layout">
+           <!-- Left side - Logo (same as login page) -->
+    <div class="logo-hero">
+    <div class="logo-main">
+        <img src="../uploads/images/armmc-logo.png" alt="ARMMC Logo" class="company-logo-png">
+        <div class="logo-caption">
+            <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i> 
+            AMANG RODRIGUEZ MEMORIAL MEDICAL CENTER 
+            <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i>
         </div>
-        
-        <!-- Success Message -->
-        <?php if (!empty($success_message)): ?>
-            <div class="alert alert-success" id="successAlert">
-                <i class="fas fa-check-circle"></i>
-                <?= htmlspecialchars($success_message) ?>
+    </div>
+</div>
+
+            <!-- Right side - Contact Form -->
+            <div class="contact-container">
+                <div class="contact-header">
+                    <span>Contact Us</span>
+                </div>
+                <div class="contact-subtitle">
+                    We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+                </div>
+                
+                <!-- Success Message -->
+                <?php if (!empty($success_message)): ?>
+                    <div class="alert alert-success" id="successAlert">
+                        <i class="fas fa-check-circle"></i>
+                        <div class="alert-content"><?= htmlspecialchars($success_message) ?></div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Error Message -->
+                <?php if (!empty($error_message)): ?>
+                    <div class="alert alert-error" id="errorAlert">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div class="alert-content"><?= $error_message ?></div>
+                    </div>
+                <?php endif; ?>
+
+                <div class="contact-form-wrapper">
+                    <form method="POST" action="" id="contactForm">
+                        <div class="contact-form-group">
+                            <label class="contact-form-label" for="name">
+                                <i class="fas fa-user" style="margin-right: 0.3rem;"></i> Your Name
+                            </label>
+                            <div class="contact-input-container">
+                                <i class="fas fa-user contact-input-icon"></i>
+                                <input type="text" id="name" name="name" class="contact-form-input" 
+                                       placeholder="Enter your full name" required
+                                       value="<?= isset($_POST['name']) ? htmlspecialchars($_POST['name']) : '' ?>">
+                            </div>
+                        </div>
+
+                        <div class="contact-form-group">
+                            <label class="contact-form-label" for="email">
+                                <i class="fas fa-envelope" style="margin-right: 0.3rem;"></i> Email Address
+                            </label>
+                            <div class="contact-input-container">
+                                <i class="fas fa-envelope contact-input-icon"></i>
+                                <input type="email" id="email" name="email" class="contact-form-input" 
+                                       placeholder="Enter your email address" required
+                                       value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '' ?>">
+                            </div>
+                        </div>
+
+                        <div class="contact-form-group">
+                            <label class="contact-form-label" for="subject">
+                                <i class="fas fa-tag" style="margin-right: 0.3rem;"></i> Subject
+                            </label>
+                            <div class="contact-input-container">
+                                <i class="fas fa-tag contact-input-icon"></i>
+                                <input type="text" id="subject" name="subject" class="contact-form-input" 
+                                       placeholder="What is this about?" required
+                                       value="<?= isset($_POST['subject']) ? htmlspecialchars($_POST['subject']) : '' ?>">
+                            </div>
+                        </div>
+
+                        <div class="contact-form-group">
+                            <label class="contact-form-label" for="message">
+                                <i class="fas fa-comment" style="margin-right: 0.3rem;"></i> Message
+                            </label>
+                            <div class="contact-input-container">
+                                <i class="fas fa-comment contact-input-icon" style="top: 1rem;"></i>
+                                <textarea id="message" name="message" class="contact-form-input" 
+                                          placeholder="Type your message here..." required><?= isset($_POST['message']) ? htmlspecialchars($_POST['message']) : '' ?></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="contact-btn-primary" id="submitBtn">
+                            <i class="fas fa-paper-plane"></i>
+                            Send Message
+                        </button>
+                    </form>
+                </div>
+
+                <div class="contact-back-link">
+                    <a href="<?= BASE_URL ?>/public/index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
+                </div>
+                
+                <div class="contact-bottom-note">
+                    <span class="line"></span>
+                    <span><i class="far fa-clock"></i> We typically reply within 24 hours</span>
+                    <span class="line"></span>
+                </div>
             </div>
-        <?php endif; ?>
-
-        <!-- Error Message -->
-        <?php if (!empty($error_message)): ?>
-            <div class="alert alert-error" id="errorAlert">
-                <i class="fas fa-exclamation-circle"></i>
-                <?= $error_message ?>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" action="" id="contactForm">
-            <div class="form-group">
-                <label for="name"><i class="fas fa-user"></i>Your Name</label>
-                <input type="text" id="name" name="name" placeholder="Enter your full name" required
-                       value="<?= isset($_POST['name']) ? htmlspecialchars($_POST['name']) : '' ?>">
-            </div>
-
-            <div class="form-group">
-                <label for="email"><i class="fas fa-envelope"></i>Email Address</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email address" required
-                       value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '' ?>">
-            </div>
-
-            <div class="form-group">
-                <label for="subject"><i class="fas fa-tag"></i>Subject</label>
-                <input type="text" id="subject" name="subject" placeholder="What is this about?" required
-                       value="<?= isset($_POST['subject']) ? htmlspecialchars($_POST['subject']) : '' ?>">
-            </div>
-
-            <div class="form-group">
-                <label for="message"><i class="fas fa-comment"></i>Message</label>
-                <textarea id="message" name="message" placeholder="Type your message here..." required><?= isset($_POST['message']) ? htmlspecialchars($_POST['message']) : '' ?></textarea>
-            </div>
-
-            <button type="submit" class="btn-submit" id="submitBtn">
-                <i class="fas fa-paper-plane"></i>
-                Send Message
-            </button>
-        </form>
-
-        <div class="back-link">
-            <a href="<?= BASE_URL ?>/public/index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
         </div>
     </div>
 
@@ -414,6 +548,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     setTimeout(function() {
                         if (successAlert && successAlert.parentElement) {
                             successAlert.remove();
+                        }
+                    }, 500);
+                }, 5000);
+            }
+
+            // Auto-hide error message after 5 seconds
+            const errorAlert = document.getElementById('errorAlert');
+            if (errorAlert) {
+                setTimeout(function() {
+                    errorAlert.style.transition = 'opacity 0.5s';
+                    errorAlert.style.opacity = '0';
+                    setTimeout(function() {
+                        if (errorAlert && errorAlert.parentElement) {
+                            errorAlert.remove();
                         }
                     }, 500);
                 }, 5000);

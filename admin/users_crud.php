@@ -385,6 +385,10 @@ $totalPending = count($pendingUsers);
 <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/manager.css" rel="stylesheet">
+ <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
 </head>
 
 <body>
