@@ -36,7 +36,6 @@ try {
 
 // Check if assessment exists for this course
 $hasAssessment = false;
-$assessmentCompleted = false;
 $assessmentId = null;
 
 try {
@@ -45,21 +44,9 @@ try {
     $assessmentData = $stmt->fetch();
     $hasAssessment = $assessmentData ? true : false;
     $assessmentId = $assessmentData ? $assessmentData['id'] : null;
-    
-    // Check if student has completed the assessment using student_attempts table
-    if ($hasAssessment && is_student() && $assessmentId) {
-        $stmt = $pdo->prepare("
-            SELECT id FROM student_attempts 
-            WHERE user_id = ? AND assessment_id = ? AND passed = 1
-            LIMIT 1
-        ");
-        $stmt->execute([$u['id'], $assessmentId]);
-        $assessmentCompleted = $stmt->fetch() ? true : false;
-    }
 } catch (Exception $e) {
     // If tables don't exist, just continue without assessment
     $hasAssessment = false;
-    $assessmentCompleted = false;
     $assessmentId = null;
 }
 
@@ -263,7 +250,7 @@ echo json_encode(['success'=>true, 'progress' => $pdf_progress, 'completed' => $
 exit;
 }
 
-// Handle completion
+// Handle completion - NO MAIL FUNCTION
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && is_student()) {
 
 // Check if all requirements are met
@@ -283,12 +270,6 @@ if ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1) {
 
 if (!$materials_complete) {
     $requirements_met = false;
-}
-
-// Check assessment completion if exists
-if ($hasAssessment && !$assessmentCompleted) {
-    $requirements_met = false;
-    $missing_requirements[] = 'Complete the assessment';
 }
 
 if (!$requirements_met) {
@@ -311,70 +292,11 @@ WHERE id = ?
 ");
 $stmt->execute([$enrollment['id']]);
 
-// Get student info for email
-$studentName = trim($u['fname'] . ' ' . $u['lname']);
-if (empty($studentName)) $studentName = $u['username'];
-
-// SEND COMPLETION EMAIL
-$subject = "Course Completed: " . $course['title'];
-$message = "
-<html>
-<head>
-<title>Course Completion Certificate</title>
-<style>
-body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-.container { max-width: 600px; margin: 0 auto; padding: 20px; }
-.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-.content { background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }
-.certificate { text-align: center; margin: 20px 0; }
-.certificate i { font-size: 48px; color: #28a745; }
-.details { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
-.footer { text-align: center; margin-top: 20px; color: #666; }
-</style>
-</head>
-<body>
-<div class='container'>
-<div class='header'>
-<h2>Congratulations, $studentName! 🎓</h2>
-</div>
-<div class='content'>
-<div class='certificate'>
-<i class='fas fa-certificate'></i>
-</div>
-<p>You have successfully completed the course:</p>
-<div class='details'>
-<h3>" . $course['title'] . "</h3>
-<p>Completion Date: " . date('F d, Y h:i A') . "</p>
-</div>
-<p>This certificate confirms your dedication to learning and professional development.</p>
-<p>Course Details:</p>
-<ul>
-" . ($hasVideo ? "<li>✓ Video lesson completed</li>" : "") . "
-" . ($hasPdf ? "<li>✓ PDF material completed (all pages viewed)</li>" : "") . "
-" . ($hasAssessment ? "<li>✓ Assessment completed</li>" : "") . "
-<li>✓ Course requirements fulfilled</li>
-</ul>
-</div>
-<div class='footer'>
-<p>This is an automated certificate from your Learning Management System.</p>
-</div>
-</div>
-</body>
-</html>
-";
-
-$headers = "MIME-Version: 1.0" . "\r\n";
-$headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-$headers .= "From: noreply@lms.com" . "\r\n";
-
-$emailSent = mail($u['email'], $subject, $message, $headers);
-
 $pdo->commit();
 
 echo json_encode([
 'success' => true,
-'email_sent' => $emailSent,
-'message' => $emailSent ? 'Course completed! Certificate has been sent to your email.' : 'Course completed! (Email notification failed)'
+'message' => 'Course completed successfully!'
 ]);
 
 } catch (Exception $e) {
@@ -386,147 +308,6 @@ echo json_encode([
 }
 
 exit;
-}
-
-// FETCH ENROLLED STUDENTS - FOR ADMIN/PROPONENT
-// Build SELECT query dynamically based on existing columns
-$select_fields = [
-    'u.id', 'u.fname', 'u.lname', 'u.email', 'u.username',
-    'e.status', 'e.progress', 'e.total_time_seconds', 'e.enrolled_at', 'e.completed_at',
-    'DATE_FORMAT(e.enrolled_at, "%M %d, %Y") as enrolled_date',
-    'DATE_FORMAT(e.completed_at, "%M %d, %Y") as completed_date',
-    'CASE WHEN e.status = "completed" THEN "bg-success" WHEN e.status = "ongoing" THEN "bg-warning" ELSE "bg-secondary" END as status_color',
-    'CASE WHEN e.status = "completed" THEN "Completed" WHEN e.status = "ongoing" THEN "Ongoing" ELSE "Not Started" END as status_text'
-];
-
-if ($has_video_tracking) {
-    $select_fields[] = 'e.video_progress';
-    $select_fields[] = 'e.video_completed';
-}
-
-if ($has_pdf_tracking) {
-    $select_fields[] = 'e.pdf_progress';
-    $select_fields[] = 'e.pdf_completed';
-    $select_fields[] = 'e.pdf_current_page';
-    $select_fields[] = 'e.pdf_total_pages';
-}
-
-$select_sql = implode(', ', $select_fields);
-
-$stmt = $pdo->prepare("
-    SELECT $select_sql
-    FROM enrollments e
-    JOIN users u ON e.user_id = u.id 
-    WHERE e.course_id = ?
-    ORDER BY 
-        CASE e.status 
-            WHEN 'ongoing' THEN 1 
-            WHEN 'completed' THEN 2 
-            ELSE 3 
-        END,
-        e.enrolled_at DESC
-");
-$stmt->execute([$courseId]);
-$enrolledStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Count statistics
-$stmt = $pdo->prepare('
-    SELECT 
-        COUNT(*) as total_enrolled,
-        SUM(CASE WHEN status = "ongoing" THEN 1 ELSE 0 END) as ongoing_count,
-        SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed_count
-    FROM enrollments 
-    WHERE course_id = ?
-');
-$stmt->execute([$courseId]);
-$stats = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// Completion rate
-$completionRate = 0;
-if ($stats['total_enrolled'] > 0) {
-    $completionRate = round(($stats['completed_count'] / $stats['total_enrolled']) * 100);
-}
-
-// Export CSV
-if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_proponent())) {
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="enrolled_students_course_' . $courseId . '.csv"');
-    
-    $output = fopen('php://output', 'w');
-    
-    $headers = ['Student Name', 'Email', 'Username', 'Status', 'Enrolled Date', 'Completed Date', 
-                'Progress (%)', 'Time Spent (mins)'];
-    
-    if ($has_video_tracking) {
-        $headers[] = 'Video Progress (%)';
-        $headers[] = 'Video Completed';
-    }
-    
-    if ($has_pdf_tracking) {
-        $headers[] = 'PDF Progress (%)';
-        $headers[] = 'PDF Pages Read';
-        $headers[] = 'Total PDF Pages';
-        $headers[] = 'PDF Completed';
-    }
-    
-    fputcsv($output, $headers);
-    
-    foreach ($enrolledStudents as $student) {
-        $timeMinutes = round($student['total_time_seconds'] / 60, 1);
-        
-        $row = [
-            $student['fname'] . ' ' . $student['lname'],
-            $student['email'],
-            $student['username'],
-            $student['status_text'],
-            $student['enrolled_date'],
-            $student['completed_date'] ?? 'N/A',
-            $student['progress'] . '%',
-            $timeMinutes
-        ];
-        
-        if ($has_video_tracking) {
-            $row[] = ($student['video_progress'] ?? 0) . '%';
-            $row[] = ($student['video_completed'] ?? 0) ? 'Yes' : 'No';
-        }
-        
-        if ($has_pdf_tracking) {
-            $row[] = ($student['pdf_progress'] ?? 0) . '%';
-            $row[] = ($student['pdf_current_page'] ?? 0);
-            $row[] = ($student['pdf_total_pages'] ?? 0);
-            $row[] = ($student['pdf_completed'] ?? 0) ? 'Yes' : 'No';
-        }
-        
-        fputcsv($output, $row);
-    }
-    fclose($output);
-    exit;
-}
-
-// Show database update warning to admin
-if (is_admin() || is_superadmin()) {
-    $missing_columns = [];
-    foreach ($all_columns as $col) {
-        if (!in_array($col, $existing_columns)) {
-            $missing_columns[] = $col;
-        }
-    }
-    
-    if (!empty($missing_columns)) {
-        echo '<div class="alert alert-warning m-4">
-            <h5><i class="fas fa-database"></i> Database Update Recommended</h5>
-            <p>For better course progress tracking, please add these columns to the enrollments table:</p>
-            <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
-ALTER TABLE `enrollments` 
-ADD COLUMN `video_progress` INT DEFAULT 0 AFTER `progress`,
-ADD COLUMN `pdf_progress` INT DEFAULT 0 AFTER `video_progress`,
-ADD COLUMN `video_completed` TINYINT DEFAULT 0 AFTER `pdf_progress`,
-ADD COLUMN `pdf_completed` TINYINT DEFAULT 0 AFTER `video_completed`,
-ADD COLUMN `pdf_current_page` INT DEFAULT 0 AFTER `pdf_completed`,
-ADD COLUMN `pdf_total_pages` INT DEFAULT 0 AFTER `pdf_current_page`;</pre>
-            <p>After running this SQL, refresh the page for full functionality.</p>
-        </div>';
-    }
 }
 ?>
 <!doctype html>
@@ -547,33 +328,182 @@ ADD COLUMN `pdf_total_pages` INT DEFAULT 0 AFTER `pdf_current_page`;</pre>
 <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 <style>
-/* Toast notification styles */
+/* ===== VARIABLES ===== */
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --shadow-sm: 0 2px 10px rgba(0,0,0,0.1);
+    --border-color: #dee2e6;
+    --bg-light: #f8f9fa;
+    --text-muted: #6c757d;
+}
+
+/* ===== LAYOUT ===== */
+body {
+    background: #f4f6f9;
+    overflow-x: hidden;
+}
+
+.main-content-wrapper {
+    margin-left: 280px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+/* ===== FULLSCREEN MODE - TRUE FULLSCREEN ===== */
+.pdf-fullscreen-mode {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 999999 !important;
+    background: #fff !important;
+    overflow: hidden !important;
+}
+
+.pdf-fullscreen-mode .lms-sidebar-container,
+.pdf-fullscreen-mode .course-header,
+.pdf-fullscreen-mode .course-info-card,
+.pdf-fullscreen-mode .video-player-container,
+.pdf-fullscreen-mode .action-buttons,
+.pdf-fullscreen-mode .pdf-progress-container {
+    display: none !important;
+}
+
+.pdf-fullscreen-mode .material-card {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #1a1a1a !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.pdf-fullscreen-mode .material-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000000 !important;
+    background: rgba(30, 30, 30, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    padding: 12px 20px !important;
+    margin: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+    color: white !important;
+}
+
+.pdf-fullscreen-mode .material-title h5,
+.pdf-fullscreen-mode .material-title i {
+    color: white !important;
+}
+
+.pdf-fullscreen-mode .material-status {
+    background: rgba(255,255,255,0.15) !important;
+    color: white !important;
+}
+
+.pdf-fullscreen-mode #fullscreenPdfBtn {
+    background: rgba(255,255,255,0.2) !important;
+    color: white !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+
+.pdf-fullscreen-mode #fullscreenPdfBtn:hover {
+    background: rgba(255,255,255,0.3) !important;
+}
+
+.pdf-fullscreen-mode .pdf-viewer-container {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: calc(100vh - 60px) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #2d2d2d !important;
+}
+
+.pdf-fullscreen-mode .pdf-pages-container {
+    padding: 30px 20px !important;
+    background: #2d2d2d !important;
+}
+
+.pdf-fullscreen-mode .pdf-page-wrapper {
+    max-width: 900px !important;
+    margin: 0 auto !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+    background: white !important;
+}
+
+.pdf-fullscreen-mode #fullscreenPdfBtn i {
+    transform: rotate(180deg);
+}
+
+/* Exit fullscreen hint */
+.fullscreen-hint {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 13px;
+    z-index: 1000001;
+    pointer-events: none;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.2);
+    animation: fadeInOut 3s ease;
+}
+
+.fullscreen-hint i {
+    margin-right: 6px;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(10px); }
+    10% { opacity: 1; transform: translateY(0); }
+    90% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ===== TOAST NOTIFICATIONS ===== */
 .toast-notification {
-position: fixed;
-top: 20px;
-right: 20px;
-z-index: 9999;
-animation: slideIn 0.3s ease;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    animation: slideIn 0.3s ease;
 }
 
 @keyframes slideIn {
-from {
-transform: translateX(100%);
-opacity: 0; 
-}
-to {
-transform: translateX(0);
-opacity: 1;
-}
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
-/* Material card */
+/* ===== MATERIAL CARDS ===== */
 .material-card {
     background: white;
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
 }
 
 .material-header {
@@ -610,7 +540,7 @@ opacity: 1;
     color: #856404;
 }
 
-/* Video player container - fixed height */
+/* ===== VIDEO PLAYER ===== */
 .video-player-container {
     position: relative;
     width: 100%;
@@ -634,15 +564,16 @@ opacity: 1;
     height: 100%;
 }
 
-/* Custom PDF viewer */
+/* ===== PDF VIEWER ===== */
 .pdf-viewer-container {
     position: relative;
     width: 100%;
     height: 700px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: auto;
-    background: #f8f9fa;
+    background: var(--bg-light);
+    transition: all 0.3s ease;
 }
 
 .pdf-pages-container {
@@ -656,9 +587,10 @@ opacity: 1;
 .pdf-page-wrapper {
     position: relative;
     background: white;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-sm);
     border-radius: 8px;
     padding: 10px;
+    max-width: 100%;
 }
 
 .pdf-page-canvas {
@@ -684,15 +616,11 @@ opacity: 1;
     z-index: 10;
 }
 
-.page-viewed-badge i {
-    font-size: 14px;
-}
-
-/* Progress bar under PDF */
+/* ===== PDF PROGRESS ===== */
 .pdf-progress-container {
     margin-top: 15px;
     padding: 10px;
-    background: #f8f9fa;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 
@@ -712,7 +640,7 @@ opacity: 1;
 
 .pdf-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #007bff, #00d4ff);
+    background: var(--primary-gradient);
     transition: width 0.3s ease;
 }
 
@@ -720,7 +648,7 @@ opacity: 1;
     background: linear-gradient(90deg, #28a745, #20c997);
 }
 
-/* Action buttons - centered */
+/* ===== ACTION BUTTONS ===== */
 .action-buttons {
     display: flex;
     justify-content: center;
@@ -729,7 +657,7 @@ opacity: 1;
     padding: 20px;
     background: white;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-sm);
 }
 
 .action-btn {
@@ -755,38 +683,37 @@ opacity: 1;
 }
 
 @keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
-    }
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
 }
 
-/* Student table enhancements */
-.student-progress-cell {
-    min-width: 150px;
+/* ===== FULLSCREEN BUTTON ===== */
+#fullscreenPdfBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
 }
 
-.progress-detail {
-    font-size: 11px;
-    color: #6c757d;
-    margin-top: 2px;
+#fullscreenPdfBtn:hover {
+    background: var(--primary-gradient);
+    color: white;
+    border-color: transparent;
 }
 
-.stats-summary .badge {
-    font-size: 12px;
-    padding: 5px 10px;
-}
-
-.completion-rate {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 8px;
-}
+/* ===== UTILITY CLASSES ===== */
+.text-muted { color: var(--text-muted); }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.me-1 { margin-right: 0.25rem; }
+.me-2 { margin-right: 0.5rem; }
+.ms-auto { margin-left: auto; }
+.small { font-size: 0.875em; }
+.gap-2 { gap: 0.5rem; }
 </style>
 </head>
 <body>
@@ -807,13 +734,6 @@ opacity: 1;
 <h3><?=htmlspecialchars($course['title'])?></h3>
 <p><?=nl2br(htmlspecialchars($course['description']))?></p>
 </div>
-
-<!-- Export Button for Admin/Proponent -->
-<?php if((is_admin() || is_proponent()) && count($enrolledStudents) > 0): ?>
-<a href="?id=<?= $courseId ?>&export=csv" class="export-btn">
-<i class="fas fa-download me-2"></i>Export CSV
-</a>
-<?php endif; ?>
 </div>
 </div>
 
@@ -878,23 +798,28 @@ web browser that <a href="https://videojs.com/html5-video-support/" target="_bla
 
 <!-- PDF Material -->
 <?php if($hasPdf): ?>
-<div class="material-card">
+<div class="material-card" id="pdfMaterialCard">
 <div class="material-header">
 <div class="material-title">
 <i class="fas fa-file-pdf text-danger"></i>
 <h5 class="mb-0">Course PDF Material</h5>
 </div>
-<?php if(is_student() && $has_pdf_tracking): ?>
-    <?php if(($enrollment['pdf_completed'] ?? 0) == 1): ?>
-        <span class="material-status status-completed">
-            <i class="fas fa-check-circle me-1"></i>Completed
-        </span>
-    <?php else: ?>
-        <span class="material-status status-pending">
-            <i class="fas fa-clock me-1"></i>Pending
-        </span>
+<div class="d-flex align-items-center gap-2">
+    <?php if(is_student() && $has_pdf_tracking): ?>
+        <?php if(($enrollment['pdf_completed'] ?? 0) == 1): ?>
+            <span class="material-status status-completed">
+                <i class="fas fa-check-circle me-1"></i>Completed
+            </span>
+        <?php else: ?>
+            <span class="material-status status-pending">
+                <i class="fas fa-clock me-1"></i>Pending
+            </span>
+        <?php endif; ?>
     <?php endif; ?>
-<?php endif; ?>
+    <button class="btn btn-outline-primary btn-sm" id="fullscreenPdfBtn" title="Enter full screen (ESC to exit)">
+        <i class="fas fa-expand"></i>
+    </button>
+</div>
 </div>
 
 <?php if($has_pdf_tracking): ?>
@@ -934,14 +859,6 @@ web browser that <a href="https://videojs.com/html5-video-support/" target="_bla
 </div>
 <?php endif; ?>
 
-<p class="mt-3">
-<a class="btn btn-outline-primary"
-href="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>"
-target="_blank">
-<i class="fas fa-external-link-alt me-2"></i>Open PDF in new tab
-</a>
-</p>
-</div>
 <?php endif; ?>
 
 <!-- Action Buttons for Students -->
@@ -949,139 +866,40 @@ target="_blank">
 <div class="action-buttons">
     <!-- Take Assessment Button -->
     <?php if($hasAssessment && $assessmentId): ?>
+        <?php
+        // Check if materials are complete
+        $materialsComplete = true;
+        if ($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) {
+            $materialsComplete = false;
+        }
+        if ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1) {
+            $materialsComplete = false;
+        }
+        ?>
         <a href="take_assessment.php?assessment_id=<?= $assessmentId ?>" 
            id="takeAssessmentBtn" 
-           class="btn btn-primary action-btn <?= ((($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
-                                                  ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1)) ? 'disabled' : '') ?>"
-           <?= ((($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
-                 ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1)) ? 'disabled' : '') ?>>
+           class="btn btn-primary action-btn <?= $materialsComplete ? '' : 'disabled' ?>"
+           <?= $materialsComplete ? '' : 'disabled' ?>>
             <i class="fas fa-pencil-alt"></i> Take Assessment
         </a>
     <?php endif; ?>
     
     <!-- Complete Course Button -->
     <button id="completeBtn" 
-            class="btn btn-success action-btn <?= ((($hasAssessment && !$assessmentCompleted) || 
-                                                    ($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
+            class="btn btn-success action-btn <?= ((($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
                                                     ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1)) ? 'disabled' : 'btn-pulse') ?>"
-            <?= ((($hasAssessment && !$assessmentCompleted) || 
-                  ($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
+            <?= ((($hasVideo && $has_video_tracking && ($enrollment['video_completed'] ?? 0) != 1) || 
                   ($hasPdf && $has_pdf_tracking && ($enrollment['pdf_completed'] ?? 0) != 1)) ? 'disabled' : '') ?>>
         <i class="fas fa-check-circle"></i> Complete Course
     </button>
 </div>
 <?php endif; ?>
 
-<!-- Students List for Admin/Proponent -->
-<?php if((is_admin() || is_proponent()) && count($enrolledStudents) > 0): ?>
-<div class="students-section mt-4">
-<div class="d-flex justify-content-between align-items-center mb-3">
-<h5><i class="fas fa-users me-2"></i>Enrolled Students</h5>
-
-<!-- Stats Summary -->
-<div class="stats-summary">
-<span class="badge bg-primary me-2">Total: <?= $stats['total_enrolled'] ?? 0 ?></span>
-<span class="badge bg-warning me-2">Ongoing: <?= $stats['ongoing_count'] ?? 0 ?></span>
-<span class="badge bg-success">Completed: <?= $stats['completed_count'] ?? 0 ?></span>
-</div>
 </div>
 
-<!-- Completion Rate -->
-<div class="completion-rate mb-3">
-<div class="d-flex align-items-center">
-<span class="me-2">Completion Rate:</span>
-<div class="progress flex-grow-1" style="height: 10px;">
-<div class="progress-bar bg-success" style="width: <?= $completionRate ?>%"></div>
-</div>
-<span class="ms-2 fw-bold"><?= $completionRate ?>%</span>
-</div>
-</div>
-
-<!-- Students Table -->
-<div class="table-responsive">
-<table class="table table-hover">
-<thead>
-<tr>
-<th>Student</th>
-<th>Email</th>
-<th>Status</th>
-<th>Progress</th>
-<?php if($has_video_tracking): ?>
-    <th>Video</th>
-<?php endif; ?>
-<?php if($has_pdf_tracking): ?>
-    <th>PDF</th>
-    <th>PDF Pages</th>
-<?php endif; ?>
-<th>Enrolled</th>
-<th>Completed</th>
-<th>Time Spent</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach($enrolledStudents as $student): ?>
-<tr>
-<td>
-<?= htmlspecialchars($student['fname'] . ' ' . $student['lname']) ?>
-<br><small class="text-muted">@<?= htmlspecialchars($student['username']) ?></small>
-</td>
-<td><?= htmlspecialchars($student['email']) ?></td>
-<td>
-<span class="badge <?= $student['status_color'] ?>">
-<?= $student['status_text'] ?>
-</span>
-</td>
-<td class="student-progress-cell">
-<div class="d-flex align-items-center">
-<div class="progress flex-grow-1 me-2" style="height: 5px;">
-<div class="progress-bar bg-success" style="width: <?= $student['progress'] ?>%"></div>
-</div>
-<small><?= $student['progress'] ?>%</small>
-</div>
-</td>
-<?php if($has_video_tracking): ?>
-<td>
-<?php if($hasVideo): ?>
-    <?php if($student['video_completed'] ?? 0): ?>
-        <span class="badge bg-success"><i class="fas fa-check"></i> Done</span>
-    <?php else: ?>
-        <span class="badge bg-warning"><?= ($student['video_progress'] ?? 0) ?>%</span>
-    <?php endif; ?>
-<?php else: ?>
-    <span class="text-muted">—</span>
-<?php endif; ?>
-</td>
-<?php endif; ?>
-<?php if($has_pdf_tracking): ?>
-<td>
-<?php if($hasPdf): ?>
-    <?php if($student['pdf_completed'] ?? 0): ?>
-        <span class="badge bg-success"><i class="fas fa-check"></i> Done</span>
-    <?php else: ?>
-        <span class="badge bg-warning"><?= ($student['pdf_progress'] ?? 0) ?>%</span>
-    <?php endif; ?>
-<?php else: ?>
-    <span class="text-muted">—</span>
-<?php endif; ?>
-</td>
-<td>
-<?php if($hasPdf && $has_pdf_tracking): ?>
-    <?= ($student['pdf_current_page'] ?? 0) ?> / <?= ($student['pdf_total_pages'] ?? 0) ?>
-<?php else: ?>
-    <span class="text-muted">—</span>
-<?php endif; ?>
-</td>
-<?php endif; ?>
-<td><?= $student['enrolled_date'] ?></td>
-<td><?= $student['completed_date'] ?? '—' ?></td>
-<td><?= round($student['total_time_seconds'] / 60, 1) ?> mins</td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-</div>
-</div>
-<?php endif; ?>
+<!-- Fullscreen hint element (will be shown when entering fullscreen) -->
+<div id="fullscreenHint" class="fullscreen-hint" style="display: none;">
+    <i class="fas fa-keyboard"></i> Press ESC to exit full screen
 </div>
 
 <script>
@@ -1094,17 +912,56 @@ const hasVideo = <?= $hasVideo ? 'true' : 'false' ?>;
 const hasPdf = <?= $hasPdf ? 'true' : 'false' ?>;
 const hasVideoTracking = <?= $has_video_tracking ? 'true' : 'false' ?>;
 const hasPdfTracking = <?= $has_pdf_tracking ? 'true' : 'false' ?>;
-const hasAssessment = <?= $hasAssessment ? 'true' : 'false' ?>;
-let assessmentCompleted = <?= $assessmentCompleted ? 'true' : 'false' ?>;
-let assessmentId = <?= $assessmentId ?: 'null' ?>;
 
 // Track viewed pages
 let viewedPages = new Set();
 let currentPdfProgress = <?= ($enrollment['pdf_progress'] ?? 0) ?>;
 let pdfCompleted = <?= ($enrollment['pdf_completed'] ?? 0) ?>;
 
+// Function to check if all materials are completed
+function areMaterialsCompleted() {
+    let videoComplete = !hasVideo || !hasVideoTracking || videoCompleted;
+    let pdfComplete = !hasPdf || !hasPdfTracking || pdfCompleted;
+    return videoComplete && pdfComplete;
+}
+
+// Function to update button states
+function updateButtons() {
+    // Update Complete button
+    const completeBtn = document.getElementById('completeBtn');
+    if (completeBtn) {
+        if (areMaterialsCompleted()) {
+            completeBtn.classList.remove('disabled');
+            completeBtn.classList.add('btn-pulse');
+            completeBtn.removeAttribute('disabled');
+            console.log('Materials completed - complete button enabled');
+        } else {
+            completeBtn.classList.add('disabled');
+            completeBtn.classList.remove('btn-pulse');
+            completeBtn.setAttribute('disabled', 'disabled');
+            console.log('Materials not completed - complete button disabled');
+        }
+    }
+    
+    // Update Take Assessment button
+    const takeBtn = document.getElementById('takeAssessmentBtn');
+    if (takeBtn) {
+        if (areMaterialsCompleted()) {
+            takeBtn.classList.remove('disabled');
+            takeBtn.removeAttribute('disabled');
+            console.log('Materials completed - assessment button enabled');
+        } else {
+            takeBtn.classList.add('disabled');
+            takeBtn.setAttribute('disabled', 'disabled');
+            console.log('Materials not completed - assessment button disabled');
+        }
+    }
+}
+
 // Load viewed pages from localStorage on page load
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded, checking materials completion...');
+    
     // Try to load viewed pages from localStorage
     const savedViewedPages = localStorage.getItem('pdf_viewed_pages_<?= $courseId ?>');
     if (savedViewedPages) {
@@ -1119,43 +976,107 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('pdfProgressBar').style.width = progress + '%';
                     document.getElementById('pdfProgressPercentage').textContent = progress + '%';
                     document.getElementById('viewedPagesCount').textContent = viewedPages.size;
+                    
+                    // Check if PDF is completed based on loaded pages
+                    if (progress >= 100 && !pdfCompleted) {
+                        pdfCompleted = true;
+                        console.log('PDF marked as completed from localStorage');
+                    }
                 }
             }
         } catch (e) {
             console.error('Error loading saved pages:', e);
         }
     }
+    
+    // Initial button state update
+    updateButtons();
+    
+    // Fullscreen PDF functionality
+    const fullscreenBtn = document.getElementById('fullscreenPdfBtn');
+    const pdfMaterialCard = document.getElementById('pdfMaterialCard');
+    const fullscreenHint = document.getElementById('fullscreenHint');
+    
+    if (fullscreenBtn && pdfMaterialCard) {
+        
+        function enterFullscreen() {
+            pdfMaterialCard.classList.add('pdf-fullscreen-mode');
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+            fullscreenBtn.title = 'Exit full screen (ESC)';
+            
+            // Show hint
+            fullscreenHint.style.display = 'block';
+            
+            // Hide hint after 3 seconds
+            setTimeout(() => {
+                fullscreenHint.style.display = 'none';
+            }, 3000);
+            
+            // Trigger resize to adjust PDF rendering
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        }
+        
+        function exitFullscreen() {
+            pdfMaterialCard.classList.remove('pdf-fullscreen-mode');
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            fullscreenBtn.title = 'Enter full screen (ESC to exit)';
+            fullscreenHint.style.display = 'none';
+            
+            // Trigger resize to adjust PDF rendering
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        }
+        
+        fullscreenBtn.addEventListener('click', function() {
+            if (pdfMaterialCard.classList.contains('pdf-fullscreen-mode')) {
+                exitFullscreen();
+            } else {
+                enterFullscreen();
+            }
+        });
+        
+        // ESC key to exit fullscreen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && pdfMaterialCard.classList.contains('pdf-fullscreen-mode')) {
+                exitFullscreen();
+            }
+        });
+    }
 });
 
 // Function to show toast notification
 function showToast(message, type = 'success') {
-const toast = $(`
-<div class="alert alert-${type} alert-dismissible fade show" role="alert">
-<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
-${message}
-<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-`);
+    const toast = $(`
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
 
-$('#toastContainer').append(toast);
+    $('#toastContainer').append(toast);
 
-// Auto dismiss after 5 seconds
-setTimeout(() => {
-toast.fadeOut(300, function() { $(this).remove(); });
-}, 5000);
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 5000);
 }
 
 // Auto update time spent
 setInterval(function(){
-if (<?= ($enrollment['status'] ?? '') !== 'completed' ? 'true' : 'false' ?>) {
-totalSeconds++;
-$.post(window.location.href, {seconds: 1});
-}
+    if (<?= ($enrollment['status'] ?? '') !== 'completed' ? 'true' : 'false' ?>) {
+        totalSeconds++;
+        $.post(window.location.href, {seconds: 1});
+    }
 }, 1000);
 
 // Video Element with Video.js
 if (hasVideo && hasVideoTracking && !videoCompleted) {
     const player = videojs('courseVideo');
+    console.log('Video player initialized');
     
     // Load saved video progress from localStorage
     const savedVideoProgress = localStorage.getItem('video_progress_<?= $courseId ?>');
@@ -1164,6 +1085,7 @@ if (hasVideo && hasVideoTracking && !videoCompleted) {
         if (savedTime > 0) {
             player.ready(function() {
                 this.currentTime(savedTime);
+                console.log('Restored video position:', savedTime);
             });
         }
     }
@@ -1185,12 +1107,20 @@ if (hasVideo && hasVideoTracking && !videoCompleted) {
             if (progress > videoProgress) {
                 videoProgress = progress;
                 $.post(window.location.href, {video_progress: videoProgress});
+                console.log('Video progress updated:', progress + '%');
             }
             
             // Check if video is complete (98% or more to account for rounding)
             if (videoProgress >= 98 && !videoCompleted) {
                 videoCompleted = true;
-                $.post(window.location.href, {video_completed: 1});
+                console.log('Video completed!');
+                
+                $.post(window.location.href, {video_completed: 1}, function(response) {
+                    console.log('Video completion saved:', response);
+                }).fail(function(xhr) {
+                    console.error('Failed to save video completion:', xhr);
+                });
+                
                 localStorage.removeItem('video_progress_<?= $courseId ?>');
                 
                 // Update UI for completion
@@ -1199,7 +1129,7 @@ if (hasVideo && hasVideoTracking && !videoCompleted) {
                     .html('<i class="fas fa-check-circle me-1"></i>Completed');
                 
                 showToast('✓ Video completed!', 'success');
-                checkRequirements();
+                updateButtons();
             }
         }
     });
@@ -1208,7 +1138,14 @@ if (hasVideo && hasVideoTracking && !videoCompleted) {
         if (!videoCompleted) {
             videoCompleted = true;
             videoProgress = 100;
-            $.post(window.location.href, {video_progress: 100, video_completed: 1});
+            console.log('Video ended - marking as completed');
+            
+            $.post(window.location.href, {video_progress: 100, video_completed: 1}, function(response) {
+                console.log('Video completion saved:', response);
+            }).fail(function(xhr) {
+                console.error('Failed to save video completion:', xhr);
+            });
+            
             localStorage.removeItem('video_progress_<?= $courseId ?>');
             
             // Update UI
@@ -1217,13 +1154,14 @@ if (hasVideo && hasVideoTracking && !videoCompleted) {
                 .html('<i class="fas fa-check-circle me-1"></i>Completed');
             
             showToast('✓ Video completed!', 'success');
-            checkRequirements();
+            updateButtons();
         }
     });
 }
 
 // PDF Page Tracking
 if (hasPdf && hasPdfTracking) {
+    console.log('Initializing PDF viewer...');
     const pdfUrl = '<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars($course['file_pdf']) ?>';
     const pagesContainer = document.getElementById('pdfPagesContainer');
     const pdfProgressBar = document.getElementById('pdfProgressBar');
@@ -1239,11 +1177,13 @@ if (hasPdf && hasPdfTracking) {
     ?>
     
     viewedPages = new Set([<?= implode(',', $viewedPages) ?>]);
+    console.log('Initial viewed pages:', Array.from(viewedPages));
     
     // Load PDF
     pdfjsLib.getDocument(pdfUrl).promise.then(function(pdfDoc) {
         const numPages = pdfDoc.numPages;
         totalPagesSpan.textContent = numPages;
+        console.log('PDF loaded with', numPages, 'pages');
         
         // Update total pages in database if different
         if (numPages != <?= ($enrollment['pdf_total_pages'] ?? 0) ?>) {
@@ -1257,6 +1197,9 @@ if (hasPdf && hasPdfTracking) {
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             renderPage(pdfDoc, pageNum, numPages);
         }
+    }).catch(function(error) {
+        console.error('Error loading PDF:', error);
+        showToast('Error loading PDF. Please refresh the page.', 'danger');
     });
     
     // Render PDF page
@@ -1292,12 +1235,18 @@ if (hasPdf && hasPdfTracking) {
                 viewport: viewport
             };
             
-            page.render(renderContext);
+            page.render(renderContext).promise.then(function() {
+                console.log('Page', pageNum, 'rendered');
+            }).catch(function(error) {
+                console.error('Error rendering page', pageNum, ':', error);
+            });
             
             // Add intersection observer to detect when page is viewed
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting && !viewedPages.has(pageNum)) {
+                        console.log('Page', pageNum, 'viewed');
+                        
                         // Mark page as viewed
                         viewedPages.add(pageNum);
                         document.getElementById(`page-badge-${pageNum}`).style.display = 'flex';
@@ -1315,9 +1264,23 @@ if (hasPdf && hasPdfTracking) {
                         pdfProgressPercentage.textContent = progress + '%';
                         viewedPagesCount.textContent = viewedPages.size;
                         
+                        console.log('PDF progress:', progress + '%', 'Pages viewed:', viewedPages.size, '/', totalPages);
+                        
+                        // Send update to server
+                        $.post(window.location.href, {
+                            pdf_page: pageNum,
+                            total_pages: totalPages
+                        }, function(response) {
+                            console.log('Page view saved:', response);
+                        }).fail(function(xhr) {
+                            console.error('Failed to save page view:', xhr);
+                        });
+                        
                         // Check if completed (100%)
                         if (progress >= 100 && !pdfCompleted) {
                             pdfCompleted = true;
+                            console.log('PDF completed!');
+                            
                             pdfProgressBar.classList.add('completed');
                             
                             // Update UI for completion
@@ -1327,18 +1290,17 @@ if (hasPdf && hasPdfTracking) {
                             
                             showToast('✓ PDF completed! You have viewed all ' + totalPages + ' pages.', 'success');
                             
-                            $.post(window.location.href, {pdf_completed: 1});
+                            $.post(window.location.href, {pdf_completed: 1}, function(response) {
+                                console.log('PDF completion saved:', response);
+                            }).fail(function(xhr) {
+                                console.error('Failed to save PDF completion:', xhr);
+                            });
+                            
                             localStorage.removeItem('pdf_viewed_pages_<?= $courseId ?>');
                         }
                         
-                        // Send update to server
-                        $.post(window.location.href, {
-                            pdf_page: pageNum,
-                            total_pages: totalPages
-                        });
-                        
-                        // Check overall requirements
-                        checkRequirements();
+                        // Check overall completion
+                        updateButtons();
                     }
                 });
             }, { threshold: 0.5 });
@@ -1349,95 +1311,86 @@ if (hasPdf && hasPdfTracking) {
             if (viewedPages.has(pageNum)) {
                 document.getElementById(`page-badge-${pageNum}`).style.display = 'flex';
             }
+        }).catch(function(error) {
+            console.error('Error getting page', pageNum, ':', error);
         });
     }
 }
 
-// Check if all requirements are met for buttons
-function checkRequirements() {
-    let materialsComplete = true;
-    
-    if (hasVideo && hasVideoTracking && !videoCompleted) {
-        materialsComplete = false;
-    }
-    
-    if (hasPdf && hasPdfTracking && !pdfCompleted) {
-        materialsComplete = false;
-    }
-    
-    // Update Take Assessment button
-    const takeAssessmentBtn = document.getElementById('takeAssessmentBtn');
-    if (takeAssessmentBtn) {
-        if (materialsComplete) {
-            takeAssessmentBtn.classList.remove('disabled');
-            takeAssessmentBtn.removeAttribute('disabled');
-        } else {
-            takeAssessmentBtn.classList.add('disabled');
-            takeAssessmentBtn.setAttribute('disabled', 'disabled');
-        }
-    }
-    
-    // Update Complete Course button
-    const completeBtn = document.getElementById('completeBtn');
-    if (completeBtn) {
-        const canComplete = materialsComplete && (!hasAssessment || assessmentCompleted);
-        
-        if (canComplete) {
-            completeBtn.classList.remove('disabled');
-            completeBtn.classList.add('btn-pulse');
-            completeBtn.removeAttribute('disabled');
-        } else {
-            completeBtn.classList.add('disabled');
-            completeBtn.classList.remove('btn-pulse');
-            completeBtn.setAttribute('disabled', 'disabled');
-        }
-    }
-}
-
-// Complete button click
+// Complete button click with better error handling
 $('#completeBtn').on('click', function(){
-let btn = $(this);
-btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Completing...');
-
-$.post(window.location.href, { mark_completed: 1 }, function(response) {
-if (response.success) {
-showToast('✓ ' + response.message, 'success');
+    let btn = $(this);
     
-    // Clear localStorage on completion
-    localStorage.removeItem('video_progress_<?= $courseId ?>');
-    localStorage.removeItem('pdf_viewed_pages_<?= $courseId ?>');
+    // Double-check if materials are completed before sending
+    if (!areMaterialsCompleted()) {
+        showToast('Please complete all materials first!', 'warning');
+        return;
+    }
     
-    // Update UI
-    setTimeout(() => {
-        location.reload();
-    }, 3000);
-} else {
-showToast('Error: ' + response.message, 'danger');
-btn.prop('disabled', false).html('<i class="fas fa-check-circle me-2"></i>Complete Course');
-}
-}, 'json').fail(function() {
-showToast('Network error. Please try again.', 'danger');
-btn.prop('disabled', false).html('<i class="fas fa-check-circle me-2"></i>Complete Course');
-});
+    console.log('Completing course...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Completing...');
+
+    $.ajax({
+        url: window.location.href,
+        method: 'POST',
+        data: { mark_completed: 1 },
+        dataType: 'json',
+        timeout: 30000,
+        success: function(response) {
+            console.log('Complete response:', response);
+            if (response.success) {
+                showToast('✓ ' + response.message, 'success');
+                
+                // Clear localStorage on completion
+                localStorage.removeItem('video_progress_<?= $courseId ?>');
+                localStorage.removeItem('pdf_viewed_pages_<?= $courseId ?>');
+                
+                // Update UI
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            } else {
+                showToast('Error: ' + response.message, 'danger');
+                btn.prop('disabled', false).html('<i class="fas fa-check-circle me-2"></i>Complete Course');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', {status: status, error: error, response: xhr.responseText});
+            
+            let errorMessage = 'Network error. ';
+            if (status === 'timeout') {
+                errorMessage += 'Request timed out. Please try again.';
+            } else if (xhr.status === 0) {
+                errorMessage += 'Could not connect to server.';
+            } else if (xhr.status === 500) {
+                errorMessage += 'Server error. Please try again later.';
+            } else {
+                errorMessage += 'Please try again.';
+            }
+            
+            showToast(errorMessage, 'danger');
+            btn.prop('disabled', false).html('<i class="fas fa-check-circle me-2"></i>Complete Course');
+        }
+    });
 });
 
-// Initial check for requirements
-setTimeout(checkRequirements, 1000);
+// Initial button state update
+setTimeout(updateButtons, 1000);
 <?php endif; ?>
 
 // Animation on load
 document.addEventListener('DOMContentLoaded', function() {
-const cards = document.querySelectorAll('.material-card, .course-info-card, .students-section, .action-buttons');
-cards.forEach((card, index) => {
-card.style.opacity = '0';
-card.style.transform = 'translateY(20px)';
-card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    const cards = document.querySelectorAll('.material-card, .course-info-card, .action-buttons');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
 
-setTimeout(() => {
-card.style.opacity = '1';
-card.style.transform = 'translateY(0)';
-}, index * 100);
-});
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
 });
 </script>
 </body>

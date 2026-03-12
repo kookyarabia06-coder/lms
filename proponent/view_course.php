@@ -15,6 +15,48 @@ $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 if(!$course) die('Course not found');
 
+// Check if assessment exists for this course
+$assessment = null;
+$assessment_questions = [];
+
+try {
+    // First, check if assessments table exists and get the assessment
+    $stmt = $pdo->prepare("SELECT * FROM assessments WHERE course_id = ? LIMIT 1");
+    $stmt->execute([$courseId]);
+    $assessment = $stmt->fetch();
+    
+    if ($assessment) {
+        // Get questions for this assessment
+        $stmt = $pdo->prepare("
+            SELECT * FROM assessment_questions 
+            WHERE assessment_id = ? 
+            ORDER BY order_number ASC
+        ");
+        $stmt->execute([$assessment['id']]);
+        $questions = $stmt->fetchAll();
+        
+        // For each question, get its options
+        foreach ($questions as $question) {
+            $stmt = $pdo->prepare("
+                SELECT * FROM assessment_options 
+                WHERE question_id = ? 
+                ORDER BY order_number ASC
+            ");
+            $stmt->execute([$question['id']]);
+            $options = $stmt->fetchAll();
+            
+            // Add options to question
+            $question['options'] = $options;
+            $assessment_questions[] = $question;
+        }
+    }
+} catch (Exception $e) {
+    // Log error or handle gracefully
+    error_log("Error fetching assessment: " . $e->getMessage());
+    $assessment = null;
+    $assessment_questions = [];
+}
+
 // ============================================
 // FETCH ENROLLED STUDENTS - FOR COURSE CREATORS
 // ============================================
@@ -214,6 +256,20 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             color: white;
         }
         
+        /* Content cards matching the page design */
+        .content-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+        
+        .content-card h5 {
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
         /* Fixed video container */
         .video-container {
             width: 100%;
@@ -232,7 +288,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             background: #000;
         }
         
-        /* PDF container - keep responsive but with better height */
+        /* PDF container - fixed height */
         .pdf-container {
             width: 100%;
             height: 700px;
@@ -247,16 +303,211 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             border: none;
         }
         
-        /* Course info badges for view only */
-        .view-only-badge {
-            background: #6c757d;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 50px;
-            font-size: 12px;
-            margin-left: 10px;
+        /* Assessment container inside content card - fixed height scrollable */
+        .assessment-container {
+            height: 600px;
+            overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f1f5f9;
         }
         
+        .assessment-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .assessment-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .assessment-container::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 10px;
+        }
+        
+        .assessment-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Assessment header inside the scrollable container */
+        .assessment-header {
+            background: linear-gradient(135deg, #334386 0%, #291583 100%);
+            color: white;
+            padding: 20px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .assessment-header h4 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+        
+        .assessment-header p {
+            margin: 8px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .assessment-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .assessment-meta-item {
+            background: rgba(255,255,255,0.15);
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .assessment-meta-item i {
+            margin-right: 5px;
+            font-size: 10px;
+        }
+        
+        /* Assessment content padding */
+        .assessment-content {
+            padding: 20px;
+        }
+        
+        .question-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .question-number {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 15px;
+        }
+        
+        .question-points {
+            background: #e9ecef;
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .question-text {
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .options-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .option-item {
+            padding: 10px 15px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .correct-option {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        
+        .correct-option i {
+            color: #28a745;
+        }
+        
+        .option-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .correct-option .option-marker {
+            background: #28a745;
+            color: white;
+        }
+        
+        .true-false-badge {
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-true {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-false {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .essay-placeholder {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed #ced4da;
+            color: #6c757d;
+            text-align: center;
+        }
+        
+        .no-assessment {
+            padding: 60px;
+            text-align: center;
+            color: #6c757d;
+            background: white;
+            border-radius: 16px;
+            margin-top: 30px;
+        }
+        
+        .no-assessment i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #dee2e6;
+        }
+        
+        .alert-info {
+            background: #e7f5ff;
+            border: 1px solid #b8e2ff;
+            color: #0c4a6e;
+            border-radius: 12px;
+            padding: 12px 16px;
+        }
     </style>
 </head>
 <body>
@@ -438,10 +689,8 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
         </div>
         
         <!-- Preview Section -->
-        <div class="course-info-card">
-            <div class="content-header">
-                <h4>Course Preview</h4>
-            </div>
+        <div class="content-card">
+            <h5><i class="fas fa-info-circle text-primary me-2"></i> Course Preview</h5>
             <div class="modern-course-info-content">
                 <?= $course['summary'] ?? '<p>No preview available.</p>' ?>
             </div>
@@ -478,6 +727,114 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                     <source src="<?= BASE_URL ?>/uploads/video/<?= htmlspecialchars($course['file_video']) ?>" type="video/mp4">
                     Your browser does not support HTML5 video.
                 </video>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Assessment Content - Inside a content card like PDF and video -->
+        <?php if($assessment): ?>
+        <div class="content-card">
+            <h5><i class="fas fa-clipboard-list text-primary me-2"></i> Course Assessment</h5>
+            
+            <div class="assessment-container">
+                <div class="assessment-header">
+                    <h4><?= htmlspecialchars($assessment['title']) ?></h4>
+                    <p><?= htmlspecialchars($assessment['description'] ?: 'No description provided.') ?></p>
+                    
+                    <div class="assessment-meta">
+                        <span class="assessment-meta-item">
+                            <i class="fas fa-check-circle"></i>
+                            Passing: <?= intval($assessment['passing_score']) ?>%
+                        </span>
+                        <?php if($assessment['time_limit']): ?>
+                        <span class="assessment-meta-item">
+                            <i class="fas fa-clock"></i>
+                            Time: <?= intval($assessment['time_limit']) ?> min
+                        </span>
+                        <?php endif; ?>
+                        <span class="assessment-meta-item">
+                            <i class="fas fa-redo-alt"></i>
+                            Attempts: <?= intval($assessment['attempts_allowed']) ?>
+                        </span>
+                        <span class="assessment-meta-item">
+                            <i class="fas fa-question-circle"></i>
+                            Questions: <?= count($assessment_questions) ?>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="assessment-content">
+                    <?php if(count($assessment_questions) > 0): ?>
+                        <?php foreach($assessment_questions as $index => $question): ?>
+                            <div class="question-card">
+                                <div class="question-header">
+                                    <span class="question-number">Question <?= $index + 1 ?></span>
+                                    <span class="question-points"><?= intval($question['points']) ?> point<?= intval($question['points']) != 1 ? 's' : '' ?></span>
+                                </div>
+                                
+                                <div class="question-text">
+                                    <?= htmlspecialchars($question['question_text']) ?>
+                                </div>
+                                
+                                <?php if($question['question_type'] == 'multiple_choice'): ?>
+                                    <ul class="options-list">
+                                        <?php foreach($question['options'] as $optIndex => $option): ?>
+                                            <li class="option-item <?= $option['is_correct'] ? 'correct-option' : '' ?>">
+                                                <span class="option-marker"><?= chr(65 + $optIndex) ?></span>
+                                                <span><?= htmlspecialchars($option['option_text']) ?></span>
+                                                <?php if($option['is_correct']): ?>
+                                                    <i class="fas fa-check-circle ms-auto"></i>
+                                                <?php endif; ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                
+                                <?php elseif($question['question_type'] == 'true_false'): ?>
+                                    <?php 
+                                    $correctOption = array_filter($question['options'], function($opt) { 
+                                        return $opt['is_correct'] == 1; 
+                                    });
+                                    $correctValue = !empty($correctOption) ? reset($correctOption)['option_text'] : 'True';
+                                    ?>
+                                    <div class="d-flex flex-wrap align-items-center gap-3">
+                                        <span class="true-false-badge badge-true">
+                                            <i class="fas fa-check-circle me-1"></i>True
+                                        </span>
+                                        <span class="true-false-badge <?= $correctValue == 'False' ? 'badge-false' : 'badge-true' ?>">
+                                            <i class="fas fa-times-circle me-1"></i>False
+                                        </span>
+                                        <span class="text-success ms-2">
+                                            <i class="fas fa-check-circle me-1"></i>
+                                            Correct: <strong><?= $correctValue ?></strong>
+                                        </span>
+                                    </div>
+                                
+                                <?php elseif($question['question_type'] == 'essay'): ?>
+                                    <div class="essay-placeholder">
+                                        <i class="fas fa-pencil-alt me-2"></i>
+                                        Essay Question - Students will provide a written response
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+
+                        
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <i class="fas fa-question-circle"></i>
+                            <h5>No Questions Added</h5>
+                            <p class="text-muted">This assessment doesn't have any questions yet.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php else: ?>
+        <div class="content-card">
+            <h5><i class="fas fa-clipboard-list text-primary me-2"></i> Course Assessment</h5>
+            <div class="no-assessment">
+                <i class="fas fa-clipboard-list"></i>
+                <p class="text-muted">This course doesn't have an assessment yet.</p>
             </div>
         </div>
         <?php endif; ?>

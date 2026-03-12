@@ -22,8 +22,9 @@ if ($audit_table_exists) {
     $pdo->exec("SET @current_user_id = " . intval($_SESSION['user']['id']));
 }
 
-// Get all course activities with audit trail
+// Get all course activities with audit trail and expand changes into individual rows
 if ($audit_table_exists) {
+    // First get all audit records including DELETEs
     $sql = "
     SELECT 
         c.id as course_id,
@@ -44,26 +45,54 @@ if ($audit_table_exists) {
         a.action as audit_action,
         a.created_at as audit_time,
         a.user_id as editor_id,
+        a.record_id,  /* Add record_id from audit_log */
         au.username as editor_username,
         au.fname as editor_fname,
         au.lname as editor_lname,
-        au.role as editor_role,
-        CASE 
-            WHEN a.action = 'UPDATE' THEN 'EDITED'
-            WHEN a.action = 'INSERT' THEN 'ADDED'
-            WHEN a.action = 'DELETE' THEN 'DELETED'
-            ELSE 'VIEWED'
-        END as action_type
+        au.role as editor_role
+    FROM audit_log a
+    LEFT JOIN courses c ON a.record_id = c.id AND a.table_name = 'courses'
+    LEFT JOIN users u ON c.proponent_id = u.id
+    LEFT JOIN users au ON a.user_id = au.id
+    WHERE a.table_name = 'courses'
+    AND a.action IN ('INSERT', 'UPDATE', 'DELETE')
+    
+    UNION
+    
+    -- Also include current courses that might not have audit records
+    SELECT 
+        c.id as course_id,
+        c.title,
+        c.description,
+        c.created_at,
+        c.updated_at,
+        c.expires_at,
+        u.id as creator_id,
+        u.username as creator_username,
+        u.fname as creator_fname,
+        u.lname as creator_lname,
+        u.role as creator_role,
+        NULL as audit_id,
+        NULL as old_data,
+        NULL as new_data,
+        NULL as changed_fields,
+        NULL as audit_action,
+        NULL as audit_time,
+        NULL as editor_id,
+        NULL as record_id,  /* Add NULL record_id for non-audit records */
+        NULL as editor_username,
+        NULL as editor_fname,
+        NULL as editor_lname,
+        NULL as editor_role
     FROM courses c
     LEFT JOIN users u ON c.proponent_id = u.id
-    LEFT JOIN audit_log a ON a.table_name = 'courses' AND a.record_id = c.id
-    LEFT JOIN users au ON a.user_id = au.id
-    ORDER BY COALESCE(a.created_at, c.updated_at, c.created_at) DESC
+    
+    ORDER BY audit_time DESC, updated_at DESC, created_at DESC
     ";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
 } else {
-    // Fallback query without audit_log
+    // Fallback query without audit_log (limited functionality)
     $sql = "
     SELECT 
         c.id as course_id,
@@ -78,20 +107,18 @@ if ($audit_table_exists) {
         u.fname as creator_fname,
         u.lname as creator_lname,
         u.role as creator_role,
+        NULL as audit_id,
         NULL as old_data,
         NULL as new_data,
         NULL as changed_fields,
         NULL as audit_action,
         NULL as audit_time,
         NULL as editor_id,
+        NULL as record_id,
         NULL as editor_username,
         NULL as editor_fname,
         NULL as editor_lname,
-        NULL as editor_role,
-        CASE 
-            WHEN c.updated_at IS NOT NULL AND c.updated_at > c.created_at THEN 'EDITED'
-            ELSE 'ADDED'
-        END as action_type
+        NULL as editor_role
     FROM courses c
     LEFT JOIN users u ON c.proponent_id = u.id
     ORDER BY c.updated_at DESC, c.created_at DESC
@@ -99,41 +126,90 @@ if ($audit_table_exists) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
 }
-$course_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Function to format changes nicely
-function formatChanges($old_data, $new_data, $changed_fields) {
-    if (!$old_data || !$new_data || !$changed_fields) {
-        return 'No detailed changes';
-    }
-    
-    $old = json_decode($old_data, true);
-    $new = json_decode($new_data, true);
-    $fields = json_decode($changed_fields, true);
-    
-    if (!is_array($fields) || empty($fields)) {
-        return 'No field changes recorded';
-    }
-    
-    $changes = [];
-    foreach ($fields as $field) {
-        $old_val = $old[$field] ?? 'NULL';
-        $new_val = $new[$field] ?? 'NULL';
+$raw_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Expand records to show each field change as a separate row
+$expanded_actions = [];
+
+foreach ($raw_records as $record) {
+    // Handle DELETE actions specially
+    if (isset($record['audit_action']) && $record['audit_action'] == 'DELETE') {
+        // Parse old_data for deleted course info
+        $old = json_decode($record['old_data'], true);
         
-        // Format based on field type
-        if (in_array($field, ['thumbnail', 'file_pdf', 'file_video'])) {
-            if ($old_val != $new_val) {
-                $changes[] = "$field: " . basename($old_val) . " → " . basename($new_val);
+        $expanded_record = $record;
+        $expanded_record['changed_field'] = 'course';
+        $expanded_record['old_value'] = $old['title'] ?? 'Unknown course';
+        $expanded_record['new_value'] = 'DELETED';
+        $expanded_record['action_type'] = 'DELETED';
+        $expanded_record['title'] = $old['title'] ?? 'Deleted Course';
+        $expanded_record['course_id'] = $record['record_id'] ?? $record['course_id'] ?? 'N/A';
+        
+        $expanded_actions[] = $expanded_record;
+    }
+    // Handle regular records with field changes
+    elseif ($audit_table_exists && !empty($record['old_data']) && !empty($record['new_data']) && !empty($record['changed_fields'])) {
+        // Parse JSON data
+        $old = json_decode($record['old_data'], true);
+        $new = json_decode($record['new_data'], true);
+        $fields = json_decode($record['changed_fields'], true);
+        
+        if (is_array($fields) && !empty($fields)) {
+            // Create a separate row for each changed field
+            foreach ($fields as $field) {
+                $old_val = $old[$field] ?? 'NULL';
+                $new_val = $new[$field] ?? 'NULL';
+                
+                // Format based on field type
+                if (in_array($field, ['thumbnail', 'file_pdf', 'file_video'])) {
+                    $old_display = $old_val != 'NULL' ? basename($old_val) : 'NULL';
+                    $new_display = $new_val != 'NULL' ? basename($new_val) : 'NULL';
+                } else {
+                    $old_display = $old_val != 'NULL' ? substr($old_val, 0, 50) : 'NULL';
+                    $new_display = $new_val != 'NULL' ? substr($new_val, 0, 50) : 'NULL';
+                }
+                
+                $expanded_record = $record;
+                $expanded_record['changed_field'] = $field;
+                $expanded_record['old_value'] = $old_display;
+                $expanded_record['new_value'] = $new_display;
+                $expanded_record['action_type'] = $record['audit_action'] == 'INSERT' ? 'ADDED' : 'EDITED';
+                
+                $expanded_actions[] = $expanded_record;
             }
         } else {
-            if ($old_val != $new_val) {
-                $changes[] = "$field: '" . substr($old_val, 0, 30) . "' → '" . substr($new_val, 0, 30) . "'";
-            }
+            // If no fields data but we have an audit record
+            $expanded_record = $record;
+            $expanded_record['changed_field'] = 'unknown';
+            $expanded_record['old_value'] = 'No data';
+            $expanded_record['new_value'] = 'No data';
+            $expanded_record['action_type'] = $record['audit_action'] == 'INSERT' ? 'ADDED' : 'EDITED';
+            
+            $expanded_actions[] = $expanded_record;
         }
+    } else {
+        // For records without audit data (fallback or INSERT without field details)
+        $expanded_record = $record;
+        $expanded_record['changed_field'] = 'course';
+        $expanded_record['old_value'] = 'N/A';
+        $expanded_record['new_value'] = 'Course ' . (($record['audit_action'] ?? '') == 'INSERT' ? 'created' : 'exists');
+        $expanded_record['action_type'] = isset($record['audit_action']) ? 
+            ($record['audit_action'] == 'INSERT' ? 'ADDED' : 'EDITED') : 
+            (isset($record['updated_at']) && $record['updated_at'] != $record['created_at'] ? 'EDITED' : 'ADDED');
+        
+        $expanded_actions[] = $expanded_record;
     }
-    
-    return empty($changes) ? 'No visible changes' : implode('<br>', $changes);
 }
+
+// Sort by audit time descending
+usort($expanded_actions, function($a, $b) {
+    $time_a = $a['audit_time'] ?? $a['updated_at'] ?? $a['created_at'] ?? '1970-01-01';
+    $time_b = $b['audit_time'] ?? $b['updated_at'] ?? $b['created_at'] ?? '1970-01-01';
+    return strtotime($time_b) - strtotime($time_a);
+});
+
+$course_actions = $expanded_actions;
 ?>
 
 <!DOCTYPE html>
@@ -146,10 +222,10 @@ function formatChanges($old_data, $new_data, $changed_fields) {
 <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
- <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+<link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+<link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+<link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
+<link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
 
 <style>
     body {
@@ -161,7 +237,7 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         padding: 20px;
     }
     
-    /* Card Styles - Updated to match second CSS */
+    /* Card Styles */
     .card {
         border: none;
         border-radius: 12px;
@@ -177,14 +253,17 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         border-radius: 12px 12px 0 0 !important;
     }
     
-    /* Badge Styles - Updated to match second CSS pattern */
+    /* Badge Styles */
     .action-badge {
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 10px;
         font-size: 10px;
         font-weight: 600;
         display: inline-block;
         white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     
     .action-added {
@@ -205,57 +284,130 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         border: none;
     }
     
-    /* Table Styles - Updated to match second CSS */
+    /* Table Styles */
+    .table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    
     .table th {
         background: #f8f9fa;
         border-top: none;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         white-space: nowrap;
-        padding: 12px 8px;
+        padding: 12px 4px;
         color: #495057;
+        text-align: center;
     }
     
     .table td {
-        font-size: 13px;
+        font-size: 12px;
         vertical-align: middle;
-        padding: 12px 8px;
+        padding: 10px 4px;
         border-top: 1px solid #dee2e6;
+        word-wrap: break-word;
     }
     
-    /* Status Indicator - New from second CSS */
-    .status-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 8px;
+    /* Center all columns by default */
+    .table td {
+        text-align: center;
     }
     
-    .status-pending {
-        background: #ffc107;
+    /* Left-align course column */
+    .table td:nth-child(2) {
+        text-align: left;
     }
     
-    .status-confirmed {
-        background: #28a745;
+    /* Column width allocations - more compact */
+    .table th:nth-child(1), .table td:nth-child(1) { width: 75px; }  /* Date/Time - smaller */
+    .table th:nth-child(2), .table td:nth-child(2) { width: 160px; } /* Course */
+    .table th:nth-child(3), .table td:nth-child(3) { width: 65px; }  /* Action */
+    .table th:nth-child(4), .table td:nth-child(4) { width: 95px; }  /* Field Changed */
+    .table th:nth-child(5), .table td:nth-child(5) { width: 140px; } /* Old Value */
+    .table th:nth-child(6), .table td:nth-child(6) { width: 140px; } /* New Value */
+    .table th:nth-child(7), .table td:nth-child(7) { width: 90px; }  /* User - reduced */
+    .table th:nth-child(8), .table td:nth-child(8) { width: 65px; }  /* Role - reduced */
+    
+    /* Date/Time column - stacked layout without separator */
+    .audit-time {
+        font-size: 11px;
+        color: #6c757d;
+        line-height: 1.4;
+        text-align: center;
+        white-space: normal;
+        word-break: keep-all;
     }
     
-    .status-deleted {
-        background: #dc3545;
+    .audit-date {
+        font-weight: 600;
+        color: #495057;
+        display: block;
+        font-size: 10px;
     }
     
-    .status-edited {
-        background: #ffc107;
+    .audit-clock {
+        display: block;
+        font-size: 9px;
+        color: #6c757d;
     }
     
-    /* Role Badges - Updated colors to match second CSS pattern */
-    .role-badge {
-        padding: 5px 10px;
+    .audit-clock i {
+        font-size: 8px;
+        margin-right: 2px;
+    }
+    
+    /* Course column */
+    .table td:nth-child(2) {
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    .table td:nth-child(2) strong {
+        display: block;
+        font-size: 12px;
+        line-height: 1.3;
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    /* Action column */
+    .table td:nth-child(3) {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    /* Field badge */
+    .field-badge {
+        background: #e9ecef;
+        color: #495057;
+        padding: 3px 6px;
         border-radius: 10px;
         font-size: 10px;
         font-weight: 600;
         display: inline-block;
         white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Role Badges - centered */
+    .table td:nth-child(8) {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    .role-badge {
+        padding: 4px 6px;
+        border-radius: 10px;
+        font-size: 9px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     
     .role-superadmin {
@@ -278,56 +430,78 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         color: #2d3436;
     }
     
-    /* User Badge - Updated styling */
-    .user-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: #f8f9fa;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        border: 1px solid #dee2e6;
+    /* User column - centered, no avatar, just username */
+    .table td:nth-child(7) {
+        text-align: center;
+        vertical-align: middle;
     }
     
-    .user-avatar {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: #6c757d;
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .username-display {
         font-size: 11px;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
-    
-    /* Changes Cell - Updated */
-    .changes-cell {
-        max-width: 300px;
-        font-size: 12px;
-        line-height: 1.5;
+        font-weight: 500;
         color: #495057;
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: 4px 0;
     }
     
-    /* Audit Time - Updated */
-    .audit-time {
+    /* Value cells */
+    .old-value,
+    .new-value,
+    .null-value {
+        padding: 3px 6px;
+        border-radius: 4px;
         font-size: 11px;
-        color: #6c757d;
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
     }
     
-    /* Table Responsive - Updated */
+    .old-value {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .new-value {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .new-value.deleted {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .null-value {
+        color: #6c757d;
+        font-style: italic;
+        background: #f8f9fa;
+    }
+    
+    /* Deleted course row styling */
+    .deleted-course-row {
+        background-color: #fff5f5;
+    }
+    
+    .deleted-course-row:hover {
+        background-color: #ffe8e8 !important;
+    }
+    
+    /* Table Responsive */
     .table-responsive {
-        max-height: 500px;
+        max-height: 600px;
         overflow-y: auto;
+        overflow-x: auto;
         border-radius: 0 0 12px 12px;
         position: relative;
     }
     
-    /* Sticky Header - Updated to match second CSS */
+    /* Sticky Header */
     .table thead th {
         position: sticky;
         top: 0;
@@ -336,7 +510,7 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
     }
     
-    /* Search Box - Updated */
+    /* Search Box */
     .search-box {
         margin-bottom: 20px;
         max-width: 300px;
@@ -354,7 +528,7 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         border-color: #80bdff;
     }
     
-    /* DB Warning - Updated */
+    /* DB Warning */
     .db-warning {
         background: #fff3cd;
         border: 1px solid #ffeeba;
@@ -365,65 +539,13 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         font-size: 13px;
     }
     
-    /* Stats Cards - New from second CSS pattern */
-    .stats-card {
-        background: white;
-        border-radius: 10px;
-        padding: 15px 20px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        display: inline-block;
-        margin-bottom: 20px;
-    }
-    
-    .stats-number {
-        font-size: 24px;
-        font-weight: bold;
-        color: #343a40;
-        line-height: 1.2;
-    }
-    
-    .stats-label {
-        font-size: 13px;
+    /* Arrow indicator */
+    .arrow-indicator {
         color: #6c757d;
-        margin-top: 5px;
-    }
-    
-    /* Table Actions - New */
-    .table-actions a {
-        margin-right: 8px;
-        font-size: 13px;
-        color: #007bff;
-        text-decoration: none;
-    }
-    
-    .table-actions a:hover {
-        text-decoration: underline;
-    }
-    
-    .table-actions a.text-danger:hover {
-        color: #bd2130 !important;
-    }
-    
-    /* Badge variants - New */
-    .badge-pending {
-        background: #ffc107;
-        color: #000;
-        padding: 5px 10px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 600;
-    }
-    
-    .badge-confirmed {
-        background: #28a745;
-        color: white;
-        padding: 5px 10px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 600;
+        margin: 0 5px;
+        font-size: 12px;
     }
 </style>
-
 </head>
 <body>
 
@@ -438,9 +560,9 @@ function formatChanges($old_data, $new_data, $changed_fields) {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4>
                 <i class="fas fa-history text-primary me-2"></i>
-                Audit Trail
+                Course Audit Trail
             </h4>
-            <span class="badge bg-secondary"><?= count($course_actions) ?> total records</span>
+            <span class="badge bg-secondary"><?= count($course_actions) ?> field changes</span>
         </div>
 
         <?php if (!$audit_table_exists): ?>
@@ -474,13 +596,13 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
 
         <!-- Simple Search -->
         <div class="search-box">
-            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search by title, user, action...">
+            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search by title, user, field...">
         </div>
 
         <!-- Audit Table -->
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-list-alt me-2 text-primary"></i>Audit Trail</h6>
+                <h6 class="mb-0"><i class="fas fa-list-alt me-2 text-primary"></i>Field-Level Audit Trail</h6>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -490,7 +612,9 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                                 <th>Date/Time</th>
                                 <th>Course</th>
                                 <th>Action</th>
-                                <th>Changes</th>
+                                <th>Field Changed</th>
+                                <th>Old Value</th>
+                                <th>New Value</th>
                                 <th>User</th>
                                 <th>Role</th>
                             </tr>
@@ -498,38 +622,67 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                         <tbody>
                             <?php foreach ($course_actions as $course): ?>
                             <?php
-                                // Determine who performed the action
-                                if (!empty($course['editor_username'])) {
-                                    $user_name = trim($course['editor_fname'] . ' ' . $course['editor_lname']);
-                                    $user_name = $user_name ?: $course['editor_username'];
+                                // Determine who performed the action - use username only
+                                if ($course['action_type'] == 'DELETED') {
+                                    // For deleted courses, use the editor who deleted it
+                                    $user_name = $course['editor_username'] ?? 'Unknown';
+                                    $user_role = $course['editor_role'] ?? 'system';
+                                }
+                                elseif ($course['action_type'] == 'EDITED' && !empty($course['editor_username'])) {
+                                    // This is an edit - show the editor who made the change
+                                    $user_name = $course['editor_username'];
                                     $user_role = $course['editor_role'];
-                                    $user_avatar = substr($course['editor_fname'] ?: $course['editor_username'], 0, 1);
-                                } elseif ($course['action_type'] == 'ADDED' && !empty($course['creator_username'])) {
-                                    $user_name = trim($course['creator_fname'] . ' ' . $course['creator_lname']);
-                                    $user_name = $user_name ?: $course['creator_username'];
+                                }
+                                // For ADDED actions, show the creator
+                                elseif ($course['action_type'] == 'ADDED' && !empty($course['creator_username'])) {
+                                    $user_name = $course['creator_username'];
                                     $user_role = $course['creator_role'];
-                                    $user_avatar = substr($course['creator_fname'] ?: $course['creator_username'], 0, 1);
+                                }
+                                // Fallback to editor if available (for any other case)
+                                elseif (!empty($course['editor_username'])) {
+                                    $user_name = $course['editor_username'];
+                                    $user_role = $course['editor_role'];
+                                }
+                                // Fallback to creator
+                                elseif (!empty($course['creator_username'])) {
+                                    $user_name = $course['creator_username'];
+                                    $user_role = $course['creator_role'];
                                 } else {
                                     $user_name = 'System';
                                     $user_role = 'system';
-                                    $user_avatar = 'S';
                                 }
 
                                 // Format date/time
-                                $display_time = $course['audit_time'] ?? $course['updated_at'] ?? $course['created_at'];
-                                $formatted_time = date('M d, Y h:i A', strtotime($display_time));
-
-                                // Get changes description
-                                $changes = formatChanges($course['old_data'], $course['new_data'], $course['changed_fields']);
+                                $display_time = $course['audit_time'] ?? $course['updated_at'] ?? $course['created_at'] ?? '';
                                 
                                 // Role badge class
                                 $role_class = 'role-' . strtolower(str_replace(' ', '', $user_role));
+                                
+                                // Format field name for display
+                                $field_display = $course['action_type'] == 'DELETED' ? 'Course Deletion' : str_replace('_', ' ', ucfirst($course['changed_field'] ?? 'course'));
+                                
+                                // Check if values are NULL
+                                $is_old_null = ($course['old_value'] == 'NULL' || $course['old_value'] == 'N/A' || $course['old_value'] == 'No data');
+                                $is_new_null = ($course['new_value'] == 'NULL' || $course['new_value'] == 'N/A' || $course['new_value'] == 'No data');
+                                
+                                // Add special class for deleted rows
+                                $row_class = $course['action_type'] == 'DELETED' ? 'deleted-course-row' : '';
                             ?>
-                            <tr>
-                                <td class="audit-time"><?= htmlspecialchars($formatted_time) ?></td>
+                            <tr class="<?= $row_class ?>">
+                                <td class="audit-time">
+                                    <?php if ($display_time): 
+                                        $timestamp = strtotime($display_time);
+                                        $date = date('M d, Y', $timestamp);
+                                        $time = date('h:i A', $timestamp);
+                                    ?>
+                                        <span class="audit-date"><?= $date ?></span>
+                                        <span class="audit-clock"><i class="far fa-clock"></i> <?= $time ?></span>
+                                    <?php else: ?>
+                                        <span class="audit-date">Unknown</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <strong><?= htmlspecialchars($course['title'] ?: 'Untitled') ?></strong>
-                                    <br><small class="text-muted">ID: <?= $course['course_id'] ?></small>
                                 </td>
                                 <td>
                                     <span class="action-badge action-<?= strtolower($course['action_type']) ?>">
@@ -538,18 +691,39 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                                         <?php elseif ($course['action_type'] == 'EDITED'): ?>
                                             <i class="fas fa-edit me-1"></i>Edited
                                         <?php elseif ($course['action_type'] == 'DELETED'): ?>
-                                            <i class="fas fa-trash me-1"></i>Deleted
+                                            <i class="fas fa-trash-alt me-1"></i>Deleted
                                         <?php else: ?>
                                             <i class="fas fa-eye me-1"></i><?= $course['action_type'] ?>
                                         <?php endif; ?>
                                     </span>
                                 </td>
-                                <td class="changes-cell"><?= $changes ?></td>
                                 <td>
-                                    <div class="user-badge">
-                                        <span class="user-avatar"><?= strtoupper($user_avatar) ?></span>
-                                        <span><?= htmlspecialchars($user_name) ?></span>
-                                    </div>
+                                    <span class="field-badge">
+                                        <i class="fas fa-tag me-1"></i><?= htmlspecialchars($field_display) ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if ($is_old_null): ?>
+                                        <span class="null-value"><?= htmlspecialchars($course['old_value']) ?></span>
+                                    <?php else: ?>
+                                        <span class="old-value"><?= htmlspecialchars($course['old_value']) ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($course['action_type'] == 'DELETED'): ?>
+                                        <span class="new-value deleted">
+                                            <i class="fas fa-trash-alt me-1"></i><?= htmlspecialchars($course['new_value']) ?>
+                                        </span>
+                                    <?php elseif ($is_new_null): ?>
+                                        <span class="null-value"><?= htmlspecialchars($course['new_value']) ?></span>
+                                    <?php else: ?>
+                                        <span class="new-value"><?= htmlspecialchars($course['new_value']) ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="username-display" title="<?= htmlspecialchars($user_name) ?>">
+                                        <?= htmlspecialchars($user_name) ?>
+                                    </span>
                                 </td>
                                 <td>
                                     <?php if ($user_role && $user_role != 'system'): ?>
@@ -565,7 +739,7 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
                             
                             <?php if (empty($course_actions)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <i class="fas fa-info-circle text-muted mb-2 fa-2x"></i>
                                     <p class="text-muted">No course activities found</p>
                                 </td>

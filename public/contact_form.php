@@ -46,12 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Contact Us - ARMMC Learning Management System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    
     
     <style>
-        /* EXACT CSS from the login page - unchanged */
+        /* EXACT CSS from the login page - matching exactly */
         * {
             margin: 0;
             padding: 0;
@@ -80,37 +78,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             z-index: -1;
         }
 
-        /* main card - RESIZED for contact form */
+        /* main card - EXACT size as login page (1280px) */
         .login-card {
-            max-width: 1100px; /* Reduced from 1280px */
+            max-width: 1280px;
             width: 100%;
             background: rgba(255,255,255,0.7);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            border-radius: 3rem; /* Slightly reduced from 3.5rem */
+            border-radius: 3.5rem;
             box-shadow: 
                 0 30px 60px -20px rgba(0,40,80,0.25),
                 0 8px 20px -8px rgba(0,32,64,0.1),
                 inset 0 1px 1px rgba(255,255,255,0.6);
             border: 1px solid rgba(255,255,255,0.6);
-            padding: 2rem 2rem; /* Reduced from 3rem 2.5rem */
+            padding: 1rem 2.5rem;
         }
 
         /* two-column layout - EXACT same grid */
         .grid-layout {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2rem; /* Slightly reduced from 2.5rem */
+            gap: 2.5rem;
             align-items: center;
         }
 
-        /* left side – company logo (resized to match) */
+        /* left side – company logo (exactly as login page) */
         .logo-hero {
             background: rgba(255,255,255,0.5);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
-            border-radius: 2rem; /* Reduced from 2.5rem */
-            padding: 2rem 1.5rem; /* Reduced from 3rem 2rem */
+            border-radius: 2.5rem;
+            padding: 3rem 2rem;
             box-shadow: 0 20px 30px -10px rgba(0,20,40,0.15);
             border: 1px solid rgba(255,255,255,0.8);
             transition: transform 0.3s ease;
@@ -133,44 +131,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .company-logo-png {
-            max-width: 280px; /* Reduced from 340px */
+            max-width: 340px;
             width: 100%;
             height: auto;
             aspect-ratio: 1 / 1;
             object-fit: contain;
             filter: drop-shadow(0 12px 18px rgba(0,50,90,0.25));
             background: transparent;
-            border-radius: 28px; /* Slightly reduced */
+            border-radius: 32px;
             transition: filter 0.2s;
         }
 
         .logo-caption {
-            margin-top: 1.5rem; /* Reduced from 2rem */
+            margin-top: 2rem;
             font-weight: 400;
-            font-size: 1rem; /* Reduced from 1.1rem */
-            letter-spacing: 1.5px; /* Slightly reduced */
+            font-size: 1.1rem;
+            letter-spacing: 2px;
             color: #1c3f5c;
             opacity: 0.8;
             text-transform: uppercase;
             border-bottom: 2px solid #a3c6e9;
-            padding-bottom: 0.6rem; /* Reduced from 0.75rem */
+            padding-bottom: 0.75rem;
             display: inline-block;
         }
 
-        /* === CONTACT FORM SPECIFIC STYLES - adjusted to fit resized card === */
+        /* === CONTACT FORM STYLES - expanded to match login card perfectly === */
         .contact-container {
-            padding: 0.5rem 0; /* Reduced from 1rem 0.5rem */
+            padding: 1rem 0.5rem;
             height: 100%;
             display: flex;
             flex-direction: column;
         }
 
         .contact-header {
-            font-size: clamp(2rem, 4vw, 3rem); /* Slightly reduced */
+            font-size: clamp(2.2rem, 5vw, 3.5rem);
             font-weight: 700;
             line-height: 1.2;
             color: #0c2e45;
-            margin-bottom: 0.25rem; /* Reduced from 0.5rem */
+            margin-bottom: 0.5rem;
         }
 
         .contact-header span {
@@ -184,32 +182,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .contact-subtitle {
-            font-size: 1rem; /* Reduced from 1.1rem */
+            font-size: 1.1rem;
             color: #2b4e6b;
-            margin-bottom: 1.2rem; /* Reduced from 1.8rem */
-            line-height: 1.4; /* Slightly reduced */
+            margin-bottom: 1.8rem;
+            line-height: 1.5;
             font-weight: 400;
-            max-width: 450px; /* Slightly reduced */
+            max-width: 480px;
         }
 
-        /* contact form - sized to fit perfectly in the space */
+        /* contact form - expanded to fill space */
         .contact-form-wrapper {
             width: 100%;
-            max-width: 400px; /* Reduced from 420px */
-            margin: 0.25rem 0 0.5rem; /* Reduced margins */
+            max-width: 440px;
+            margin: 0.5rem 0 1rem;
         }
 
         .contact-form-group {
-            margin-bottom: 1rem; /* Reduced from 1.4rem */
+            margin-bottom: 1.4rem;
             position: relative;
         }
 
         .contact-form-label {
             display: block;
-            font-size: 0.85rem; /* Slightly reduced from 0.9rem */
+            font-size: 0.9rem;
             font-weight: 600;
             color: #144a6f;
-            margin-bottom: 0.3rem; /* Reduced from 0.4rem */
+            margin-bottom: 0.4rem;
             letter-spacing: 0.3px;
         }
 
@@ -221,19 +219,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .contact-input-icon {
             position: absolute;
-            left: 1.1rem; /* Slightly reduced from 1.2rem */
+            left: 1.2rem;
             color: #1f6fb0;
-            font-size: 0.95rem; /* Slightly reduced from 1rem */
+            font-size: 1rem;
             opacity: 0.7;
             z-index: 1;
         }
 
         .contact-form-input {
             width: 100%;
-            padding: 0.75rem 1rem 0.75rem 2.6rem; /* Reduced from 0.85rem 1rem 0.85rem 2.8rem */
+            padding: 0.85rem 1rem 0.85rem 2.8rem;
             border: 1.5px solid rgba(31, 111, 176, 0.2);
-            border-radius: 40px; /* Slightly reduced from 50px */
-            font-size: 0.9rem; /* Reduced from 0.95rem */
+            border-radius: 50px;
+            font-size: 0.95rem;
             background: rgba(255,255,255,0.8);
             backdrop-filter: blur(2px);
             transition: all 0.2s;
@@ -249,43 +247,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .contact-form-input::placeholder {
             color: #6f9ac0;
-            font-size: 0.85rem; /* Reduced from 0.9rem */
+            font-size: 0.9rem;
         }
 
         textarea.contact-form-input {
-            min-height: 100px; /* Reduced from 120px */
+            min-height: 120px;
             resize: vertical;
-            border-radius: 25px; /* Reduced from 30px */
+            border-radius: 30px;
         }
 
         .contact-btn-primary {
             background: #1f6fb0;
             border: none;
-            padding: 0.8rem 1.8rem; /* Reduced from 0.9rem 2rem */
-            border-radius: 40px; /* Reduced from 50px */
+            padding: 0.9rem 2rem;
+            border-radius: 50px;
             font-weight: 600;
-            font-size: 1rem; /* Reduced from 1.1rem */
+            font-size: 1.1rem;
             color: white;
             cursor: pointer;
             transition: 0.15s;
-            box-shadow: 0 10px 16px -10px #1f6fb0; /* Adjusted shadow */
+            box-shadow: 0 12px 18px -12px #1f6fb0;
             border: 1px solid rgba(255,255,255,0.3);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.6rem; /* Reduced from 0.8rem */
+            gap: 0.8rem;
             width: 100%;
-            margin: 0.25rem 0 0.8rem; /* Reduced margins */
+            margin: 0.5rem 0 1rem;
         }
 
         .contact-btn-primary i {
-            font-size: 1.1rem; /* Reduced from 1.2rem */
+            font-size: 1.2rem;
         }
 
         .contact-btn-primary:hover:not(:disabled) {
             background: #0f558b;
-            transform: translateY(-2px); /* Reduced from -3px */
-            box-shadow: 0 18px 20px -12px #1f6fb0; /* Adjusted */
+            transform: translateY(-3px);
+            box-shadow: 0 20px 22px -14px #1f6fb0;
         }
 
         .contact-btn-primary:disabled {
@@ -299,13 +297,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .alert {
             background: rgba(31, 111, 176, 0.1);
             border: 1px solid rgba(31, 111, 176, 0.3);
-            border-radius: 40px; /* Reduced from 50px */
-            padding: 0.8rem 1.2rem; /* Reduced from 1rem 1.5rem */
-            margin-bottom: 1.2rem; /* Reduced from 1.5rem */
+            border-radius: 50px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
             display: flex;
             align-items: flex-start;
-            gap: 0.8rem; /* Reduced from 1rem */
-            font-size: 0.9rem; /* Added */
+            gap: 1rem;
+            font-size: 0.95rem;
         }
 
         .alert-success {
@@ -329,8 +327,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .alert i {
-            font-size: 1.1rem; /* Reduced from 1.2rem */
-            margin-top: 0.1rem; /* Reduced from 0.2rem */
+            font-size: 1.2rem;
+            margin-top: 0.2rem;
         }
 
         .alert-content {
@@ -339,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* back link */
         .contact-back-link {
-            margin-top: 1.2rem; /* Reduced from 1.8rem */
+            margin-top: 1.8rem;
             text-align: center;
         }
 
@@ -349,11 +347,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem; /* Reduced from 0.5rem */
-            font-size: 0.9rem; /* Reduced from 0.95rem */
+            gap: 0.5rem;
+            font-size: 0.95rem;
             transition: color 0.2s;
-            padding: 0.4rem 0.8rem; /* Reduced from 0.5rem 1rem */
-            border-radius: 40px; /* Reduced from 50px */
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
         }
 
         .contact-back-link a:hover {
@@ -362,17 +360,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .contact-back-link i {
-            font-size: 0.85rem; /* Reduced from 0.9rem */
+            font-size: 0.9rem;
         }
 
         /* bottom note */
         .contact-bottom-note {
-            margin-top: 1.2rem; /* Reduced from 1.8rem */
-            font-size: 0.85rem; /* Reduced from 0.9rem */
+            margin-top: 1.8rem;
+            font-size: 0.9rem;
             color: #567e9f;
             display: flex;
             align-items: center;
-            gap: 0.8rem; /* Reduced from 1rem */
+            gap: 1rem;
         }
 
         .contact-bottom-note .line {
@@ -385,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         @media (max-width: 880px) {
             .grid-layout {
                 grid-template-columns: 1fr;
-                gap: 1.5rem; /* Reduced from 2rem */
+                gap: 2rem;
             }
             .logo-hero {
                 order: 1;
@@ -408,10 +406,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         @media (max-width: 500px) {
             .login-card {
-                padding: 1.5rem 1rem; /* Reduced from 1.8rem 1.2rem */
+                padding: 1.8rem 1.2rem;
             }
             .logo-caption {
-                font-size: 0.85rem; /* Reduced from 0.9rem */
+                font-size: 0.9rem;
             }
         }
 
@@ -432,18 +430,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-card">
         <div class="grid-layout">
            <!-- Left side - Logo (same as login page) -->
-    <div class="logo-hero">
-    <div class="logo-main">
-        <img src="../uploads/images/armmc-logo.png" alt="ARMMC Logo" class="company-logo-png">
-        <div class="logo-caption">
-            <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i> 
-            AMANG RODRIGUEZ MEMORIAL MEDICAL CENTER 
-            <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i>
-        </div>
-    </div>
-</div>
+            <div class="logo-hero">
+                <div class="logo-main">
+                    <img src="../uploads/images/armmc-logo.png" alt="ARMMC Logo" class="company-logo-png">
+                    <div class="logo-caption">
+                        <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i> 
+                        AMANG RODRIGUEZ MEMORIAL MEDICAL CENTER 
+                        <i class="fas fa-circle" style="font-size: 0.4rem; vertical-align: middle; color: #1f6fb0;"></i>
+                    </div>
+                </div>
+            </div>
 
-            <!-- Right side - Contact Form -->
+            <!-- Right side - Contact Form (expanded to match login card) -->
             <div class="contact-container">
                 <div class="contact-header">
                     <span>Contact Us</span>

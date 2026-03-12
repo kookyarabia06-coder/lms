@@ -35,12 +35,16 @@ function get_role_icon($role = '') {
 <body>
     <div class="lms-sidebar-container"> 
         <nav class="sidebar lms-sidebar">
-             <div class="sidebar-logo">
-                    <img src="<?= BASE_URL ?>/uploads/images/armmc-logo.png" 
-                         alt="armmc logo" 
-                         class="logo-img">
+            <div class="sidebar-logo">
+                <img src="<?= BASE_URL ?>/uploads/images/armmc-logo.png" 
+                     alt="armmc logo" 
+                     class="logo-img">
+            </div>
+
+            <!-- Space after logo (built into CSS) -->
+            
             <ul class="nav flex-column">
-                <!-- Profile Section (ALWAYS SHOWN) -->
+                <!-- Profile -->
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/profile.php">
                         <div class="profile-icon-mini">
@@ -58,36 +62,37 @@ function get_role_icon($role = '') {
                     </a>
                 </li>
 
-                <!-- DIVIDER 1: After Profile (ALWAYS SHOWN) -->
-                <li class="nav-divider"></li>
-
-                <!-- Main Navigation (ALWAYS SHOWN) -->
+                <!-- Dashboard -->
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">
                         <i class="fa fa-tachometer-alt"></i> Dashboard
                     </a>
                 </li>
 
-                <!-- Courses menu (ALWAYS SHOWN - but content varies by role) -->
+                <!-- DIVIDER 1 -->
+                <li class="nav-divider"></li>
+
+                <!-- ALL COURSES TABS SECTION -->
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
+                        <i class="fa fa-book"></i> All Courses Tabs <i class="fa fa-caret-down float-end"></i>
                     </a>
                     <div class="collapse" id="coursesSubMenu">
                         <ul class="nav flex-column ms-3">
-                            <li class="nav-item">
-                                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
-                                    <!-- Admin users go to courses_crud.php -->
+                            <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                                <li class="nav-item">
                                     <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
                                         <i class="fa fa-gear"></i> Manage Courses
                                     </a>
-                                <?php else: ?>
-                                    <!-- Non-admin users go to courses.php -->
+                                </li>
+                            <?php else: ?>
+                                <li class="nav-item">
                                     <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
                                         <i class="fa fa-list"></i> All Courses
                                     </a>
-                                <?php endif; ?>
-                            </li>
+                                </li>
+                            <?php endif; ?>
+                            
                             <?php if($u && is_student()): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
@@ -95,6 +100,7 @@ function get_role_icon($role = '') {
                                 </a>
                             </li>
                             <?php endif; ?>
+                            
                             <?php if($u && (is_proponent() || is_admin())): ?>
                                <li class="nav-item">
                                     <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
@@ -106,22 +112,22 @@ function get_role_icon($role = '') {
                     </div>
                 </li>
 
-                <!-- Track if admin section has any items -->
-                <?php 
-                $hasAdminItems = false;
-                $adminContent = '';
-                
-                ob_start(); // Start capturing admin section content
-                ?>
-                
-                <!-- Admin Section -->
+                <!-- User Management -->
                 <?php if($u && (is_admin() || is_superadmin())): ?>
-                    <?php $hasAdminItems = true; ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
                             <i class="fa fa-users"></i> User Management
                         </a>
                     </li>
+                <?php endif; ?>
+
+                <!-- DIVIDER 2 -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <li class="nav-divider"></li>
+                <?php endif; ?>
+
+                <!-- News -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/news_crud.php">
                             <i class="fa fa-newspaper"></i> News
@@ -129,9 +135,8 @@ function get_role_icon($role = '') {
                     </li>
                 <?php endif; ?>
 
-                <!-- Super Admin -->
+                <!-- Audit Trail -->
                 <?php if($u && (is_superadmin() || is_admin())): ?>
-                    <?php $hasAdminItems = true; ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
                             <i class="fa-solid fa-clock-rotate-left"></i> Audit Trail
@@ -141,7 +146,6 @@ function get_role_icon($role = '') {
 
                 <!-- Contact Messages -->
                 <?php if($u && (is_admin() || is_superadmin())): ?>
-                    <?php $hasAdminItems = true; ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/admin_contacts.php">
                             <i class="fa fa-envelope"></i> Contact Messages
@@ -157,27 +161,18 @@ function get_role_icon($role = '') {
                         </a>
                     </li>
                 <?php endif; ?>
-                
-                <?php 
-                $adminContent = ob_get_clean(); // Get the captured content
-                ?>
 
-                <!-- Only show DIVIDER 2 and admin section if there are admin items -->
-                <?php if ($hasAdminItems): ?>
+                <!-- DIVIDER 3 -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
                     <li class="nav-divider"></li>
-                    <?php echo $adminContent; ?>
                 <?php endif; ?>
 
-                <!-- DIVIDER 3: Before Logout (ALWAYS SHOWN) -->
-                <li class="nav-divider"></li>
-
-                <!-- Logout (ALWAYS SHOWN) -->
+                <!-- Logout -->
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/logout.php">
                         <i class="fa fa-sign-out-alt"></i> Logout
                     </a>
                 </li>
-
             </ul>
         </nav>
     </div>
