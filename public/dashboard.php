@@ -1,3 +1,17 @@
+Enable desktop notifications for Gmail.
+   OK  No thanks
+1 of 155
+STYLE.CSS AND DASHBOARD PHP
+Inbox
+
+Mikaella Torre
+Attachments
+8:46 AM (18 minutes ago)
+to me
+
+
+ 2 Attachments
+  •  Scanned by Gmail
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
@@ -49,7 +63,6 @@ try {
     <title>LMS Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-    <link href="<?= BASE_URL ?>/assets/css/dashboard.css" rel="stylesheet">
      <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">

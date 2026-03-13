@@ -34,29 +34,6 @@
     margin-bottom: 0;
 }
 
-/* Welcome Card */
-.welcome-card {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    color: white;
-    padding: 25px;
-    border-radius: 16px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(30, 60, 114, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.welcome-card h3 {
-    font-size: 22px;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-
-.welcome-card p {
-    opacity: 0.9;
-    margin-bottom: 0;
-}
-
 /* Stats Cards Grid */
 .stats-grid {
     display: grid;
@@ -167,10 +144,20 @@
 .news-item {
     padding: 15px 0;
     border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
 }
 
 .news-item:last-child {
     border-bottom: none;
+}
+
+.news-item:hover {
+    background: rgba(52, 152, 219, 0.05);
+    border-radius: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
 }
 
 .news-item h5 {
@@ -180,11 +167,54 @@
     margin-bottom: 8px;
 }
 
-.news-item p {
+.news-content-wrapper {
+    margin-bottom: 8px;
+}
+
+.news-content-short {
     color: #64748b;
     font-size: 14px;
-    margin-bottom: 8px;
     line-height: 1.5;
+    margin: 0;
+}
+
+.news-content-full {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+    display: none;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.news-item.expanded .news-content-full {
+    display: block;
+}
+
+.news-item.expanded {
+    background: rgba(52, 152, 219, 0.08);
+    border-radius: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.expand-indicator {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    color: #3498db;
+    font-size: 12px;
+    transition: transform 0.3s ease;
+}
+
+.news-item:hover .expand-indicator {
+    color: #1a75d2;
+}
+
+.news-item.expanded .expand-indicator {
+    transform: rotate(180deg);
 }
 
 .news-meta {
@@ -192,6 +222,7 @@
     gap: 15px;
     font-size: 12px;
     color: #94a3b8;
+    padding-right: 25px;
 }
 
 /* Courses Section */
