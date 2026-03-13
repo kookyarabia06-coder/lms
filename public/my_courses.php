@@ -8,11 +8,17 @@ $userId = $_SESSION['user']['id'];
 // Fetch only courses the student is enrolled in
 $stmt = $pdo->prepare("
     SELECT c.id, c.title, c.description, c.thumbnail, c.created_at, c.expires_at,
-           e.progress, e.total_time_seconds, 
-           CASE 
+           e.progress, e.total_time_seconds,
+           CASE
                WHEN e.status = 'ongoing' AND c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
-               ELSE e.status 
-           END AS enroll_status
+               ELSE e.status
+           END AS enroll_status,
+           (
+               SELECT GROUP_CONCAT(d.name SEPARATOR '||')
+               FROM departments d
+               INNER JOIN course_departments cd ON d.id = cd.department_id
+               WHERE cd.course_id = c.id
+           ) AS department_names
     FROM courses c
     JOIN enrollments e ON e.course_id = c.id
     WHERE e.user_id = ?
@@ -20,6 +26,15 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// NAKA SHOW NA MGA DEPARTMENTS :>
+foreach ($myCourses as &$course) {
+    if (!empty($course['department_names'])) {
+        $course['departments'] = explode('||', $course['department_names']);
+    } else {
+        $course['departments'] = [];
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -34,6 +49,33 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <style>
 .main { margin-left: 240px; padding: 20px; }
 .card-img-top { height: 150px; object-fit: cover; }
+
+/* Department badge styles */
+.department-badge {
+    display: inline-block;
+    background-color: #e9ecef;
+    color: #495057;
+    padding: 0.25rem 0.5rem;
+    margin: 0.125rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid #dee2e6;
+}
+
+.department-container {
+    margin: 10px 0;
+    padding: 5px 0;
+    border-top: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.department-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
 </style>
 </head>
 <body>
@@ -75,7 +117,61 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         
                         <p><?= htmlspecialchars(substr($c['description'], 0, 120)) ?>...</p>
-                        
+
+                        <!-- Department Display -->
+                        <?php if (!empty($c['departments'])): ?>
+                        <div class="department-container">
+                            <div class="department-label">
+                                Departments:
+                            </div>
+                            <div>
+                                <?php foreach ($c['departments'] as $dept): ?>
+                                    <span class="department-badge">
+                                        <?= htmlspecialchars($dept) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Progress Bar -->
+                        <?php if ($c['enroll_status'] && $c['enroll_status'] !== 'expired'): ?>
+                            <div class="modern-progress-container mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small><i class="fas fa-tasks"></i> Progress:</small>
+                                    <?php if ($c['enroll_status'] === 'completed'): ?>
+                                    <small class="text-success">
+                                        <i class="fas fa-check-circle"></i> Completed
+                                    </small>
+                                    <?php endif; ?>
+                                </div>
+                                <?php
+                                    // If course is completed, force progress to 100%
+                                    if ($c['enroll_status'] === 'completed') {
+                                        $progressPercent = 100;
+                                    } else {
+                                        $progressPercent = intval($c['progress'] ?? 0);
+                                    }
+
+                                    // Ensure progress doesn't exceed 100%
+                                    if ($progressPercent > 100) $progressPercent = 100;
+                                ?>
+                                <div class="modern-progress">
+                                    <div class="modern-progress-bar
+                                        <?= $c['enroll_status'] === 'completed' ? 'bg-success' : 'bg-info' ?>"
+                                        style="width: <?= $progressPercent ?>%;">
+                                    </div>
+                                </div>
+                                <small class="text-end d-block mt-1 fw-bold">
+                                    <?php if ($c['enroll_status'] === 'completed'): ?>
+                                        <span class="text-success">✓ Completed</span>
+                                    <?php else: ?>
+                                        <?= $progressPercent ?>% completed
+                                    <?php endif; ?>
+                                </small>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="modern-course-info">
                             <?php
                                 $startDate = date('M, d, Y', strtotime($c['created_at']));
@@ -87,24 +183,6 @@ $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <p><strong>Expires:</strong> <span><?= $expiryDate ?></span></p>
                         </div>
 
-                        <!-- Progress Bar remove -->
-                        <!-- <?php if ($c['enroll_status'] && $c['enroll_status'] !== 'expired'): ?>
-                            <div class="modern-progress-container">
-                                <small>Progress:</small>
-                                <?php
-                                    $progressPercent = intval($c['progress']);
-                                    if ($progressPercent > 100) $progressPercent = 100;
-                                ?>
-                                <div class="modern-progress">
-                                    <div class="modern-progress-bar 
-                                        <?= $c['enroll_status'] === 'completed' ? 'bg-success' : 'bg-info' ?>"
-                                        style="width: <?= $progressPercent ?>%;">
-                                    </div>
-                                </div>
-                                <small class="text-end d-block mt-1"><?= $progressPercent ?>% completed</small>
-                            </div>
-                        <?php endif; ?> -->
-                        
                         <div class="modern-card-actions">
 
 <a href="<?= BASE_URL ?>/public/course_preview.php?id=<?= $c['id'] ?>"

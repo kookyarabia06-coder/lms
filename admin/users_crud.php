@@ -688,11 +688,14 @@ $totalPending = count($pendingUsers);
 <span class="status-indicator status-pending"></span> 
 Pending Confirmation (<?= count($pendingUsers) ?>)
 </h5>
-<span class="badge bg-warning">Waiting for email verification</span>
+<!-- Search Bar for Pending Table -->
+<div style="width: 300px;">
+<input type="text" id="pendingSearch" class="form-control form-control-sm" placeholder="Search pending users...">
+</div>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
-<table class="table table-hover mb-0 fixed-table-pending">
+<table class="table table-hover mb-0 fixed-table-pending" id="pendingTable">
 <thead class="table-light">
 <tr>
 <th>ID</th>
@@ -752,11 +755,14 @@ class="btn btn-danger btn-sm">
 <span class="status-indicator status-confirmed"></span> 
 Confirmed Users (<?= count($confirmedUsers) ?>)
 </h5>
-<span class="badge bg-success">Email verified</span>
+<!-- Search Bar for Confirmed Table -->
+<div style="width: 300px;">
+<input type="text" id="confirmedSearch" class="form-control form-control-sm" placeholder="Search confirmed users...">
+</div>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
-<table class="table table-hover mb-0 fixed-table">
+<table class="table table-hover mb-0 fixed-table" id="confirmedTable">
 <thead class="table-light">
 <tr>
 <th>ID</th>
@@ -856,13 +862,68 @@ setTimeout(() => alert.remove(), 500);
 });
 }, 3000);
 
-// Department search functionality
+// Pending Table Search
 document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('departmentSearch');
-    if (searchInput) {
+    const pendingSearch = document.getElementById('pendingSearch');
+    if (pendingSearch) {
+        const pendingTable = document.getElementById('pendingTable');
+        const pendingRows = pendingTable ? pendingTable.querySelectorAll('tbody tr') : [];
+        
+        pendingSearch.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            pendingRows.forEach(function(row) {
+                // Skip the "no data" row
+                if (row.querySelector('td[colspan="8"]')) return;
+                
+                const username = row.cells[1]?.textContent.toLowerCase() || '';
+                const fullName = row.cells[2]?.textContent.toLowerCase() || '';
+                const email = row.cells[3]?.textContent.toLowerCase() || '';
+                
+                if (searchTerm === '' || username.includes(searchTerm) || fullName.includes(searchTerm) || email.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Confirmed Table Search
+    const confirmedSearch = document.getElementById('confirmedSearch');
+    if (confirmedSearch) {
+        const confirmedTable = document.getElementById('confirmedTable');
+        const confirmedRows = confirmedTable ? confirmedTable.querySelectorAll('tbody tr') : [];
+        
+        confirmedSearch.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            confirmedRows.forEach(function(row) {
+                // Skip the "no data" row
+                if (row.querySelector('td[colspan="9"]')) return;
+                
+                const username = row.cells[1]?.textContent.toLowerCase() || '';
+                const fullName = row.cells[2]?.textContent.toLowerCase() || '';
+                const department = row.cells[3]?.getAttribute('data-departments')?.toLowerCase() || '';
+                const email = row.cells[4]?.textContent.toLowerCase() || '';
+                const role = row.cells[5]?.textContent.toLowerCase() || '';
+                
+                if (searchTerm === '' || username.includes(searchTerm) || fullName.includes(searchTerm) || 
+                    department.includes(searchTerm) || email.includes(searchTerm) || role.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Department search functionality
+    const deptSearchInput = document.getElementById('departmentSearch');
+    if (deptSearchInput) {
         const departmentItems = document.querySelectorAll('.department-item');
         
-        searchInput.addEventListener('keyup', function() {
+        deptSearchInput.addEventListener('keyup', function() {
             const searchTerm = this.value.toLowerCase().trim();
             
             departmentItems.forEach(function(item) {

@@ -70,12 +70,6 @@ try {
             <p>Track your learning progress and stay updated with announcements</p>
         </div>
 
-        <!-- Welcome Card -->
-        <div class="welcome-card">
-            <h3><i class="fas fa-graduation-cap me-2"></i>Your Learning Journey</h3>
-            <p>You have <?= $counter['ongoing'] ?> ongoing courses and <?= $counter['completed'] ?> completed courses. Keep up the great work!</p>
-        </div>
-
         <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card stat-card-ongoing">
@@ -107,13 +101,17 @@ try {
                 
                 <?php if (!empty($news)): ?>
                     <?php foreach ($news as $item): ?>
-                        <div class="news-item">
+                        <div class="news-item" onclick="toggleNews(this)">
                             <h5><?= htmlspecialchars($item['title']) ?></h5>
-                            <p><?= htmlspecialchars(substr($item['content'], 0, 100)) ?>...</p>
+                            <div class="news-content-wrapper">
+                                <p class="news-content-short"><?= htmlspecialchars(substr($item['content'], 0, 100)) ?>...</p>
+                                <p class="news-content-full"><?= htmlspecialchars($item['content']) ?></p>
+                            </div>
                             <div class="news-meta">
                                 <span><i class="fas fa-calendar-alt me-1"></i> <?= date('M d, Y', strtotime($item['created_at'])) ?></span>
                                 <span><i class="fas fa-user me-1"></i> <?= htmlspecialchars($item['author']) ?></span>
                             </div>
+                            <span class="expand-indicator"><i class="fas fa-chevron-down"></i></span>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -202,7 +200,7 @@ try {
         // Simple animation for cards on scroll
         document.addEventListener('DOMContentLoaded', function() {
             const cards = document.querySelectorAll('.stat-card, .course-card, .news-item');
-            
+
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
@@ -211,7 +209,7 @@ try {
                     }
                 });
             }, { threshold: 0.1 });
-            
+
             cards.forEach(card => {
                 card.style.opacity = '0';
                 card.style.transform = 'translateY(20px)';
@@ -219,6 +217,26 @@ try {
                 observer.observe(card);
             });
         });
+
+        // Toggle news item expand/collapse
+        function toggleNews(element) {
+            element.classList.toggle('expanded');
+            const shortContent = element.querySelector('.news-content-short');
+            const fullContent = element.querySelector('.news-content-full');
+            const icon = element.querySelector('.expand-indicator i');
+            
+            if (element.classList.contains('expanded')) {
+                shortContent.style.display = 'none';
+                fullContent.style.display = 'block';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            } else {
+                shortContent.style.display = 'block';
+                fullContent.style.display = 'none';
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
+        }
     </script>
 </body>
 </html>

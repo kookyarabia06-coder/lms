@@ -147,7 +147,7 @@ $stmt=$pdo->prepare("SELECT d.name FROM departments d
               echo '<span class="department-badge">' . htmlspecialchars($dept['name']) . '</span>';
              }
         } else {
-       echo '<span class="no-departments">No departments assigned</span>';
+       echo '';
         }
         ?>
 

@@ -73,7 +73,7 @@ function saveAssessment($course_id, $data, $pdo) {
             $data['assessment_description'],
             $data['passing_score'] ?? 70,
             $data['time_limit'] ?? null,
-            $data['attempts_allowed'] ?? 1,
+            $data['attempts_allowed'] ?? 0,
             $assessment_id,
             $course_id
         ]);
@@ -89,7 +89,7 @@ function saveAssessment($course_id, $data, $pdo) {
             $data['assessment_description'],
             $data['passing_score'] ?? 70,
             $data['time_limit'] ?? null,
-            $data['attempts_allowed'] ?? 1
+            $data['attempts_allowed'] ?? 0
         ]);
         $assessment_id = $pdo->lastInsertId();
     }
@@ -429,7 +429,7 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                     <div class="col-md-6">
                         <label class="fw-bold">Attempts Allowed</label>
                         <input type="number" name="attempts_allowed" class="form-control" 
-                               value="<?= $assessment['attempts_allowed'] ?? 1 ?>" min="1">
+                               value="<?= $assessment['attempts_allowed'] ?? '' ?>" min="0" placeholder="0 for unlimited">
                     </div>
                 </div>
 

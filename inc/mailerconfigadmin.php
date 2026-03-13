@@ -42,28 +42,131 @@ function sendConfirmationEmail($recipientEmail, $recipientName) {
         <!DOCTYPE html>
         <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
-                .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
-                .verified-badge { background: #28a745; color: white; padding: 10px 20px; border-radius: 50px; display: inline-block; margin: 20px 0; }
-                .footer { margin-top: 30px; font-size: 12px; color: #7f8c8d; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    background: #e8eef4;
+                    padding: 40px 20px;
+                    min-height: 100vh;
+                }
+                .email-wrapper { max-width: 560px; margin: 0 auto; }
+                .email-card {
+                    background: #ffffff;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 12px rgba(0, 35, 102, 0.12);
+                    border: 1px solid #d0dae6;
+                }
+                .email-header {
+                    background: linear-gradient(135deg, #002366 0%, #1a4d8f 100%);
+                    padding: 36px 32px;
+                    text-align: center;
+                }
+                .email-header h1 {
+                    font-size: 24px;
+                    font-weight: 600;
+                    color: #ffffff;
+                    letter-spacing: 0.3px;
+                }
+                .email-body {
+                    padding: 36px 32px;
+                }
+                .greeting {
+                    font-size: 15px;
+                    color: #0c2e45;
+                    margin-bottom: 18px;
+                    line-height: 1.6;
+                }
+                .greeting strong {
+                    color: #002366;
+                }
+                .message {
+                    font-size: 14px;
+                    color: #2b4e6b;
+                    line-height: 1.7;
+                    margin-bottom: 22px;
+                }
+                .info-panel {
+                    background: #f5f8fc;
+                    border: 1px solid #c5d5e6;
+                    border-radius: 6px;
+                    padding: 18px 22px;
+                    margin: 26px 0;
+                }
+                .info-panel p {
+                    margin: 0;
+                    color: #1a4d8f;
+                    font-size: 14px;
+                    line-height: 1.6;
+                }
+                .info-panel strong {
+                    color: #002366;
+                }
+                .divider {
+                    height: 1px;
+                    background: #d8e2ec;
+                    margin: 28px 0;
+                    border: none;
+                }
+                .footer {
+                    background: #fafbfc;
+                    padding: 26px 32px;
+                    border-top: 1px solid #d8e2ec;
+                    text-align: center;
+                }
+                .footer p {
+                    margin: 0 0 6px 0;
+                    font-size: 13px;
+                    color: #567e9f;
+                }
+                .footer strong {
+                    color: #2b4e6b;
+                }
+                .footer-note {
+                    margin-top: 14px;
+                    padding-top: 14px;
+                    border-top: 1px solid #e2e8f0;
+                    font-size: 11px;
+                    color: #7a95a8;
+                }
             </style>
         </head>
         <body>
-            <div class="container">
-                <h2>Account Verified Successfully!</h2>
-                <p>Hello ' . htmlspecialchars($recipientName) . ',</p>
-                <p>Your account has been verified by an administrator.</p>
-                
-                <div class="verified-badge">
-                    ✓ Account Verified
-                </div>
-                
-                <p>You can now access all features of the LMS.</p>
-                <p><a href="' . BASE_URL . '/login.php">Login to your account</a></p>
-                
-                <div class="footer">
-                    <p>Best regards,<br>LMS Team</p>
+            <div class="email-wrapper">
+                <div class="email-card">
+                    <div class="email-header">
+                        <h1>Account Verified</h1>
+                    </div>
+
+                    <div class="email-body">
+                        <p class="greeting">Hello <strong>' . htmlspecialchars($recipientName) . '</strong>,</p>
+                        
+                        <p class="message">
+                            Your account has been verified by an administrator.
+                            You now have full access to the Learning Management System.
+                        </p>
+
+                        <div class="info-panel">
+                            <p>
+                                <strong>Access Granted:</strong> You can now access all features including 
+                                courses, assignments, learning materials, and track your progress through the dashboard.
+                            </p>
+                        </div>
+
+                        <hr class="divider">
+
+                        <p class="message" style="margin-bottom: 0;">
+                            For any assistance, please contact your system administrator or the LMS support team.
+                        </p>
+                    </div>
+
+                    <div class="footer">
+                        <p>Best regards,</p>
+                        <p><strong>LMS Team</strong></p>
+                        <p class="footer-note">This is an automated message, please do not reply.</p>
+                    </div>
                 </div>
             </div>
         </body>
@@ -116,49 +219,134 @@ function sendConfirmationEmailSimple($email, $name) {
         <!DOCTYPE html>
         <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
-                .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -30px -30px 20px -30px; }
-                .credentials { background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
-                .cred-box { background: white; padding: 10px; border-left: 4px solid #667eea; margin: 10px 0; font-family: monospace; }
-                .button { background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; }
-                .footer { margin-top: 30px; font-size: 12px; color: #7f8c8d; text-align: center; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    background: linear-gradient(135deg, #002366 0%, #1a4d8f 100%);
+                    padding: 40px 20px;
+                    min-height: 100vh;
+                }
+                .email-wrapper { max-width: 600px; margin: 0 auto; }
+                .email-card { 
+                    background: rgba(255,255,255,0.95);
+                    backdrop-filter: blur(8px);
+                    border-radius: 56px;
+                    padding: 48px 40px;
+                    box-shadow: 0 30px 60px -20px rgba(0,40,80,0.25);
+                    border: 1px solid rgba(255,255,255,0.6);
+                }
+                .header { 
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                    border-bottom: 2px solid #e2e8f0;
+                }
+                .header h1 {
+                    font-size: 32px;
+                    font-weight: 700;
+                    background: linear-gradient(135deg, #1f6392, #0a3b58);
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    color: transparent;
+                    margin-bottom: 10px;
+                }
+                .credentials { 
+                    background: rgba(248, 250, 252, 0.8);
+                    padding: 24px; 
+                    border-radius: 16px; 
+                    margin: 24px 0;
+                    border: 1px solid #e2e8f0;
+                }
+                .credentials h3 {
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: #1e3c72;
+                    margin-bottom: 16px;
+                }
+                .cred-box { 
+                    background: rgba(255,255,255,0.9);
+                    padding: 14px 18px; 
+                    border-radius: 12px;
+                    margin: 12px 0; 
+                    font-family: "Inter", system-ui, monospace;
+                    border-left: 4px solid #1f6fb0;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                }
+                .cred-box strong {
+                    color: #144a6f;
+                    margin-right: 8px;
+                }
+                .cred-box span {
+                    color: #0c2e45;
+                    font-weight: 500;
+                }
+                .warning-box {
+                    background: rgba(220, 53, 69, 0.1);
+                    border: 1px solid rgba(220, 53, 69, 0.3);
+                    border-radius: 50px;
+                    padding: 12px 18px;
+                    margin-top: 16px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .warning-box i {
+                    color: #dc3545;
+                    font-size: 16px;
+                }
+                .warning-box p {
+                    color: #dc3545;
+                    font-size: 13px;
+                    margin: 0;
+                    font-weight: 500;
+                }
+                .footer { 
+                    margin-top: 40px; 
+                    padding-top: 20px;
+                    border-top: 1px solid #e2e8f0;
+                    text-align: center;
+                    font-size: 14px; 
+                    color: #567e9f; 
+                }
             </style>
         </head>
         <body>
-            <div class="container">
-                <div class="header">
-                    <h1>Welcome to LMS!</h1>
-                </div>
-                
-                <h2>Hello ' . htmlspecialchars($recipientName) . ',</h2>
-                
-                <p>Your account has been created by an administrator. You can now access the Learning Management System.</p>
-                
-                <div class="credentials">
-                    <h3>Your Login Credentials:</h3>
-                    
-                    <div class="cred-box">
-                        <strong>Username:</strong> ' . htmlspecialchars($username) . '
+            <div class="email-wrapper">
+                <div class="email-card">
+                    <div class="header">
+                        <h1>Welcome to LMS!</h1>
                     </div>
-                    
-                    <div class="cred-box">
-                        <strong>Password:</strong> ' . htmlspecialchars($password) . '
+
+                    <div class="content">
+                        <p>Hello <strong>' . htmlspecialchars($recipientName) . '</strong>,</p>
+                        <p>Your account has been created by an administrator. You can now access the Learning Management System.</p>
+
+                        <div class="credentials">
+                            <h3>Your Login Credentials:</h3>
+
+                            <div class="cred-box">
+                                <strong>Username:</strong>
+                                <span>' . htmlspecialchars($username) . '</span>
+                            </div>
+
+                            <div class="cred-box">
+                                <strong>Password:</strong>
+                                <span>' . htmlspecialchars($password) . '</span>
+                            </div>
+
+                            <div class="warning-box">
+                                <i>⚠️</i>
+                                <p><strong>Important:</strong> For security reasons, please change your password after logging in.</p>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <p style="color: #dc3545; font-size: 14px; margin-top: 15px;">
-                        <strong>⚠️ Important:</strong> For security reasons, please change your password after logging in.
-                    </p>
-                </div>
-                
-                <div style="text-align: center;">
-                    <a href="' . BASE_URL . '/login.php" class="button">Login to Your Account</a>
-                </div>
-                
-                <div class="footer">
-                    <p>This is an automated message, please do not reply to this email.</p>
-                    <p>Best regards,<br>LMS Team</p>
+
+                    <div class="footer">
+                        <p>This is an automated message, please do not reply to this email.</p>
+                        <p>Best regards,<br><strong>LMS Team</strong></p>
+                    </div>
                 </div>
             </div>
         </body>

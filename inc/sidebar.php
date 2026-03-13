@@ -75,7 +75,7 @@ function get_role_icon($role = '') {
                 <!-- ALL COURSES TABS SECTION -->
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> All Courses Tabs <i class="fa fa-caret-down float-end"></i>
+                        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
                     </a>
                     <div class="collapse" id="coursesSubMenu">
                         <ul class="nav flex-column ms-3">
