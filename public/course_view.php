@@ -7,285 +7,243 @@ require_login();
 $u = current_user();
 
 $courseId = intval($_GET['id'] ?? 0);
-if(!$courseId) die('Invalid course ID');
+if (!$courseId) die('Invalid course ID');
 
 // Fetch course
 $stmt = $pdo->prepare('SELECT c.*, u.fname, u.lname FROM courses c LEFT JOIN users u ON c.proponent_id = u.id WHERE c.id = ?');
 $stmt->execute([$courseId]);
 $course = $stmt->fetch();
-if(!$course) die('Course not found');
+if (!$course) die('Course not found');
 
-// Fetch enrollment if student
+// Only students need enrollment tracking
 $enrollment = null;
 $pdfProgress = [];
+$videoProgress = null;
 
 if (is_student()) {
-
-    // BLOCK if course expired or inactive
+    // Check if course is available
     $today = date('Y-m-d');
-
-    if (
-        $course['is_active'] == 0 ||
-        ($course['expires_at'] && $today > $course['expires_at'])
-    ) {
-        die('<div class="alert alert-danger m-4">
-                <h5>Course Unavailable</h5>
-                <p>This course has expired or is no longer active.</p>
-             </div>');
+    if ($course['is_active'] == 0 || ($course['expires_at'] && $today > $course['expires_at'])) {
+        die('<div class="alert alert-danger m-4"><h5>Course Unavailable</h5><p>This course has expired or is no longer active.</p></div>');
     }
 
     // Check enrollment
-    $stmt = $pdo->prepare('SELECT id, progress, status, pdf_completed, video_completed FROM enrollments WHERE user_id=? AND course_id=?');
+    $stmt = $pdo->prepare('SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?');
     $stmt->execute([$u['id'], $courseId]);
     $enrollment = $stmt->fetch();
 
     if (!$enrollment) {
-        // Auto-create enrollment ONLY if course is valid
-        $stmt = $pdo->prepare('
-            INSERT INTO enrollments 
-            (user_id, course_id, enrolled_at, status, progress) 
-            VALUES (?, ?, NOW(), "ongoing", 0)
-        ');
+        // Auto-create enrollment
+        $stmt = $pdo->prepare('INSERT INTO enrollments (user_id, course_id, enrolled_at, status) VALUES (?, ?, NOW(), "ongoing")');
         $stmt->execute([$u['id'], $courseId]);
-
         $enrollmentId = $pdo->lastInsertId();
+        
         $enrollment = [
             'id' => $enrollmentId,
-            'progress' => 0,
-            'status' => 'ongoing',
             'pdf_completed' => 0,
-            'video_completed' => 0
+            'video_completed' => 0,
+            'pdf_total_pages' => 0,
+            'pdf_current_page' => 0,
+            'status' => 'ongoing'
         ];
     } else {
         $enrollmentId = $enrollment['id'];
     }
 
-    // Fetch PDF progress if any - only when needed
+    // Fetch PDF progress
     if ($course['file_pdf']) {
         $stmt = $pdo->prepare('SELECT page_number FROM pdf_progress WHERE enrollment_id = ? ORDER BY page_number');
         $stmt->execute([$enrollmentId]);
         $pdfProgress = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    // Fetch or create video progress
+    if ($course['file_video']) {
+        $stmt = $pdo->prepare('SELECT * FROM video_progress WHERE enrollment_id = ?');
+        $stmt->execute([$enrollmentId]);
+        $videoProgress = $stmt->fetch();
+
+        if (!$videoProgress) {
+            $stmt = $pdo->prepare('INSERT INTO video_progress (enrollment_id) VALUES (?)');
+            $stmt->execute([$enrollmentId]);
+            
+            $videoProgress = [
+                'id' => $pdo->lastInsertId(),
+                'video_position' => 0,
+                'completed' => 0
+            ];
+        }
+    }
 }
 
-// Handle AJAX PDF page tracking with transaction locking
-if($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['pdf_page']) && is_student()) {
+// Handle AJAX PDF page tracking
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pdf_page']) && is_student()) {
     $page = intval($_POST['pdf_page']);
-    $totalPages = intval($_POST['total_pages'] ?? 1);
-    
-    // Validate page number
-    if ($page < 1 || $page > 1000) {
-        echo json_encode(['success' => false, 'message' => 'Invalid page number']);
-        exit;
-    }
     
     try {
         $pdo->beginTransaction();
-        
-        // Lock the enrollment row to prevent race conditions
-        $stmt = $pdo->prepare('SELECT id FROM enrollments WHERE id = ? FOR UPDATE');
+
+        // Get current enrollment with lock
+        $stmt = $pdo->prepare('SELECT * FROM enrollments WHERE id = ? FOR UPDATE');
         $stmt->execute([$enrollment['id']]);
-        
-        // Check if this page has been recorded
-        $stmt = $pdo->prepare('SELECT id FROM pdf_progress WHERE enrollment_id = ? AND page_number = ?');
-        $stmt->execute([$enrollment['id'], $page]);
-        
-        if (!$stmt->fetch()) {
-            // Record new page view
-            $stmt = $pdo->prepare('INSERT INTO pdf_progress (enrollment_id, page_number, viewed_at) VALUES (?, ?, NOW())');
-            $stmt->execute([$enrollment['id'], $page]);
-            
-            // Calculate new progress percentage
-            $stmt = $pdo->prepare('SELECT COUNT(DISTINCT page_number) as pages_viewed FROM pdf_progress WHERE enrollment_id = ?');
-            $stmt->execute([$enrollment['id']]);
-            $pagesViewed = $stmt->fetchColumn();
-            
-            $pdfProgressPercent = min(100, round(($pagesViewed / $totalPages) * 100));
+        $currentEnrollment = $stmt->fetch();
 
-            // Calculate overall progress considering both PDF and video if both exist
-            $overallProgress = $pdfProgressPercent;
-            if ($course['file_video']) {
-                // Get current video progress
-                $videoProgressValue = $enrollment['video_progress'] ?? 0;
-                $videoCompletedValue = $enrollment['video_completed'] ?? 0;
-
-                // Apply weighted calculation: 70% PDF, 30% video
-                $pdfWeight = 0.7;
-                $videoWeight = 0.3;
-
-                $pdfContribution = ($pdfProgressPercent / 100) * $pdfWeight;
-                $videoContribution = ($videoCompletedValue ? 1 : ($videoProgressValue / 100)) * $videoWeight;
-
-                $overallProgress = min(100, round(($pdfContribution + $videoContribution) * 100));
-            }
-
-            // Update enrollment progress and pages_viewed
-            $stmt = $pdo->prepare('UPDATE enrollments SET pdf_progress = ?, progress = ?, pages_viewed = ? WHERE id = ?');
-            $stmt->execute([$pdfProgressPercent, $overallProgress, $pagesViewed, $enrollment['id']]);
-            
-            $pdo->commit();
-            
-            echo json_encode([
-                'success' => true,
-                'pages_viewed' => $pagesViewed,
-                'total_pages' => $totalPages,
-                'progress' => $overallProgress,
-                'pdf_progress' => $pdfProgressPercent
-            ]);
-        } else {
-            $pdo->commit();
-            echo json_encode(['success' => true, 'already_viewed' => true]);
+        // If this is first page view, get total pages
+        if ($currentEnrollment['pdf_total_pages'] == 0 && isset($_POST['total_pages'])) {
+            $totalPages = intval($_POST['total_pages']);
+            $stmt = $pdo->prepare('UPDATE enrollments SET pdf_total_pages = ? WHERE id = ?');
+            $stmt->execute([$totalPages, $enrollment['id']]);
         }
+
+        // Record page view
+        $stmt = $pdo->prepare('INSERT IGNORE INTO pdf_progress (enrollment_id, page_number, viewed_at) VALUES (?, ?, NOW())');
+        $stmt->execute([$enrollment['id'], $page]);
+
+        // Update current page
+        $stmt = $pdo->prepare('UPDATE enrollments SET pdf_current_page = ? WHERE id = ?');
+        $stmt->execute([$page, $enrollment['id']]);
+
+        // Count viewed pages
+        $stmt = $pdo->prepare('SELECT COUNT(*) as viewed FROM pdf_progress WHERE enrollment_id = ?');
+        $stmt->execute([$enrollment['id']]);
+        $viewedCount = $stmt->fetchColumn();
+
+        // Get total pages
+        $totalPages = $currentEnrollment['pdf_total_pages'] > 0 ? $currentEnrollment['pdf_total_pages'] : ($_POST['total_pages'] ?? 0);
+        
+        // Check if PDF is completed
+        $pdfCompleted = ($totalPages > 0 && $viewedCount >= $totalPages) ? 1 : 0;
+        
+        if ($pdfCompleted != $currentEnrollment['pdf_completed']) {
+            $stmt = $pdo->prepare('UPDATE enrollments SET pdf_completed = ? WHERE id = ?');
+            $stmt->execute([$pdfCompleted, $enrollment['id']]);
+        }
+
+        $pdo->commit();
+
+        echo json_encode([
+            'success' => true,
+            'viewed_count' => $viewedCount,
+            'total_pages' => $totalPages,
+            'pdf_completed' => $pdfCompleted
+        ]);
+
     } catch (Exception $e) {
         $pdo->rollBack();
         error_log("PDF Tracking Error: " . $e->getMessage());
-        echo json_encode(['success' => false, 'message' => 'Error tracking page view']);
+        echo json_encode(['success' => false]);
     }
     exit;
 }
 
-// Handle video progress tracking
-if($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['video_progress']) && is_student()) {
-    $videoProgress = intval($_POST['video_progress']);
-    $videoCompleted = isset($_POST['video_completed']) ? intval($_POST['video_completed']) : 0;
+// Handle AJAX video progress tracking
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_position']) && is_student()) {
+    $position = intval($_POST['video_position']);
+    $duration = intval($_POST['duration'] ?? 0);
+    $completed = intval($_POST['completed'] ?? 0);
     
     try {
-        // Update video progress in enrollment
-        $stmt = $pdo->prepare('UPDATE enrollments SET video_progress = ?, video_completed = ? WHERE id = ?');
-        $stmt->execute([$videoProgress, $videoCompleted, $enrollment['id']]);
-        
-        // Recalculate overall progress if needed
-        if ($course['file_pdf'] && $course['file_video']) {
-            $stmt = $pdo->prepare('SELECT COUNT(DISTINCT page_number) as pages_viewed FROM pdf_progress WHERE enrollment_id = ?');
+        $pdo->beginTransaction();
+
+        // Update video progress
+        $stmt = $pdo->prepare('UPDATE video_progress SET video_position = ?, completed = ?, last_watched = NOW() WHERE enrollment_id = ?');
+        $stmt->execute([$position, $completed, $enrollment['id']]);
+
+        // Update enrollment video_completed flag
+        if ($completed == 1) {
+            $stmt = $pdo->prepare('UPDATE enrollments SET video_completed = 1 WHERE id = ?');
             $stmt->execute([$enrollment['id']]);
-            $pagesViewed = $stmt->fetchColumn();
-
-            $totalPages = $course['total_pages'] ?? 1;
-            $pdfWeight = 0.7;
-            $videoWeight = 0.3;
-
-            $pdfProgressPercent = $totalPages > 0 ? round(($pagesViewed / $totalPages) * 100, 2) : 0;
-            $pdfProgress = ($pdfProgressPercent / 100) * $pdfWeight;
-            $videoProgressValue = $videoCompleted ? $videoWeight : ($videoProgress / 100) * $videoWeight;
-
-            $overallProgress = min(100, round(($pdfProgress + $videoProgressValue) * 100));
-
-            $stmt = $pdo->prepare('UPDATE enrollments SET pdf_progress = ?, progress = ? WHERE id = ?');
-            $stmt->execute([$pdfProgressPercent, $overallProgress, $enrollment['id']]);
         }
-        
-        echo json_encode(['success' => true]);
+
+        $pdo->commit();
+
+        echo json_encode([
+            'success' => true,
+            'video_completed' => $completed
+        ]);
+
     } catch (Exception $e) {
+        $pdo->rollBack();
         error_log("Video Tracking Error: " . $e->getMessage());
         echo json_encode(['success' => false]);
     }
     exit;
 }
 
-// Handle completion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed']) && is_student()) {
-
-    // Start transaction
-    $pdo->beginTransaction();
-
+// Handle course completion
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_course']) && is_student()) {
     try {
-        // Validate total pages
-        $totalPages = intval($_POST['total_pages'] ?? 1);
-        if ($totalPages < 1) $totalPages = 1;
+        $pdo->beginTransaction();
         
-        // Get pages viewed
-        $stmt = $pdo->prepare('SELECT COUNT(DISTINCT page_number) as pages_viewed FROM pdf_progress WHERE enrollment_id = ?');
-        $stmt->execute([$enrollment['id']]);
-        $pagesViewed = $stmt->fetchColumn();
+        // Check if user has passed the assessment
+        $stmt = $pdo->prepare("
+            SELECT a.id FROM assessments a
+            JOIN assessment_attempts att ON att.assessment_id = a.id
+            WHERE a.course_id = ? AND att.user_id = ? AND att.passed = 1
+            LIMIT 1
+        ");
+        $stmt->execute([$courseId, $u['id']]);
+        $passed = $stmt->fetch();
         
-        // Calculate progress based on content types
-        if ($course['file_pdf'] && $course['file_video']) {
-            // Both PDF and video exist - weighted progress
-            $pdfWeight = 0.7;
-            $videoWeight = 0.3;
-            
-            $pdfProgress = $totalPages > 0 ? ($pagesViewed / $totalPages) * $pdfWeight : 0;
-            
-            $stmt = $pdo->prepare('SELECT video_completed FROM enrollments WHERE id = ?');
-            $stmt->execute([$enrollment['id']]);
-            $videoCompleted = $stmt->fetchColumn();
-            
-            $videoProgressValue = $videoCompleted ? $videoWeight : 0;
-            $progressPercent = min(100, round(($pdfProgress + $videoProgressValue) * 100));
-        } else {
-            // Only PDF exists
-            $progressPercent = $totalPages > 0 ? round(($pagesViewed / $totalPages) * 100) : 0;
+        if (!$passed) {
+            $pdo->rollBack();
+            echo json_encode(['success' => false, 'message' => 'You must pass the assessment first']);
+            exit;
         }
         
-        // Update enrollment status and progress
+        // Update enrollment
         $stmt = $pdo->prepare("
             UPDATE enrollments 
-            SET status = 'completed', completed_at = NOW(), progress = ?, pages_viewed = ? 
-            WHERE id = ?
+            SET status = 'completed', completed_at = NOW() 
+            WHERE id = ? AND user_id = ?
         ");
-        $stmt->execute([$progressPercent, $pagesViewed, $enrollment['id']]);
-
-        // Get student info for email
-        $studentName = trim($u['fname'] . ' ' . $u['lname']);
-        if (empty($studentName)) $studentName = $u['username'];
-
+        $stmt->execute([$enrollment['id'], $u['id']]);
+        
         $pdo->commit();
-
-        echo json_encode([
-            'success' => true,
-            'pages_viewed' => $pagesViewed,
-            'total_pages' => $totalPages,
-            'progress' => $progressPercent
-        ]);
-
+        
+        echo json_encode(['success' => true]);
+        
     } catch (Exception $e) {
         $pdo->rollBack();
         error_log("Course Completion Error: " . $e->getMessage());
-        echo json_encode([
-            'success' => false,
-            'message' => 'Error completing course. Please try again.'
-        ]);
+        echo json_encode(['success' => false, 'message' => 'Error completing course']);
     }
-
     exit;
 }
 
-// Get total pages for PDF from the course table
-$totalPdfPages = $course['total_pages'] ?? 0;
-
-// Check if assessment exists for this course
+// Check if assessment exists and if user has passed it
 $assessment = null;
-$completedAssessment = null;
+$hasPassedAssessment = false;
 if (is_student()) {
-    $stmt = $pdo->prepare("SELECT id, title FROM assessments WHERE course_id = ?");
+    $stmt = $pdo->prepare("SELECT id, title, passing_score FROM assessments WHERE course_id = ?");
     $stmt->execute([$courseId]);
     $assessment = $stmt->fetch();
     
+    // Check if user has passed the assessment
     if ($assessment) {
         $stmt = $pdo->prepare("
-            SELECT id, status, score, completed_at FROM assessment_attempts 
-            WHERE assessment_id = ? AND user_id = ? AND status = 'completed'
-            ORDER BY completed_at DESC LIMIT 1
+            SELECT passed FROM assessment_attempts 
+            WHERE assessment_id = ? AND user_id = ? AND passed = 1 
+            LIMIT 1
         ");
         $stmt->execute([$assessment['id'], $u['id']]);
-        $completedAssessment = $stmt->fetch();
+        $hasPassedAssessment = $stmt->fetch() ? true : false;
     }
 }
 
-// Validate PDF file exists
+// Validate file existence
 $pdfPath = __DIR__ . '/../uploads/pdf/' . $course['file_pdf'];
 $pdfExists = $course['file_pdf'] && file_exists($pdfPath);
 
-// Validate video file exists
 $videoPath = __DIR__ . '/../uploads/video/' . $course['file_video'];
 $videoExists = $course['file_video'] && file_exists($videoPath);
 
-// Error handling for missing files
-if ($course['file_pdf'] && !$pdfExists) {
-    error_log("PDF file missing for course ID: $courseId - " . $course['file_pdf']);
-}
-if ($course['file_video'] && !$videoExists) {
-    error_log("Video file missing for course ID: $courseId - " . $course['file_video']);
+// Calculate if assessment can be taken (both materials completed)
+$canTakeAssessment = false;
+if (is_student() && $enrollment) {
+    $pdfDone = !$course['file_pdf'] || ($enrollment['pdf_completed'] ?? 0) == 1;
+    $videoDone = !$course['file_video'] || ($enrollment['video_completed'] ?? 0) == 1;
+    $canTakeAssessment = $pdfDone && $videoDone;
 }
 ?>
 
@@ -294,12 +252,10 @@ if ($course['file_video'] && !$videoExists) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?=htmlspecialchars($course['title'])?> - LMS</title>
+    <title><?= htmlspecialchars($course['title']) ?> - LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
-    <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-    <link href="<?= BASE_URL ?>/assets/css/manager.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
@@ -307,7 +263,6 @@ if ($course['file_video'] && !$videoExists) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <style>
-        /* ===== VARIABLES ===== */
         :root {
             --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             --shadow-sm: 0 2px 10px rgba(0,0,0,0.1);
@@ -316,7 +271,6 @@ if ($course['file_video'] && !$videoExists) {
             --text-muted: #6c757d;
         }
 
-        /* ===== LAYOUT ===== */
         body {
             background: #f4f6f9;
             overflow-x: hidden;
@@ -328,140 +282,6 @@ if ($course['file_video'] && !$videoExists) {
             transition: all 0.3s ease;
         }
 
-        /* ===== FULLSCREEN MODE - TRUE FULLSCREEN ===== */
-        .pdf-fullscreen-mode {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            z-index: 999999 !important;
-            background: #fff !important;
-            overflow: hidden !important;
-        }
-
-        .pdf-fullscreen-mode .lms-sidebar-container,
-        .pdf-fullscreen-mode .course-header,
-        .pdf-fullscreen-mode .course-info-card,
-        .pdf-fullscreen-mode .video-player-container,
-        .pdf-fullscreen-mode .action-buttons,
-        .pdf-fullscreen-mode .pdf-progress-container {
-            display: none !important;
-        }
-
-        .pdf-fullscreen-mode .material-card {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            background: #1a1a1a !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-
-        .pdf-fullscreen-mode .material-header {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            z-index: 1000000 !important;
-            background: rgba(30, 30, 30, 0.95) !important;
-            backdrop-filter: blur(10px) !important;
-            padding: 12px 20px !important;
-            margin: 0 !important;
-            border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-            color: white !important;
-        }
-
-        .pdf-fullscreen-mode .material-title h5,
-        .pdf-fullscreen-mode .material-title i {
-            color: white !important;
-        }
-
-        .pdf-fullscreen-mode .material-status {
-            background: rgba(255,255,255,0.15) !important;
-            color: white !important;
-        }
-
-        .pdf-fullscreen-mode #fullscreenPdfBtn {
-            background: rgba(255,255,255,0.2) !important;
-            color: white !important;
-            border-color: rgba(255,255,255,0.3) !important;
-        }
-
-        .pdf-fullscreen-mode #fullscreenPdfBtn:hover {
-            background: rgba(255,255,255,0.3) !important;
-        }
-
-        .pdf-fullscreen-mode .pdf-viewer-container {
-            position: fixed !important;
-            top: 60px !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100vw !important;
-            height: calc(100vh - 60px) !important;
-            border: none !important;
-            border-radius: 0 !important;
-            background: #2d2d2d !important;
-        }
-
-        .pdf-fullscreen-mode .pdf-pages-container {
-            padding: 30px 20px !important;
-            background: #2d2d2d !important;
-        }
-
-        .pdf-fullscreen-mode .pdf-page-wrapper {
-            max-width: 900px !important;
-            margin: 0 auto !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
-            background: white !important;
-        }
-
-        .pdf-fullscreen-mode #fullscreenPdfBtn i {
-            transform: rotate(180deg);
-        }
-
-        /* Exit fullscreen hint */
-        .fullscreen-hint {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-size: 13px;
-            z-index: 1000001;
-            pointer-events: none;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.2);
-            animation: fadeInOut 3s ease;
-        }
-
-        .fullscreen-hint i {
-            margin-right: 6px;
-        }
-
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateY(10px); }
-            10% { opacity: 1; transform: translateY(0); }
-            90% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 0; transform: translateY(-10px); }
-        }
-
-        /* ===== TOAST NOTIFICATIONS ===== */
         .toast-notification {
             position: fixed;
             top: 20px;
@@ -475,7 +295,6 @@ if ($course['file_video'] && !$videoExists) {
             to { transform: translateX(0); opacity: 1; }
         }
 
-        /* ===== MATERIAL CARDS ===== */
         .material-card {
             background: white;
             border-radius: 10px;
@@ -519,7 +338,6 @@ if ($course['file_video'] && !$videoExists) {
             color: #856404;
         }
 
-        /* ===== VIDEO PLAYER ===== */
         .video-player-container {
             position: relative;
             width: 100%;
@@ -537,13 +355,6 @@ if ($course['file_video'] && !$videoExists) {
             left: 0;
         }
 
-        .video-js .vjs-tech {
-            object-fit: contain;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* ===== PDF VIEWER ===== */
         .pdf-viewer-container {
             position: relative;
             width: 100%;
@@ -595,7 +406,6 @@ if ($course['file_video'] && !$videoExists) {
             z-index: 10;
         }
 
-        /* ===== PDF PROGRESS ===== */
         .pdf-progress-container {
             margin-top: 15px;
             padding: 10px;
@@ -623,52 +433,36 @@ if ($course['file_video'] && !$videoExists) {
             transition: width 0.3s ease;
         }
 
-        .pdf-progress-fill.completed {
-            background: linear-gradient(90deg, #28a745, #20c997);
+        .assessment-section {
+            background: linear-gradient(135deg, #fff3cd 0%, #fff8e7 100%);
+            border-left: 4px solid #ffc107;
+            margin-bottom: 20px;
         }
 
-        /* ===== ACTION BUTTONS ===== */
-        .action-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 20px;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .action-btn {
-            padding: 12px 40px;
+        .assessment-btn {
+            padding: 12px 30px;
             font-size: 16px;
             font-weight: 600;
             border-radius: 8px;
             transition: all 0.3s ease;
-            max-width: 200px;
-            width: 100%;
+            white-space: nowrap;
+            text-decoration: none;
+            display: inline-block;
         }
-
-        .action-btn:disabled {
+        
+        .assessment-btn:not(.disabled):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 193, 7, 0.3);
+        }
+        
+        .assessment-btn.disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            pointer-events: none;
+            background: #6c757d;
+            color: white;
         }
 
-        .action-btn i {
-            margin-right: 8px;
-        }
-
-        .btn-pulse {
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-        }
-
-        /* ===== FULLSCREEN BUTTON ===== */
         #fullscreenPdfBtn {
             width: 36px;
             height: 36px;
@@ -685,33 +479,97 @@ if ($course['file_video'] && !$videoExists) {
             border-color: transparent;
         }
 
-        /* ===== UTILITY CLASSES ===== */
-        .text-muted { color: var(--text-muted); }
-        .mt-2 { margin-top: 0.5rem; }
-        .mt-3 { margin-top: 1rem; }
-        .me-1 { margin-right: 0.25rem; }
-        .me-2 { margin-right: 0.5rem; }
-        .ms-auto { margin-left: auto; }
-        .small { font-size: 0.875em; }
-        .gap-2 { gap: 0.5rem; }
-        
-        /* ===== ACCESSIBILITY ===== */
-        .visually-hidden-focusable:not(:focus) {
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
+        .pdf-fullscreen-mode {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
             padding: 0 !important;
-            margin: -1px !important;
+            z-index: 999999 !important;
+            background: #1a1a1a !important;
             overflow: hidden !important;
-            clip: rect(0,0,0,0) !important;
-            border: 0 !important;
         }
-        
-        [role="button"] {
-            cursor: pointer;
+
+        .pdf-fullscreen-mode .lms-sidebar-container,
+        .pdf-fullscreen-mode .course-header,
+        .pdf-fullscreen-mode .course-info-card,
+        .pdf-fullscreen-mode .video-player-container,
+        .pdf-fullscreen-mode .pdf-progress-container,
+        .pdf-fullscreen-mode .assessment-section {
+            display: none !important;
         }
-        
-        /* Skip to content link */
+
+        .pdf-fullscreen-mode .material-card {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #1a1a1a !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        .pdf-fullscreen-mode .material-header {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1000000 !important;
+            background: rgba(30,30,30,0.95) !important;
+            backdrop-filter: blur(10px) !important;
+            padding: 12px 20px !important;
+            margin: 0 !important;
+            border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+            color: white !important;
+        }
+
+        .pdf-fullscreen-mode .pdf-viewer-container {
+            position: fixed !important;
+            top: 60px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: calc(100vh - 60px) !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: #2d2d2d !important;
+        }
+
+        .fullscreen-hint {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            z-index: 1000001;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            animation: fadeInOut 3s ease;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+
         .skip-link {
             position: absolute;
             top: -40px;
@@ -722,40 +580,34 @@ if ($course['file_video'] && !$videoExists) {
             z-index: 10000;
             text-decoration: none;
         }
-        
+
         .skip-link:focus {
             top: 0;
         }
     </style>
 </head>
 <body>
-    <!-- Skip to content link for accessibility -->
     <a href="#mainContent" class="skip-link">Skip to main content</a>
 
-    <!-- Sidebar -->
     <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
 
-    <!-- Toast notification container -->
     <div id="toastContainer" class="toast-notification"></div>
-
-    <!-- Fullscreen hint -->
     <div id="fullscreenHint" class="fullscreen-hint" style="display: none;">
         <i class="fas fa-keyboard"></i> Press ESC to exit full screen
     </div>
 
-    <!-- Main Content -->
     <div class="main-content-wrapper" id="mainContent" tabindex="-1">
         <!-- Course Header -->
         <div class="material-card">
             <div class="material-header">
                 <div class="material-title">
                     <i class="fas fa-book-open text-primary" aria-hidden="true"></i>
-                    <h5 class="mb-0"><?=htmlspecialchars($course['title'])?></h5>
+                    <h5 class="mb-0"><?= htmlspecialchars($course['title']) ?></h5>
                 </div>
             </div>
-            <p class="text-muted mb-0"><?=nl2br(htmlspecialchars($course['description']))?></p>
+            <p class="text-muted mb-0"><?= nl2br(htmlspecialchars($course['description'])) ?></p>
             <div class="mt-3 pt-3 border-top">
                 <div class="d-flex align-items-center">
                     <div class="rounded-circle bg-primary bg-opacity-10 p-2 me-2">
@@ -768,35 +620,79 @@ if ($course['file_video'] && !$videoExists) {
             </div>
         </div>
 
-        <!-- Progress Section for Students -->
-        <?php if(is_student()): ?>
+        <!-- Assessment Section -->
+        <?php if (is_student() && $assessment): ?>
+        <div class="material-card assessment-section" id="assessmentCard">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-15 p-3">
+                        <i class="fas fa-file-alt text-warning fa-2x" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-1">Course Assessment</h4>
+                        <p class="text-muted mb-0"><?= htmlspecialchars($assessment['title']) ?></p>
+                        <?php if ($assessment['passing_score']): ?>
+                            <small class="text-muted"><i class="fas fa-star me-1"></i>Passing Score: <?= $assessment['passing_score'] ?>%</small>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="text-end">
+                    <?php if ($canTakeAssessment): ?>
+                        <a href="../public/take_assessment.php?assessment_id=<?= $assessment['id'] ?>" class="btn btn-warning assessment-btn" id="takeAssessmentBtn">
+                            <i class="fas fa-play-circle me-2"></i>Take Assessment Now
+                        </a>
+                    <?php else: ?>
+                        <button class="btn btn-secondary assessment-btn disabled" id="takeAssessmentBtn" disabled>
+                            <i class="fas fa-lock me-2"></i>Complete Course Materials First
+                        </button>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Complete all PDF and video materials to enable assessment
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Progress Section -->
+        <?php if (is_student()): ?>
         <div class="material-card">
             <div class="material-header">
                 <div class="material-title">
                     <i class="fas fa-chart-line text-primary" aria-hidden="true"></i>
                     <h5 class="mb-0">Your Progress</h5>
                 </div>
-                <span class="material-status <?= (($enrollment['status'] ?? '') === 'completed') ? 'status-completed' : 'status-pending' ?>">
-                    <?php if(($enrollment['status'] ?? '') === 'completed'): ?>
-                        <i class="fas fa-check-circle me-1" aria-hidden="true"></i>Completed
-                    <?php else: ?>
-                        <i class="fas fa-spinner me-1" aria-hidden="true"></i>Ongoing
-                    <?php endif; ?>
-                </span>
             </div>
 
             <div class="row mb-3">
+                <?php if ($course['file_pdf']): ?>
                 <div class="col-md-6">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-file-pdf text-muted me-2" aria-hidden="true"></i>
-                        <span>Pages viewed: <strong><span id="pagesViewed"><?= count($pdfProgress) ?></span>/<span id="totalPages"><?= $totalPdfPages ?></span></strong></span>
+                        <i class="fas fa-file-pdf text-danger me-2"></i>
+                        <span>PDF Material: 
+                            <strong>
+                                <span id="pdfStatusText">
+                                    <?= ($enrollment['pdf_completed'] ?? 0) == 1 ? 'Completed' : 'Ongoing' ?>
+                                </span>
+                            </strong>
+                        </span>
                     </div>
                 </div>
-                <?php if($course['file_video']): ?>
+                <?php endif; ?>
+
+                <?php if ($course['file_video']): ?>
                 <div class="col-md-6">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-video text-muted me-2" aria-hidden="true"></i>
-                        <span>Video: <strong><span id="videoProgress"><?= intval($enrollment['video_progress'] ?? 0) ?></span>%</strong></span>
+                        <i class="fas fa-video text-primary me-2"></i>
+                        <span>Video Material: 
+                            <strong>
+                                <span id="videoStatusText">
+                                    <?= ($enrollment['video_completed'] ?? 0) == 1 ? 'Completed' : 'Ongoing' ?>
+                                </span>
+                            </strong>
+                        </span>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -804,162 +700,113 @@ if ($course['file_video'] && !$videoExists) {
 
             <div class="pdf-progress-container">
                 <div class="pdf-progress-text">
-                    <span>Course Progress</span>
-                    <span id="progressPercent"><?= intval($enrollment['progress'] ?? 0) ?>%</span>
+                    <span>Overall Course Progress</span>
+                    <span id="progressPercent">
+                        <?php
+                        $totalMaterials = 0;
+                        $completedMaterials = 0;
+                        if ($course['file_pdf']) {
+                            $totalMaterials++;
+                            if ($enrollment['pdf_completed'] ?? 0) $completedMaterials++;
+                        }
+                        if ($course['file_video']) {
+                            $totalMaterials++;
+                            if ($enrollment['video_completed'] ?? 0) $completedMaterials++;
+                        }
+                        $overallProgress = $totalMaterials > 0 ? round(($completedMaterials / $totalMaterials) * 100) : 0;
+                        echo $overallProgress . '%';
+                        ?>
+                    </span>
                 </div>
                 <div class="pdf-progress-bar">
-                    <div class="pdf-progress-fill <?= (($enrollment['status'] ?? '') === 'completed') ? 'completed' : '' ?>" 
-                         id="progressBar" 
-                         style="width: <?= intval($enrollment['progress'] ?? 0) ?>%;"></div>
+                    <div class="pdf-progress-fill" id="progressBar" style="width: <?= $overallProgress ?>%;"></div>
                 </div>
             </div>
 
-            <!-- Complete Button -->
-            <?php if(($enrollment['status'] ?? '') !== 'completed'): ?>
-                <button id="completeBtn" class="btn btn-success action-btn w-100 mt-3" disabled aria-label="Mark course as complete">
-                    <i class="fas fa-check-circle me-2" aria-hidden="true"></i>Mark as Complete
-                </button>
-                <small class="text-muted d-block mt-2">
-                    <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
-                    <?php if($course['file_pdf'] && $course['file_video']): ?>
-                        View all PDF pages and watch the video to enable completion
+            <!-- Complete Course Button -->
+            <?php if ($enrollment['status'] !== 'completed'): ?>
+            <div class="mt-4">
+                <?php if ($hasPassedAssessment): ?>
+                    <button id="completeCourseBtn" class="btn btn-success w-100 py-3 fw-bold">
+                        <i class="fas fa-graduation-cap me-2"></i>Complete Course
+                    </button>
+                    <small class="text-muted d-block mt-2 text-center">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Mark this course as completed. You've already passed the assessment.
+                    </small>
+                <?php else: ?>
+                    <?php if ($assessment): ?>
+                        <button class="btn btn-secondary w-100 py-3 fw-bold" disabled>
+                            <i class="fas fa-lock me-2"></i>Pass Assessment to Complete
+                        </button>
+                        <small class="text-muted d-block mt-2 text-center">
+                            <i class="fas fa-info-circle me-1"></i>
+                            You need to pass the assessment to complete this course.
+                        </small>
                     <?php else: ?>
-                        View all pages of the PDF to enable completion
+                        <button class="btn btn-secondary w-100 py-3 fw-bold" disabled>
+                            <i class="fas fa-lock me-2"></i>No Assessment Available
+                        </button>
                     <?php endif; ?>
-                </small>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
         </div>
         <?php endif; ?>
 
-        <!-- Assessment Section -->
-        <?php if(is_student() && $assessment): ?>
-        <div id="assessmentContainer" style="<?= (($enrollment['status'] ?? '') === 'completed') ? '' : 'display: none;' ?>">
-            <div class="material-card" style="border-left: 4px solid #ffc107;">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                    <div class="material-title">
-                        <i class="fas fa-file-alt text-warning" aria-hidden="true"></i>
-                        <div>
-                            <h5 class="mb-1">Course Assessment</h5>
-                            <p class="text-muted mb-0"><?= htmlspecialchars($assessment['title']) ?></p>
-                        </div>
-                    </div>
-                    
-                    <?php if ($completedAssessment): ?>
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="material-status status-completed">
-                                <i class="fas fa-check-circle me-1" aria-hidden="true"></i>Completed
-                            </span>
-                            <span class="fw-bold">Score: <?= $completedAssessment['score'] ?>%</span>
-                            <a href="assessment_result.php?attempt_id=<?= $completedAssessment['id'] ?>" class="btn btn-outline-primary">
-                                <i class="fas fa-eye me-2" aria-hidden="true"></i>View Result
-                            </a>
-                        </div>
-                    <?php else: ?>
-                        <a href="take_assessment.php?id=<?= $assessment['id'] ?>" class="btn btn-warning" id="takeAssessmentBtn">
-                            <i class="fas fa-play-circle me-2" aria-hidden="true"></i>Take Assessment
-                        </a>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
         <!-- PDF Content -->
-        <?php if($course['file_pdf']): ?>
+        <?php if ($course['file_pdf']): ?>
         <div class="material-card" id="pdfMaterialCard">
             <div class="material-header">
                 <div class="material-title">
-                    <i class="fas fa-file-pdf text-danger" aria-hidden="true"></i>
+                    <i class="fas fa-file-pdf text-danger"></i>
                     <h5 class="mb-0">Course PDF Material</h5>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <?php if(is_student()): ?>
-                        <?php if(($enrollment['pdf_completed'] ?? 0) == 1): ?>
-                            <span class="material-status status-completed">
-                                <i class="fas fa-check-circle me-1" aria-hidden="true"></i>Completed
-                            </span>
+                    <?php if (is_student()): ?>
+                    <span class="material-status <?= ($enrollment['pdf_completed'] ?? 0) == 1 ? 'status-completed' : 'status-pending' ?>" id="pdfStatusBadge">
+                        <?php if (($enrollment['pdf_completed'] ?? 0) == 1): ?>
+                            <i class="fas fa-check-circle me-1"></i>Completed
                         <?php else: ?>
-                            <span class="material-status status-pending">
-                                <i class="fas fa-clock me-1" aria-hidden="true"></i>Pending
-                            </span>
+                            <i class="fas fa-clock me-1"></i>Ongoing
                         <?php endif; ?>
+                    </span>
                     <?php endif; ?>
-                    <button class="btn btn-outline-primary" id="fullscreenPdfBtn" title="Toggle fullscreen mode (ESC to exit)" aria-label="Toggle fullscreen mode">
-                        <i class="fas fa-expand" aria-hidden="true"></i>
+                    <button class="btn btn-outline-primary" id="fullscreenPdfBtn" title="Toggle fullscreen mode (ESC to exit)">
+                        <i class="fas fa-expand"></i>
                     </button>
                 </div>
             </div>
 
-            <?php if(is_student()): ?>
-                <?php if ($pdfExists): ?>
-                    <!-- PDF Viewer with Page Tracking -->
-                    <div class="pdf-viewer-container" id="pdfViewerContainer" role="region" aria-label="PDF viewer">
-                        <div id="pdfPagesContainer" class="pdf-pages-container">
-                            <!-- PDF pages will be rendered here -->
-                        </div>
-                    </div>
-
-                    <!-- Progress bar under PDF -->
-                    <div class="pdf-progress-container mt-3">
-                        <div class="pdf-progress-text">
-                            <span><i class="fas fa-file-pdf me-1" aria-hidden="true"></i>PDF Progress</span>
-                            <span id="pdfProgressPercentage"><?= ($enrollment['pdf_progress'] ?? 0) ?>%</span>
-                        </div>
-                        <div class="pdf-progress-bar">
-                            <div id="pdfProgressBar" class="pdf-progress-fill <?= (($enrollment['pdf_completed'] ?? 0) == 1) ? 'completed' : '' ?>" 
-                                 style="width: <?= ($enrollment['pdf_progress'] ?? 0) ?>%;"></div>
-                        </div>
-                        <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle" aria-hidden="true"></i>
-                            Pages viewed: <span id="viewedPagesCount"><?= count($pdfProgress) ?></span> / <span id="totalPagesCount"><?= $totalPdfPages ?></span>
-                            (100% required to complete)
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        PDF file is temporarily unavailable. Please contact support.
-                    </div>
-                <?php endif; ?>
+            <?php if ($pdfExists): ?>
+                <div class="pdf-viewer-container" id="pdfViewerContainer">
+                    <div id="pdfPagesContainer" class="pdf-pages-container"></div>
+                </div>
             <?php else: ?>
-                <!-- Simple iframe for non-students -->
-                <div class="pdf-viewer-container">
-                    <?php if ($pdfExists): ?>
-                        <iframe
-                            src="<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars(basename($course['file_pdf'])) ?>"
-                            width="100%"
-                            height="100%"
-                            style="border: none; border-radius: 8px;"
-                            title="Course PDF">
-                        </iframe>
-                    <?php else: ?>
-                        <div class="alert alert-danger m-3">
-                            PDF file is temporarily unavailable.
-                        </div>
-                    <?php endif; ?>
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    PDF file is temporarily unavailable. Please contact support.
                 </div>
             <?php endif; ?>
         </div>
         <?php endif; ?>
 
         <!-- Video Content -->
-        <?php if($course['file_video']): ?>
+        <?php if ($course['file_video']): ?>
         <div class="material-card">
             <div class="material-header">
                 <div class="material-title">
-                    <i class="fas fa-video text-primary" aria-hidden="true"></i>
+                    <i class="fas fa-video text-primary"></i>
                     <h5 class="mb-0">Course Video</h5>
                 </div>
-                <?php if(is_student()): ?>
-                    <?php if(($enrollment['video_completed'] ?? 0) == 1): ?>
-                        <span class="material-status status-completed">
-                            <i class="fas fa-check-circle me-1" aria-hidden="true"></i>Completed
-                        </span>
+                <?php if (is_student()): ?>
+                <span class="material-status <?= ($enrollment['video_completed'] ?? 0) == 1 ? 'status-completed' : 'status-pending' ?>" id="videoStatusBadge">
+                    <?php if (($enrollment['video_completed'] ?? 0) == 1): ?>
+                        <i class="fas fa-check-circle me-1"></i>Completed
                     <?php else: ?>
-                        <span class="material-status status-pending">
-                            <i class="fas fa-clock me-1" aria-hidden="true"></i>Pending
-                        </span>
+                        <i class="fas fa-clock me-1"></i>Ongoing
                     <?php endif; ?>
+                </span>
                 <?php endif; ?>
             </div>
 
@@ -985,502 +832,470 @@ if ($course['file_video'] && !$videoExists) {
     </div>
 
     <script>
-    // Set PDF.js worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    
-    <?php if(is_student()): ?>
-    // ===== PDF VIEWER WITH INSTANT PAGE TRACKING =====
-    let pdfDoc = null;
-    let totalPages = <?= $totalPdfPages ?>;
-    let pagesViewed = <?= count($pdfProgress) ?>;
-    let viewedPages = <?= json_encode($pdfProgress) ?>;
-    let completeBtn = document.getElementById('completeBtn');
-    let pagesContainer = document.getElementById('pdfPagesContainer');
-    let pageViewedConfirmed = {};
-    let isCompleted = <?= ($enrollment['status'] ?? '') === 'completed' ? 'true' : 'false' ?>;
-    let isFullscreen = false;
-    let pdfCompleted = <?= ($enrollment['pdf_completed'] ?? 0) ?>;
-    let videoCompleted = <?= ($enrollment['video_completed'] ?? 0) ?>;
-    let currentVideoProgress = <?= intval($enrollment['video_progress'] ?? 0) ?>;
-    let pageCache = {};
-    let currentPage = 1;
-    const mainContent = document.getElementById('mainContent');
-    const fullscreenBtn = document.getElementById('fullscreenPdfBtn');
-    const assessmentContainer = document.getElementById('assessmentContainer');
-    const fullscreenHint = document.getElementById('fullscreenHint');
-    const courseId = <?= $courseId ?>;
-    
-    // Initialize viewed pages
-    let viewedArray = viewedPages || [];
-    let viewedSet = new Set(viewedArray);
-    let serverConfirmed = new Set(viewedArray);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    // Update UI function
-    function updateUI() {
-        <?php if($course['file_pdf'] && $course['file_video']): ?>
-        // Calculate combined progress: 70% PDF, 30% video
-        let pdfProgress = (pagesViewed / totalPages) * 100;
-        let videoProgressValue = (videoCompleted ? 100 : currentVideoProgress) || 0;
-        let progress = Math.min(100, Math.round(((pdfProgress * 0.7) + (videoProgressValue * 0.3)) / 100 * 100));
-        <?php else: ?>
-        let progress = Math.min(100, Math.round((pagesViewed / totalPages) * 100));
-        <?php endif; ?>
+        <?php if (is_student()): ?>
+        // Course data
+        const courseData = {
+            id: <?= $courseId ?>,
+            hasPdf: <?= $course['file_pdf'] ? 'true' : 'false' ?>,
+            hasVideo: <?= $course['file_video'] ? 'true' : 'false' ?>,
+            pdfCompleted: <?= ($enrollment['pdf_completed'] ?? 0) ?>,
+            videoCompleted: <?= ($enrollment['video_completed'] ?? 0) ?>,
+            pdfTotalPages: <?= ($enrollment['pdf_total_pages'] ?? 0) ?>,
+            hasAssessment: <?= $assessment ? 'true' : 'false' ?>
+        };
 
-        document.getElementById('pagesViewed').textContent = pagesViewed;
-        document.getElementById('progressPercent').textContent = progress + '%';
-        document.getElementById('progressBar').style.width = progress + '%';
-        document.getElementById('pdfProgressPercentage').textContent = progress + '%';
-        document.getElementById('pdfProgressBar').style.width = progress + '%';
-        document.getElementById('viewedPagesCount').textContent = pagesViewed;
+        // State management
+        let state = {
+            pdfDoc: null,
+            totalPages: courseData.pdfTotalPages,
+            viewedSet: new Set(<?= json_encode($pdfProgress) ?>),
+            serverConfirmed: new Set(<?= json_encode($pdfProgress) ?>),
+            pdfCompleted: courseData.pdfCompleted,
+            videoCompleted: courseData.videoCompleted,
+            isFullscreen: false,
+            currentPage: 1,
+            pageCache: {}
+        };
 
-        // Check completion
-        if (!isCompleted && completeBtn) {
-            <?php if($course['file_pdf'] && $course['file_video']): ?>
-            // Both PDF and video required
-            completeBtn.disabled = pagesViewed < totalPages || !videoCompleted;
-            <?php else: ?>
-            // Only PDF required
-            completeBtn.disabled = pagesViewed < totalPages;
-            <?php endif; ?>
-        }
-    }
-    
-    // Initial UI update
-    updateUI();
-    
-    // Load PDF with caching
-    if (pagesContainer && <?= $pdfExists ? 'true' : 'false' ?>) {
-        pdfjsLib.getDocument('<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars(basename($course['file_pdf'])) ?>').promise.then(function(pdf) {
-            pdfDoc = pdf;
-            document.getElementById('totalPages').textContent = pdf.numPages;
-            document.getElementById('totalPagesCount').textContent = pdf.numPages;
-            totalPages = pdf.numPages;
-            updateUI();
+        // DOM Elements
+        const elements = {
+            pagesContainer: document.getElementById('pdfPagesContainer'),
+            fullscreenBtn: document.getElementById('fullscreenPdfBtn'),
+            pdfCard: document.getElementById('pdfMaterialCard'),
+            fullscreenHint: document.getElementById('fullscreenHint'),
+            progressPercent: document.getElementById('progressPercent'),
+            progressBar: document.getElementById('progressBar'),
+            pdfStatusBadge: document.getElementById('pdfStatusBadge'),
+            pdfStatusText: document.getElementById('pdfStatusText'),
+            videoStatusBadge: document.getElementById('videoStatusBadge'),
+            videoStatusText: document.getElementById('videoStatusText'),
+            takeAssessmentBtn: document.getElementById('takeAssessmentBtn'),
+            completeCourseBtn: document.getElementById('completeCourseBtn')
+        };
+
+        // Update progress display
+        function updateProgress() {
+            let completed = 0;
+            let total = 0;
             
-            pagesContainer.innerHTML = '';
-            
-            // Render visible pages first
-            for (let num = 1; num <= Math.min(3, pdf.numPages); num++) {
-                renderPage(num);
+            if (courseData.hasPdf) {
+                total++;
+                if (state.pdfCompleted) completed++;
+            }
+            if (courseData.hasVideo) {
+                total++;
+                if (state.videoCompleted) completed++;
             }
             
-            // Lazy load remaining pages
-            setTimeout(() => {
-                for (let num = 4; num <= pdf.numPages; num++) {
-                    renderPage(num);
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            
+            if (elements.progressPercent) {
+                elements.progressPercent.textContent = percent + '%';
+            }
+            if (elements.progressBar) {
+                elements.progressBar.style.width = percent + '%';
+            }
+            
+            // Update PDF badge
+            if (courseData.hasPdf && elements.pdfStatusBadge) {
+                if (state.pdfCompleted) {
+                    elements.pdfStatusBadge.className = 'material-status status-completed';
+                    elements.pdfStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
+                    if (elements.pdfStatusText) elements.pdfStatusText.textContent = 'Completed';
+                } else {
+                    elements.pdfStatusBadge.className = 'material-status status-pending';
+                    elements.pdfStatusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Ongoing';
+                    if (elements.pdfStatusText) elements.pdfStatusText.textContent = 'Ongoing';
                 }
-            }, 500);
-            
-            setTimeout(checkVisiblePages, 1000);
-            
-            // Load last viewed page from localStorage
-            loadLastPage();
-        }).catch(function(error) {
-            console.error('Error loading PDF:', error);
-            pagesContainer.innerHTML = '<div class="alert alert-danger m-3">Error loading PDF. Please try again.</div>';
-        });
-    }
-    
-    // Render PDF page with caching
-    function renderPage(num) {
-        if (pageCache[num]) {
-            // Use cached page
-            const pageWrapper = pageCache[num].cloneNode(true);
-            pagesContainer.appendChild(pageWrapper);
-            return;
-        }
-        
-        pdfDoc.getPage(num).then(function(page) {
-            const container = document.getElementById('pdfViewerContainer');
-            const containerWidth = container ? container.clientWidth - 60 : 800;
-            const viewport = page.getViewport({ scale: 1 });
-            const scale = containerWidth / viewport.width;
-            const scaledViewport = page.getViewport({ scale: scale });
-            
-            const pageWrapper = document.createElement('div');
-            pageWrapper.className = 'pdf-page-wrapper';
-            pageWrapper.id = `pdf-page-${num}`;
-            
-            const canvas = document.createElement('canvas');
-            canvas.className = 'pdf-page-canvas';
-            canvas.height = scaledViewport.height;
-            canvas.width = scaledViewport.width;
-            pageWrapper.appendChild(canvas);
-            
-            if (viewedSet.has(num)) {
-                const badge = document.createElement('div');
-                badge.className = 'page-viewed-badge';
-                badge.id = `page-badge-${num}`;
-                badge.innerHTML = '<i class="fas fa-check"></i>';
-                pageWrapper.appendChild(badge);
             }
             
-            pagesContainer.appendChild(pageWrapper);
+            // Update Video badge
+            if (courseData.hasVideo && elements.videoStatusBadge) {
+                if (state.videoCompleted) {
+                    elements.videoStatusBadge.className = 'material-status status-completed';
+                    elements.videoStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
+                    if (elements.videoStatusText) elements.videoStatusText.textContent = 'Completed';
+                } else {
+                    elements.videoStatusBadge.className = 'material-status status-pending';
+                    elements.videoStatusBadge.innerHTML = '<i class="fas fa-clock me-1"></i>Ongoing';
+                    if (elements.videoStatusText) elements.videoStatusText.textContent = 'Ongoing';
+                }
+            }
             
-            page.render({
-                canvasContext: canvas.getContext('2d'),
-                viewport: scaledViewport
+            // Update assessment button
+            updateAssessmentButton();
+        }
+
+        // Update assessment button state
+        function updateAssessmentButton() {
+            if (!elements.takeAssessmentBtn || !courseData.hasAssessment) return;
+            
+            const allCompleted = (!courseData.hasPdf || state.pdfCompleted) && 
+                                (!courseData.hasVideo || state.videoCompleted);
+            
+            if (allCompleted) {
+                // Replace button with enabled link
+                const assessmentId = <?= $assessment ? $assessment['id'] : 0 ?>;
+                const container = elements.takeAssessmentBtn.parentNode;
+                container.innerHTML = `
+                    <a href="take_assessment.php?assessment_id=${assessmentId}" 
+                       class="btn btn-warning assessment-btn" 
+                       id="takeAssessmentBtn">
+                        <i class="fas fa-play-circle me-2"></i>Take Assessment Now
+                    </a>
+                `;
+                elements.takeAssessmentBtn = document.getElementById('takeAssessmentBtn');
+            }
+        }
+
+        // Complete Course Button
+        if (elements.completeCourseBtn) {
+            elements.completeCourseBtn.addEventListener('click', function() {
+                if (!confirm('Are you sure you want to mark this course as completed?')) {
+                    return;
+                }
+                
+                const btn = $(this);
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Completing...');
+                
+                $.ajax({
+                    url: window.location.href,
+                    method: 'POST',
+                    data: { complete_course: 1 },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            showToast('Course completed successfully! 🎓', 'success');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            btn.prop('disabled', false).html('<i class="fas fa-graduation-cap me-2"></i>Complete Course');
+                            showToast(response.message || 'Error completing course', 'danger');
+                        }
+                    },
+                    error: function() {
+                        btn.prop('disabled', false).html('<i class="fas fa-graduation-cap me-2"></i>Complete Course');
+                        showToast('Error completing course. Please try again.', 'danger');
+                    }
+                });
             });
-            
-            // Cache the rendered page
-            pageCache[num] = pageWrapper.cloneNode(true);
-            
-            // Add intersection observer
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting && !viewedSet.has(num) && !isCompleted) {
+        }
+
+        // PDF Viewer
+        if (elements.pagesContainer && <?= $pdfExists ? 'true' : 'false' ?>) {
+            pdfjsLib.getDocument('<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars(basename($course['file_pdf'])) ?>').promise
+                .then(function(pdf) {
+                    state.pdfDoc = pdf;
+                    state.totalPages = pdf.numPages;
+                    
+                    // If total pages not set in DB, this first view will set it
+                    if (courseData.pdfTotalPages === 0) {
+                        // Will be saved when first page is viewed
+                    }
+                    
+                    elements.pagesContainer.innerHTML = '';
+
+                    for (let num = 1; num <= Math.min(3, pdf.numPages); num++) {
+                        renderPage(num);
+                    }
+
+                    setTimeout(() => {
+                        for (let num = 4; num <= pdf.numPages; num++) {
+                            renderPage(num);
+                        }
+                    }, 500);
+
+                    setTimeout(checkVisiblePages, 1000);
+                })
+                .catch(function(error) {
+                    console.error('Error loading PDF:', error);
+                    elements.pagesContainer.innerHTML = '<div class="alert alert-danger m-3">Error loading PDF. Please try again.</div>';
+                });
+
+            function renderPage(num) {
+                if (state.pageCache[num]) {
+                    const pageWrapper = state.pageCache[num].cloneNode(true);
+                    elements.pagesContainer.appendChild(pageWrapper);
+                    return;
+                }
+
+                state.pdfDoc.getPage(num).then(function(page) {
+                    const container = document.getElementById('pdfViewerContainer');
+                    const containerWidth = container ? container.clientWidth - 60 : 800;
+                    const viewport = page.getViewport({ scale: 1 });
+                    const scale = containerWidth / viewport.width;
+                    const scaledViewport = page.getViewport({ scale: scale });
+
+                    const pageWrapper = document.createElement('div');
+                    pageWrapper.className = 'pdf-page-wrapper';
+                    pageWrapper.id = `pdf-page-${num}`;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'pdf-page-canvas';
+                    canvas.height = scaledViewport.height;
+                    canvas.width = scaledViewport.width;
+                    pageWrapper.appendChild(canvas);
+
+                    if (state.viewedSet.has(num)) {
+                        const badge = document.createElement('div');
+                        badge.className = 'page-viewed-badge';
+                        badge.id = `page-badge-${num}`;
+                        badge.innerHTML = '<i class="fas fa-check"></i>';
+                        pageWrapper.appendChild(badge);
+                    }
+
+                    elements.pagesContainer.appendChild(pageWrapper);
+
+                    page.render({
+                        canvasContext: canvas.getContext('2d'),
+                        viewport: scaledViewport
+                    });
+
+                    state.pageCache[num] = pageWrapper.cloneNode(true);
+
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting && !state.viewedSet.has(num) && !state.pdfCompleted) {
+                                trackPageView(num);
+
+                                if (!document.getElementById(`page-badge-${num}`)) {
+                                    const badge = document.createElement('div');
+                                    badge.className = 'page-viewed-badge';
+                                    badge.id = `page-badge-${num}`;
+                                    badge.innerHTML = '<i class="fas fa-check"></i>';
+                                    pageWrapper.appendChild(badge);
+                                }
+                            }
+                        });
+                    }, { threshold: 0.5 });
+
+                    observer.observe(pageWrapper);
+                });
+            }
+
+            function trackPageView(pageNum) {
+                if (state.serverConfirmed.has(pageNum) || state.pdfCompleted) return;
+
+                if (!state.viewedSet.has(pageNum)) {
+                    state.viewedSet.add(pageNum);
+
+                    $.ajax({
+                        url: window.location.href,
+                        method: 'POST',
+                        data: {
+                            pdf_page: pageNum,
+                            total_pages: state.totalPages
+                        },
+                        dataType: 'json',
+                        timeout: 10000,
+                        success: function(response) {
+                            if (response.success) {
+                                state.serverConfirmed.add(pageNum);
+                                if (response.pdf_completed) {
+                                    state.pdfCompleted = true;
+                                    updateProgress();
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            function checkVisiblePages() {
+                if (state.pdfCompleted || !elements.pagesContainer) return;
+
+                const container = document.getElementById('pdfViewerContainer');
+                if (!container) return;
+
+                const containerRect = container.getBoundingClientRect();
+
+                for (let num = 1; num <= state.totalPages; num++) {
+                    const pageElement = document.getElementById(`pdf-page-${num}`);
+                    if (!pageElement) continue;
+
+                    const pageRect = pageElement.getBoundingClientRect();
+                    const isVisible = (
+                        pageRect.top < containerRect.bottom &&
+                        pageRect.bottom > containerRect.top
+                    );
+
+                    if (isVisible && !state.viewedSet.has(num) && !state.serverConfirmed.has(num) && !state.pdfCompleted) {
                         trackPageView(num);
-                        saveLastPage(num);
-                        
+
                         if (!document.getElementById(`page-badge-${num}`)) {
                             const badge = document.createElement('div');
                             badge.className = 'page-viewed-badge';
                             badge.id = `page-badge-${num}`;
                             badge.innerHTML = '<i class="fas fa-check"></i>';
-                            pageWrapper.appendChild(badge);
+                            pageElement.appendChild(badge);
                         }
+                    } else if (isVisible) {
+                        state.currentPage = num;
                     }
-                });
-            }, { threshold: 0.5 });
-            
-            observer.observe(pageWrapper);
-        });
-    }
-    
-    // Check visible pages on scroll
-    function checkVisiblePages() {
-        if (isCompleted || !pagesContainer) return;
-        
-        const container = document.getElementById('pdfViewerContainer');
-        if (!container) return;
-        
-        const containerRect = container.getBoundingClientRect();
-        
-        for (let num = 1; num <= totalPages; num++) {
-            const pageElement = document.getElementById(`pdf-page-${num}`);
-            if (!pageElement) continue;
-            
-            const pageRect = pageElement.getBoundingClientRect();
-            const isVisible = (
-                pageRect.top < containerRect.bottom &&
-                pageRect.bottom > containerRect.top
-            );
-            
-            if (isVisible && !viewedSet.has(num) && !serverConfirmed.has(num) && !isCompleted) {
-                trackPageView(num);
-                saveLastPage(num);
+                }
+            }
+
+            let scrollTimeout;
+            document.getElementById('pdfViewerContainer')?.addEventListener('scroll', function() {
+                if (!scrollTimeout) {
+                    scrollTimeout = setTimeout(function() {
+                        checkVisiblePages();
+                        scrollTimeout = null;
+                    }, 200);
+                }
+            });
+        }
+
+        // Video Player
+        <?php if ($course['file_video'] && $videoExists): ?>
+        videojs('courseVideo').ready(function() {
+            const player = this;
+            let completionReported = state.videoCompleted;
+
+            player.on('timeupdate', function() {
+                if (completionReported || state.videoCompleted) return;
+
+                const position = Math.floor(player.currentTime());
+                const duration = Math.floor(player.duration());
                 
-                if (!document.getElementById(`page-badge-${num}`)) {
-                    const badge = document.createElement('div');
-                    badge.className = 'page-viewed-badge';
-                    badge.id = `page-badge-${num}`;
-                    badge.innerHTML = '<i class="fas fa-check"></i>';
-                    pageElement.appendChild(badge);
-                }
-            } else if (isVisible) {
-                currentPage = num;
-            }
-        }
-    }
-    
-    // Add scroll listener with throttle
-    let scrollTimeout;
-    document.getElementById('pdfViewerContainer')?.addEventListener('scroll', function() {
-        if (!scrollTimeout) {
-            scrollTimeout = setTimeout(function() {
-                checkVisiblePages();
-                scrollTimeout = null;
-            }, 200);
-        }
-    });
-    
-    // Track page view
-    function trackPageView(pageNum) {
-        if (serverConfirmed.has(pageNum) || isCompleted) return;
-        
-        if (!viewedSet.has(pageNum)) {
-            viewedSet.add(pageNum);
-            pagesViewed = viewedSet.size;
-            
-            let newProgress = Math.min(100, Math.round((pagesViewed / totalPages) * 100));
-            
-            // Update UI
-            document.getElementById('pagesViewed').textContent = pagesViewed;
-            document.getElementById('viewedPagesCount').textContent = pagesViewed;
-            document.getElementById('progressPercent').textContent = newProgress + '%';
-            document.getElementById('pdfProgressPercentage').textContent = newProgress + '%';
-            document.getElementById('progressBar').style.width = newProgress + '%';
-            document.getElementById('pdfProgressBar').style.width = newProgress + '%';
-            
-            if (!isCompleted && completeBtn) {
-                <?php if($course['file_pdf'] && $course['file_video']): ?>
-                completeBtn.disabled = pagesViewed < totalPages || !videoCompleted;
-                <?php else: ?>
-                completeBtn.disabled = pagesViewed < totalPages;
-                <?php endif; ?>
-            }
-
-            // Check if PDF completed
-            if (newProgress >= 100 && !pdfCompleted) {
-                pdfCompleted = true;
-                document.getElementById('pdfProgressBar').classList.add('completed');
-
-                // Update UI to reflect combined progress
-                updateUI();
-
-                // Update status badge
-                const pdfStatusBadge = document.querySelector('.material-card:has(i.fa-file-pdf) .material-status');
-                if (pdfStatusBadge) {
-                    pdfStatusBadge.className = 'material-status status-completed';
-                    pdfStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
-                }
-            }
-        }
-        
-        // Send to server
-        $.ajax({
-            url: window.location.href,
-            method: 'POST',
-            data: {
-                pdf_page: pageNum,
-                total_pages: totalPages
-            },
-            dataType: 'json',
-            timeout: 10000,
-            success: function(response) {
-                if (response.success) {
-                    serverConfirmed.add(pageNum);
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('Error tracking page:', error);
-            }
-        });
-    }
-    
-    // Save last viewed page
-    function saveLastPage(pageNum) {
-        try {
-            localStorage.setItem(`course_${courseId}_last_page`, pageNum);
-        } catch (e) {
-            // Ignore localStorage errors
-        }
-    }
-    
-    // Load last viewed page
-    function loadLastPage() {
-        try {
-            const lastPage = localStorage.getItem(`course_${courseId}_last_page`);
-            if (lastPage) {
-                setTimeout(() => {
-                    const pageElement = document.getElementById(`pdf-page-${lastPage}`);
-                    if (pageElement) {
-                        pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 1000);
-            }
-        } catch (e) {
-            // Ignore localStorage errors
-        }
-    }
-
-    // Complete button click
-    if (completeBtn) {
-        $('#completeBtn').on('click', function(){
-            let btn = $(this);
-            
-            isCompleted = true;
-            
-            // Update UI
-            document.getElementById('pagesViewed').textContent = totalPages;
-            document.getElementById('viewedPagesCount').textContent = totalPages;
-            document.getElementById('progressPercent').textContent = '100%';
-            document.getElementById('pdfProgressPercentage').textContent = '100%';
-            document.getElementById('progressBar').style.width = '100%';
-            document.getElementById('pdfProgressBar').style.width = '100%';
-            document.getElementById('pdfProgressBar').classList.add('completed');
-            
-            // Update status badges
-            const courseStatusBadge = document.querySelector('.material-card:has(i.fa-chart-line) .material-status');
-            if (courseStatusBadge) {
-                courseStatusBadge.className = 'material-status status-completed';
-                courseStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
-            }
-            
-            const pdfStatusBadge = document.querySelector('.material-card:has(i.fa-file-pdf) .material-status');
-            if (pdfStatusBadge) {
-                pdfStatusBadge.className = 'material-status status-completed';
-                pdfStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
-            }
-            
-            // Add viewed badges to all PDF pages
-            for (let num = 1; num <= totalPages; num++) {
-                if (!document.getElementById(`page-badge-${num}`)) {
-                    const pageElement = document.getElementById(`pdf-page-${num}`);
-                    if (pageElement) {
-                        const badge = document.createElement('div');
-                        badge.className = 'page-viewed-badge';
-                        badge.id = `page-badge-${num}`;
-                        badge.innerHTML = '<i class="fas fa-check"></i>';
-                        pageElement.appendChild(badge);
+                if (duration === 0) return;
+                
+                const percent = (position / duration) * 100;
+                
+                // Mark as completed at 95%
+                if (percent >= 95 && !completionReported) {
+                    completionReported = true;
+                    
+                    $.ajax({
+                        url: window.location.href,
+                        method: 'POST',
+                        data: {
+                            video_position: position,
+                            duration: duration,
+                            completed: 1
+                        },
+                        dataType: 'json',
+                        success: function(response) {
+                            if (response.success) {
+                                state.videoCompleted = true;
+                                updateProgress();
+                            }
+                        }
+                    });
+                } else {
+                    // Update position periodically (every 30 seconds)
+                    if (position % 30 === 0) {
+                        $.ajax({
+                            url: window.location.href,
+                            method: 'POST',
+                            data: {
+                                video_position: position,
+                                duration: duration,
+                                completed: 0
+                            },
+                            dataType: 'json'
+                        });
                     }
                 }
-            }
-            
-            // Remove button and show success
-            btn.replaceWith(`
-                <div class="alert alert-success mt-3" role="alert">
-                    <i class="fas fa-graduation-cap me-2" aria-hidden="true"></i>
-                    Congratulations! You have successfully completed this course 🎓
-                </div>
-            `);
-            
-            // Show assessment
-            if (assessmentContainer) {
-                assessmentContainer.style.display = 'block';
-            }
-            
-            showToast('Course completed successfully!', 'success');
-            
-            // Send to server
-            $.post(window.location.href, { 
-                mark_completed: 1,
-                total_pages: totalPages 
+            });
+
+            // Handle video end
+            player.on('ended', function() {
+                if (!completionReported && !state.videoCompleted) {
+                    completionReported = true;
+                    
+                    $.ajax({
+                        url: window.location.href,
+                        method: 'POST',
+                        data: {
+                            video_position: player.duration(),
+                            duration: player.duration(),
+                            completed: 1
+                        },
+                        dataType: 'json',
+                        success: function(response) {
+                            if (response.success) {
+                                state.videoCompleted = true;
+                                updateProgress();
+                            }
+                        }
+                    });
+                }
             });
         });
-    }
+        <?php endif; ?>
 
-    // Fullscreen toggle
-    if (fullscreenBtn) {
-        const pdfCard = document.getElementById('pdfMaterialCard');
-        
-        fullscreenBtn.addEventListener('click', function() {
-            isFullscreen = !isFullscreen;
-            
-            if (isFullscreen) {
-                pdfCard.classList.add('pdf-fullscreen-mode');
-                fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
-                fullscreenHint.style.display = 'block';
-                
-                setTimeout(() => {
-                    fullscreenHint.style.display = 'none';
-                }, 3000);
-            } else {
-                pdfCard.classList.remove('pdf-fullscreen-mode');
-                fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-                fullscreenHint.style.display = 'none';
-            }
-            
-            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
-        });
-    }
+        // Fullscreen Toggle
+        if (elements.fullscreenBtn && elements.pdfCard) {
+            elements.fullscreenBtn.addEventListener('click', function() {
+                state.isFullscreen = !state.isFullscreen;
 
-    // ESC key to exit fullscreen
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && isFullscreen) {
-            isFullscreen = false;
-            document.getElementById('pdfMaterialCard').classList.remove('pdf-fullscreen-mode');
-            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-            fullscreenHint.style.display = 'none';
-        }
-        
-        // Keyboard navigation in fullscreen
-        if (isFullscreen) {
-            if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                // Scroll to next page
-                if (currentPage < totalPages) {
-                    document.getElementById(`pdf-page-${currentPage + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (state.isFullscreen) {
+                    elements.pdfCard.classList.add('pdf-fullscreen-mode');
+                    elements.fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+                    if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'block';
+
+                    setTimeout(() => {
+                        if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
+                    }, 3000);
+                } else {
+                    elements.pdfCard.classList.remove('pdf-fullscreen-mode');
+                    elements.fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                    if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
                 }
-            } else if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                // Scroll to previous page
-                if (currentPage > 1) {
-                    document.getElementById(`pdf-page-${currentPage - 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
+
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+            });
         }
-    });
 
-    // Video.js player with progress tracking
-    <?php if($course['file_video'] && $videoExists): ?>
-    videojs('courseVideo').ready(function() {
-        var player = this;
-        var lastReportedProgress = 0;
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && state.isFullscreen) {
+                state.isFullscreen = false;
+                if (elements.pdfCard) elements.pdfCard.classList.remove('pdf-fullscreen-mode');
+                if (elements.fullscreenBtn) elements.fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
+            }
 
-        player.on('timeupdate', function() {
-            if (isCompleted || videoCompleted) return;
-
-            var progress = Math.round((player.currentTime() / player.duration()) * 100);
-
-            // Only report every 5% to reduce server load
-            if (Math.abs(progress - lastReportedProgress) >= 5 || progress >= 95) {
-                lastReportedProgress = progress;
-                currentVideoProgress = progress;  // Update global variable
-
-                var videoCompletedFlag = progress >= 90 ? 1 : 0;
-
-                // Update UI
-                document.getElementById('videoProgress').textContent = progress;
-                
-                $.ajax({
-                    url: window.location.href,
-                    method: 'POST',
-                    data: {
-                        video_progress: progress,
-                        video_completed: videoCompletedFlag
-                    },
-                    success: function(response) {
-                        if (response.success && videoCompletedFlag === 1) {
-                            videoCompleted = true;
-                            currentVideoProgress = 100;  // Set to 100% when completed
-
-                            // Update UI immediately
-                            updateUI();
-
-                            // Update video status badge
-                            const videoStatusBadge = document.querySelector('.material-card:has(i.fa-video) .material-status');
-                            if (videoStatusBadge) {
-                                videoStatusBadge.className = 'material-status status-completed';
-                                videoStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Completed';
-                            }
-
-                            // Update complete button state
-                            if (!isCompleted && completeBtn) {
-                                completeBtn.disabled = pagesViewed < totalPages;
-                            }
-                        }
+            if (state.isFullscreen && courseData.hasPdf) {
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (state.currentPage < state.totalPages) {
+                        document.getElementById(`pdf-page-${state.currentPage + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
-                });
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (state.currentPage > 1) {
+                        document.getElementById(`pdf-page-${state.currentPage - 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
             }
         });
-    });
-    <?php endif; ?>
 
-    // Take Assessment button
-    $('#takeAssessmentBtn').on('click', function(e){
-        if (!isCompleted) {
-            e.preventDefault();
-            showToast('Please complete the course first!', 'warning');
-            return false;
-        }
-        return true;
-    });
-
-    // Toast notification
-    function showToast(message, type = 'success') {
-        const toast = $(`
-            <div class="alert alert-${type} alert-dismissible fade show shadow" role="alert">
-                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2" aria-hidden="true"></i>
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} alert-dismissible fade show`;
+            toast.innerHTML = `
                 ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `);
-        $('#toastContainer').append(toast);
-        setTimeout(() => toast.fadeOut(300, function() { $(this).remove(); }), 5000);
-    }
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.getElementById('toastContainer');
+            container.innerHTML = '';
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
 
-    <?php endif; ?>
+        // Initial progress update
+        updateProgress();
+        <?php endif; ?>
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

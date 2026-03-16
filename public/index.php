@@ -174,8 +174,8 @@ require_once __DIR__ . '/../inc/config.php';
                 </div>
 
                <div class="bottom-note" style="margin-top: 0.5rem; margin-left: 128px;">
-             <span onclick="window.location.href='#'" style="cursor: pointer;">Privacy Policy |</span>
-            <span onclick="window.location.href='#'" style="cursor: pointer;"> Terms and Condition |</span>
+             <span onclick="window.location.href='../uploads/pdf/Privacy Policy.pdf'" style="cursor: pointer;">Privacy Policy |</span>
+            <span onclick="window.location.href='../uploads/pdf/TermsConditions.pdf'" style="cursor: pointer;"> Terms and Condition |</span>
             <span onclick="window.location.href='<?= BASE_URL ?>/public/contact_form.php'" style="cursor: pointer;"> Contact Us</span>
             </div>
             </div>
