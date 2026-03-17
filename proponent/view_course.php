@@ -7,61 +7,77 @@ require_login();
 $u = current_user();
 
 $courseId = intval($_GET['id'] ?? 0);
-if(!$courseId) die('Invalid course ID');
+if (!$courseId) die('Invalid course ID');
 
 // Fetch course
 $stmt = $pdo->prepare('SELECT c.*, u.fname, u.lname FROM courses c LEFT JOIN users u ON c.proponent_id = u.id WHERE c.id = ?');
 $stmt->execute([$courseId]);
 $course = $stmt->fetch();
-if(!$course) die('Course not found');
+if (!$course) die('Course not found');
 
 // Check if assessment exists for this course
 $assessment = null;
 $assessment_questions = [];
 
 try {
-    // First, check if assessments table exists and get the assessment
     $stmt = $pdo->prepare("SELECT * FROM assessments WHERE course_id = ? LIMIT 1");
     $stmt->execute([$courseId]);
     $assessment = $stmt->fetch();
     
     if ($assessment) {
-        // Get questions for this assessment
+        // Get questions with their options in a single query to avoid N+1 problem
         $stmt = $pdo->prepare("
-            SELECT * FROM assessment_questions 
-            WHERE assessment_id = ? 
-            ORDER BY order_number ASC
+            SELECT 
+                q.id as question_id,
+                q.question_text,
+                q.question_type,
+                q.points,
+                q.order_number as question_order,
+                o.id as option_id,
+                o.option_text,
+                o.is_correct,
+                o.order_number as option_order
+            FROM assessment_questions q
+            LEFT JOIN assessment_options o ON q.id = o.question_id
+            WHERE q.assessment_id = ?
+            ORDER BY q.order_number ASC, o.order_number ASC
         ");
         $stmt->execute([$assessment['id']]);
-        $questions = $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
         
-        // For each question, get its options
-        foreach ($questions as $question) {
-            $stmt = $pdo->prepare("
-                SELECT * FROM assessment_options 
-                WHERE question_id = ? 
-                ORDER BY order_number ASC
-            ");
-            $stmt->execute([$question['id']]);
-            $options = $stmt->fetchAll();
-            
-            // Add options to question
-            $question['options'] = $options;
-            $assessment_questions[] = $question;
+        // Group options by question
+        $questionsMap = [];
+        foreach ($rows as $row) {
+            $qid = $row['question_id'];
+            if (!isset($questionsMap[$qid])) {
+                $questionsMap[$qid] = [
+                    'id' => $row['question_id'],
+                    'question_text' => $row['question_text'],
+                    'question_type' => $row['question_type'],
+                    'points' => $row['points'],
+                    'options' => []
+                ];
+            }
+            if ($row['option_id']) {
+                $questionsMap[$qid]['options'][] = [
+                    'id' => $row['option_id'],
+                    'option_text' => $row['option_text'],
+                    'is_correct' => $row['is_correct']
+                ];
+            }
         }
+        
+        $assessment_questions = array_values($questionsMap);
     }
 } catch (Exception $e) {
-    // Log error or handle gracefully
     error_log("Error fetching assessment: " . $e->getMessage());
-    $assessment = null;
-    $assessment_questions = [];
 }
 
 // ============================================
-// FETCH ENROLLED STUDENTS - FOR COURSE CREATORS
+// FETCH ENROLLED STUDENTS
 // ============================================
 
-// 1. ALL enrolled students (ongoing + completed)
+// 1. ALL enrolled students
 $stmt = $pdo->prepare('
     SELECT 
         u.id, 
@@ -80,12 +96,7 @@ $stmt = $pdo->prepare('
             WHEN e.status = "completed" THEN "bg-success"
             WHEN e.status = "ongoing" THEN "bg-warning"
             ELSE "bg-secondary"
-        END as status_color,
-        CASE 
-            WHEN e.status = "completed" THEN "Completed"
-            WHEN e.status = "ongoing" THEN "Ongoing"
-            ELSE "Not Started"
-        END as status_text
+        END as status_color
     FROM enrollments e
     JOIN users u ON e.user_id = u.id 
     WHERE e.course_id = ?
@@ -98,9 +109,9 @@ $stmt = $pdo->prepare('
         e.enrolled_at DESC
 ');
 $stmt->execute([$courseId]);
-$enrolledStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$enrolledStudents = $stmt->fetchAll();
 
-// 2. Count statistics
+// 2. Statistics
 $stmt = $pdo->prepare('
     SELECT 
         COUNT(*) as total_enrolled,
@@ -110,12 +121,13 @@ $stmt = $pdo->prepare('
     WHERE course_id = ?
 ');
 $stmt->execute([$courseId]);
-$stats = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// 3. Completion rate
-$completionRate = 0;
-if ($stats['total_enrolled'] > 0) {
-    $completionRate = round(($stats['completed_count'] / $stats['total_enrolled']) * 100);
+$stats = $stmt->fetch();
+if (!$stats) {
+    $stats = [
+        'total_enrolled' => 0,
+        'ongoing_count' => 0,
+        'completed_count' => 0
+    ];
 }
 
 // Export CSV
@@ -132,7 +144,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             $student['fname'] . ' ' . $student['lname'],
             $student['email'],
             $student['username'],
-            $student['status_text'],
+            ucfirst($student['status']),
             $student['enrolled_date'],
             $student['completed_date'] ?? 'N/A',
             $student['progress'] . '%',
@@ -148,18 +160,13 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?=htmlspecialchars($course['title'])?> - Course View</title>
+    <title><?= htmlspecialchars($course['title']) ?> - Course View</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-   
-   <style>
+    <style>
         .students-section {
             margin-top: 30px;
             background: white;
@@ -249,6 +256,10 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             border-radius: 50px;
             font-size: 14px;
             transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .export-btn:hover {
@@ -508,6 +519,87 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             border-radius: 12px;
             padding: 12px 16px;
         }
+
+        /* Search box styles */
+        .search-box {
+            position: relative;
+            width: 250px;
+        }
+        
+        .search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            z-index: 10;
+            font-size: 14px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 35px;
+            border: 1px solid #dee2e6;
+            border-radius: 50px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .search-box input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Issue badge button style */
+        .issue-badge-btn {
+            background: #ffc107;
+            border: none;
+            color: #212529;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+        }
+        
+        .issue-badge-btn:hover {
+            background: #ffca2c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
+        }
+        
+        .issue-badge-btn i {
+            font-size: 11px;
+        }
+        
+        /* Modal width */
+        .modal-xl {
+            max-width: 1400px !important;
+        }
+
+        /* Score column styling */
+        td.text-success {
+            font-weight: 600;
+        }
+
+        td.text-danger {
+            font-weight: 600;
+        }
+
+        /* Report preview table */
+        #reportPreviewModal .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+
+        #reportPreviewModal .table td {
+            vertical-align: middle;
+        }
+
+        #reportPreviewModal .table tfoot td {
+            background-color: #f8f9fa;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -522,18 +614,9 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
         <div class="course-header">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h3>
-                        <?=htmlspecialchars($course['title'])?>
-                    </h3>
-                    <p><?=nl2br(htmlspecialchars($course['description']))?></p>
+                    <h3><?= htmlspecialchars($course['title']) ?></h3>
+                    <p><?= nl2br(htmlspecialchars($course['description'])) ?></p>
                 </div>
-                
-                <!-- Export Button for Admin/Proponent -->
-                <?php if((is_admin() || is_proponent()) && count($enrolledStudents) > 0): ?>
-                    <a href="?id=<?= $courseId ?>&export=csv" class="export-btn">
-                        <i class="fas fa-download me-2"></i>Export CSV
-                    </a>
-                <?php endif; ?>
             </div>
         </div>
 
@@ -549,7 +632,6 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                 </div>
             </div>
             <div>
-                <!-- Button to toggle List of enrollees -->
                 <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#enrolleesModal">
                     <i class="fas fa-users me-2"></i>View Enrollees (<?= $stats['total_enrolled'] ?? 0 ?>)
                 </button>
@@ -568,7 +650,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <!-- Students Stats -->
+                        <!-- Students Stats and Search -->
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <div class="students-stats">
                                 <div class="stat-item">
@@ -583,37 +665,62 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                     <i class="fas fa-check-circle"></i>
                                     Completed: <?= $stats['completed_count'] ?? 0 ?>
                                 </div>
-                                <div class="stat-item">
-                                    <i class="fas fa-chart-line"></i>
-                                    Completion Rate: <?= $completionRate ?>%
-                                </div>
                             </div>
                             
-                            <?php if((is_admin() || is_proponent()) && count($enrolledStudents) > 0): ?>
-                                <a href="?id=<?= $courseId ?>&export=csv" class="export-btn">
-                                    <i class="fas fa-download me-2"></i>Export CSV
-                                </a>
-                            <?php endif; ?>
+                            <div class="d-flex gap-3 align-items-center">
+                                <!-- Search Bar -->
+                                <div class="search-box">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" id="studentSearch" class="form-control" placeholder="Search students...">
+                                </div>
+                                
+                                <?php if((is_admin() || is_proponent()) && count($enrolledStudents) > 0): ?>
+                                    <a href="?id=<?= $courseId ?>&export=csv" class="export-btn">
+                                        <i class="fas fa-download me-2"></i>Export CSV
+                                    </a>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <!-- Students Table -->
                         <?php if(count($enrolledStudents) > 0): ?>
                             <div class="table-responsive">
-                                <table class="table table-hover align-middle" id="studentsTableModal">
+                                <table class="table table-hover align-middle" id="studentsTable">
                                     <thead class="table-light">
                                         <tr>
                                             <th>Student</th>
                                             <th>Email</th>
-                                            <th>Status</th>
-                                            <th>Enrolled Date</th>
-                                            <th>Completed Date</th>
+                                            <th>Enroll Date</th>
+                                            <th>Completion Date</th>
                                             <th>Progress</th>
-                                            <th>Time Spent</th>
+                                            <th>Score</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <?php foreach($enrolledStudents as $student): ?>
-                                        <tr style="cursor: pointer;" onclick="window.location.href='user_profile.php?id=<?= $student['id'] ?>'">
+                                    <tbody id="studentsTableBody">
+                                        <?php foreach($enrolledStudents as $student): 
+                                            // Fetch assessment score for this student
+                                            $score = '—';
+                                            $scoreClass = '';
+                                            if ($assessment) {
+                                                $stmt = $pdo->prepare("
+                                                    SELECT score, passed 
+                                                    FROM assessment_attempts 
+                                                    WHERE assessment_id = ? AND user_id = ? AND status = 'completed'
+                                                    ORDER BY completed_at DESC 
+                                                    LIMIT 1
+                                                ");
+                                                $stmt->execute([$assessment['id'], $student['id']]);
+                                                $attempt = $stmt->fetch();
+                                                
+                                                if ($attempt) {
+                                                    $score = $attempt['score'] . '%';
+                                                    $scoreClass = $attempt['passed'] ? 'text-success fw-bold' : 'text-danger';
+                                                }
+                                            }
+                                        ?>
+                                        <tr class="student-row">
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <div class="student-avatar me-3">
@@ -625,13 +732,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td><?= htmlspecialchars($student['email'] ?? '') ?></td>
-                                            <td>
-                                                <span class="badge <?= $student['status_color'] ?? 'bg-secondary' ?> status-badge">
-                                                    <i class="fas fa-<?= $student['status'] === 'completed' ? 'check-circle' : 'play-circle' ?> me-1"></i>
-                                                    <?= $student['status_text'] ?? ucfirst($student['status'] ?? 'Unknown') ?>
-                                                </span>
-                                            </td>
+                                            <td class="student-email"><?= htmlspecialchars($student['email'] ?? '') ?></td>
                                             <td>
                                                 <i class="fas fa-calendar-alt text-muted me-1"></i>
                                                 <?= $student['enrolled_date'] ?? date('M d, Y', strtotime($student['enrolled_at'])) ?>
@@ -652,15 +753,21 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                                     </div>
                                                 </div>
                                             </td>
+                                            <td class="<?= $scoreClass ?>">
+                                                <?= $score ?>
+                                            </td>
                                             <td>
-                                                <?php 
-                                                $minutes = floor(($student['total_time_seconds'] ?? 0) / 60);
-                                                $seconds = ($student['total_time_seconds'] ?? 0) % 60;
-                                                ?>
-                                                <span class="badge bg-light text-dark">
-                                                    <i class="fas fa-clock me-1"></i>
-                                                    <?= $minutes > 0 ? $minutes . 'm ' : '' ?><?= $seconds ?>s
+                                                <span class="badge <?= $student['status_color'] ?? 'bg-secondary' ?> status-badge">
+                                                    <i class="fas fa-<?= $student['status'] === 'completed' ? 'check-circle' : 'play-circle' ?> me-1"></i>
+                                                    <?= ucfirst($student['status'] ?? 'Unknown') ?>
                                                 </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-warning issue-badge-btn" 
+                                                        data-student-id="<?= $student['id'] ?>"
+                                                        data-student-name="<?= htmlspecialchars($student['fname'] ?? '') ?> <?= htmlspecialchars($student['lname'] ?? '') ?>">
+                                                    <i class="fas fa-medal me-1"></i>Issue Badge
+                                                </button>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -669,9 +776,14 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                             </div>
                             
                             <div class="d-flex justify-content-between align-items-center mt-3">
-                                <small class="text-muted">
-                                    Showing <?= count($enrolledStudents) ?> of <?= $stats['total_enrolled'] ?? 0 ?> students
+                                <small class="text-muted" id="studentCount">
+                                    Showing <span id="visibleCount"><?= count($enrolledStudents) ?></span> of <?= $stats['total_enrolled'] ?? 0 ?> students
                                 </small>
+                                
+                                <!-- Generate Report Button -->
+                                <button class="btn btn-primary" id="generateReportBtn" data-bs-toggle="modal" data-bs-target="#reportPreviewModal">
+                                    <i class="fas fa-file-pdf me-2"></i>Generate Report
+                                </button>
                             </div>
                         <?php else: ?>
                             <div class="empty-state">
@@ -681,12 +793,96 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
                 </div>
             </div>
         </div>
+
+<!-- Report Preview Modal -->
+<div class="modal fade" id="reportPreviewModal" tabindex="-1" aria-labelledby="reportPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="reportPreviewModalLabel">
+                    <i class="fas fa-file-pdf me-2"></i>
+                    Report Preview - <?= htmlspecialchars($course['title']) ?>
+                </h5>
+                <button class="btn-close btn-close-white" type="button" data-bs-toggle="modal" data-bs-target="#enrolleesModal" aria-label="Close" style="display: none;"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Email</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $totalStudents = 0;
+                            $totalPassed = 0;
+                            foreach($enrolledStudents as $student): 
+                                // Fetch assessment score for this student
+                                $score = '—';
+                                $status = ucfirst($student['status'] ?? 'Unknown');
+                                $passed = false;
+                                
+                                if ($assessment) {
+                                    $stmt = $pdo->prepare("
+                                        SELECT score, passed 
+                                        FROM assessment_attempts 
+                                        WHERE assessment_id = ? AND user_id = ? AND status = 'completed'
+                                        ORDER BY completed_at DESC 
+                                        LIMIT 1
+                                    ");
+                                    $stmt->execute([$assessment['id'], $student['id']]);
+                                    $attempt = $stmt->fetch();
+                                    
+                                    if ($attempt) {
+                                        $score = $attempt['score'] . '%';
+                                        $passed = $attempt['passed'] == 1;
+                                        if ($passed) $totalPassed++;
+                                    }
+                                }
+                                $totalStudents++;
+                            ?>
+                            <tr>
+                                <td><?= htmlspecialchars($student['fname'] ?? '') ?> <?= htmlspecialchars($student['lname'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($student['email'] ?? '') ?></td>
+                                <td class="<?= $passed ? 'text-success fw-bold' : ($score !== '—' ? 'text-danger' : '') ?>">
+                                    <?= $score ?>
+                                </td>
+                                <td>
+                                    <span class="badge <?= $student['status_color'] ?? 'bg-secondary' ?>">
+                                        <?= ucfirst($student['status'] ?? 'Unknown') ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="4" class="text-end">
+                                    <strong>Total Students:</strong> <?= $totalStudents ?> | 
+                                    <strong>Passed:</strong> <?= $totalPassed ?> | 
+                                    <strong>Failed:</strong> <?= $totalStudents - $totalPassed ?>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    <button type="button" class="btn btn-primary" id="downloadReportBtn">
+        <i class="fas fa-download me-2"></i>Download PDF
+    </button>
+</div>
+        </div>
+    </div>
+</div>
         
         <!-- Preview Section -->
         <div class="content-card">
@@ -731,7 +927,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
         </div>
         <?php endif; ?>
 
-        <!-- Assessment Content - Inside a content card like PDF and video -->
+        <!-- Assessment Content -->
         <?php if($assessment): ?>
         <div class="content-card">
             <h5><i class="fas fa-clipboard-list text-primary me-2"></i> Course Assessment</h5>
@@ -817,8 +1013,6 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
-
-                        
                     <?php else: ?>
                         <div class="empty-state">
                             <i class="fas fa-question-circle"></i>
@@ -838,25 +1032,124 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             </div>
         </div>
         <?php endif; ?>
-
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const cards = document.querySelectorAll('.content-card, .course-info-card');
-        cards.forEach((card, index) => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fade in animation for cards
+    const cards = document.querySelectorAll('.content-card, .course-info-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+    
+    // Real-time search functionality
+    const searchInput = document.getElementById('studentSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#studentsTableBody .student-row');
+            let visibleCount = 0;
             
-            setTimeout(() => {
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, index * 100);
+            rows.forEach(row => {
+                const studentName = row.querySelector('strong').textContent.toLowerCase();
+                const studentEmail = row.querySelector('.student-email').textContent.toLowerCase();
+                const username = row.querySelector('small').textContent.toLowerCase();
+                
+                if (studentName.includes(searchTerm) || 
+                    studentEmail.includes(searchTerm) || 
+                    username.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Update visible count
+            const countSpan = document.getElementById('visibleCount');
+            if (countSpan) {
+                countSpan.textContent = visibleCount;
+            }
+        });
+    }
+    
+    // Issue Badge buttons (placeholder functionality)
+    const badgeButtons = document.querySelectorAll('.issue-badge-btn');
+    badgeButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const studentName = this.dataset.studentName;
+            alert(`Issue badge to ${studentName} - Coming soon!`);
         });
     });
-    </script>
+    
+    // Download Report button
+    const downloadBtn = document.getElementById('downloadReportBtn');
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+            // Get the report data from the table
+            const reportRows = [];
+            const rows = document.querySelectorAll('#reportPreviewModal tbody tr');
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                reportRows.push({
+                    name: cells[0].textContent.trim(),
+                    email: cells[1].textContent.trim(),
+                    score: cells[2].textContent.trim(),
+                    status: cells[3].textContent.trim()
+                });
+            });
+            
+            // Generate CSV content
+            let csvContent = "Student Name,Email,Score,Status\n";
+            reportRows.forEach(row => {
+                csvContent += `"${row.name}","${row.email}","${row.score}","${row.status}"\n`;
+            });
+            
+            // Add summary
+            const summary = document.querySelector('#reportPreviewModal tfoot td').textContent.trim();
+            csvContent += `\n"${summary}"`;
+            
+            // Create download link
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'course_report_<?= htmlspecialchars($course['title']) ?>.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        });
+    }
+
+    // When report preview modal is closed, reopen enrollees modal (Pure JavaScript version)
+    const reportPreviewModal = document.getElementById('reportPreviewModal');
+    if (reportPreviewModal) {
+        reportPreviewModal.addEventListener('hidden.bs.modal', function () {
+            const enrolleesModal = new bootstrap.Modal(document.getElementById('enrolleesModal'));
+            enrolleesModal.show();
+        });
+    }
+
+    // Also fix the Close button in the modal footer
+    const closeButtons = document.querySelectorAll('#reportPreviewModal .btn-secondary');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // The modal will close automatically due to data-bs-dismiss
+            // Then the hidden.bs.modal event above will trigger and reopen enrollees modal
+        });
+    });
+});
+</script>
 </body>
 </html>

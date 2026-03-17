@@ -14,6 +14,20 @@ exit;
 
 $act = $_GET['act'] ?? '';
 
+//handle add committee department
+if (isset($_POST['add_committee'])) {
+    $name = $_POST['name'];
+
+    $stmt = $pdo->prepare("INSERT INTO committee (name) VALUES (?)");
+    $stmt->execute([$name]);
+
+    header('Location: ' . BASE_URL . '/admin/committee_crud.php');
+    exit;
+}
+
+
+
+
 // Handle ADD DEPARTMENT
 if ($act === 'add_department' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     session_start();
@@ -498,13 +512,9 @@ $totalPending = count($pendingUsers);
 <!-- Department Checkboxes with Search and Action Buttons - Hidden by default -->
 <div class="mb-3" id="departmentsSection" style="display: none;">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <label class="fw-bold">Departments</label>
+        <label class="fw-bold">Division/Departments</label>
         <div>
-            <button type="button" class="btn btn-sm btn-primary me-1" data-bs-toggle="modal" data-bs-target="#addDepartmentModal" data-form-type="add">
-                <i class="fas fa-plus"></i> Add
-            </button>
-            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editDepartmentModal" data-form-type="add">
-                <i class="fas fa-edit"></i> Edit
+           
             </button>
         </div>
     </div>
@@ -528,6 +538,39 @@ $totalPending = count($pendingUsers);
     </div>
     <small class="text-muted">Select all departments the user belongs to</small>
 </div>
+
+<!-- Comittee department Checkboxes with Search and Action Buttons --------------------------------------------------------------------------------------- -->
+<div class="mb-3" id="CommitteeSection" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="fw-bold">Committee Departments</label>
+        <div>
+          
+        </div>
+    </div>
+    
+    <!-- Search Bar -->
+    <div class="mb-2">
+        <input type="text" id="committeeSearch" class="form-control" placeholder="Search committee departments..." style="margin-bottom: 10px;">
+    </div>
+    
+    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;" id="committeeContainer">
+        <?php if (empty($committees)): ?>
+            <p class="text-muted text-center">No committee departments available. Click "Add" to create one.</p>
+        <?php else: ?>
+            <?php foreach($committees as $committee): ?>
+            <div style="margin-bottom: 8px;" class="committee-item" data-committee-name="<?= strtolower(htmlspecialchars($committee['name'])) ?>">
+                <input type="checkbox" name="committees[]" value="<?= $committee['id'] ?>" id="committee_<?= $committee['id'] ?>">
+                <label for="committee_<?= $committee['id'] ?>"><?= htmlspecialchars($committee['name']) ?></label>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <small class="text-muted">Select all committee departments the user belongs to</small>
+</div>
+                
+
+
+
 
 <div class="mt-3">
 <button type="submit" class="btn btn-primary">Create User</button>
@@ -938,17 +981,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Role-based department visibility
+    // Role-based department visibility     
     const roleSelect = document.getElementById('roleSelect');
     const departmentsSection = document.getElementById('departmentsSection');
     
     if (roleSelect && departmentsSection) {
         function toggleDepartments() {
             const selectedRole = roleSelect.value;
-            if (selectedRole === 'proponent' || selectedRole === 'admin') {
+            if (selectedRole === 'user') {
                 departmentsSection.style.display = 'block';
+                CommitteeSection.style.display = 'none';
             } else {
                 departmentsSection.style.display = 'none';
+                CommitteeSection.style.display = 'block';
+                
             }
         }
         
@@ -958,6 +1004,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Listen for changes
         roleSelect.addEventListener('change', toggleDepartments);
     }
+
+
+    
     
     // Handle Add Department modal form action
     const addDepartmentModal = document.getElementById('addDepartmentModal');

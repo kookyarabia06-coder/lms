@@ -75,7 +75,7 @@ function get_role_icon($role = '') {
                 <!-- ALL COURSES TABS SECTION -->
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
+                        <i class="fa fa-book"></i> All Courses tab <i class="fa fa-caret-down float-end"></i>
                     </a>
                     <div class="collapse" id="coursesSubMenu">
                         <ul class="nav flex-column ms-3">
@@ -112,14 +112,40 @@ function get_role_icon($role = '') {
                     </div>
                 </li>
 
-                <!-- User Management -->
-                <?php if($u && (is_admin() || is_superadmin())): ?>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
-                            <i class="fa fa-users"></i> User Management
-                        </a>
-                    </li>
-                <?php endif; ?>
+<!-- User Management -->
+
+
+
+ <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
+                        <i class="fa fa-book"></i> User Management <i class="fa fa-caret-down float-end"></i>
+                    </a>
+                    <div class="collapse" id="coursesSubMenu">
+                        <ul class="nav flex-column ms-3">
+                            <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                                <li class="nav-item">
+                                    <li class="nav-item"><a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
+                                        <i class="fa fa-gear"></i> User List
+                                    </a>
+                                </li>
+                            <li class="nav-item">
+                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/Departments_crud.php">
+                                        <i class="fa fa-gear"></i> Departments
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/committee_crud.php">
+                                        <i class="fa fa-gear"></i> Committee
+                                    </a>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </li>
+
+                
+              
+
 
                 <!-- DIVIDER 2 -->
                 <?php if($u && (is_admin() || is_superadmin())): ?>

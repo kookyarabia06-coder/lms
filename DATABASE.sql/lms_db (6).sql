@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 05, 2026 at 09:43 AM
+-- Generation Time: Mar 17, 2026 at 06:14 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -44,7 +44,9 @@ CREATE TABLE `assessments` (
 --
 
 INSERT INTO `assessments` (`id`, `course_id`, `title`, `description`, `passing_score`, `time_limit`, `attempts_allowed`, `created_at`, `updated_at`) VALUES
-(3, 42, '', '', 70, 0, 1, '2026-03-05 08:30:40', NULL);
+(6, 44, 'Powerpoint', 'PowerpointPowerpoint', 70, 0, 0, '2026-03-12 02:44:29', '2026-03-16 05:32:06'),
+(8, 47, 'MS WORD', 'MS WORDMS WORDMS WORDMS WORD', 70, 0, 0, '2026-03-12 03:17:14', '2026-03-16 05:32:26'),
+(9, 46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 70, 0, 0, '2026-03-12 03:17:52', '2026-03-12 05:12:30');
 
 -- --------------------------------------------------------
 
@@ -62,6 +64,24 @@ CREATE TABLE `assessment_answers` (
   `points_earned` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `assessment_answers`
+--
+
+INSERT INTO `assessment_answers` (`id`, `attempt_id`, `question_id`, `selected_option_id`, `essay_answer`, `is_correct`, `points_earned`) VALUES
+(1, 3, 30, 117, NULL, 1, 1),
+(2, 3, 31, 121, NULL, 0, 0),
+(3, 3, 32, 126, NULL, 1, 1),
+(4, 4, 30, 115, NULL, 0, 0),
+(5, 4, 31, 120, NULL, 0, 0),
+(6, 4, 32, 125, NULL, 0, 0),
+(7, 5, 30, 117, NULL, 1, 1),
+(8, 5, 31, 119, NULL, 1, 1),
+(9, 5, 32, 124, NULL, 0, 0),
+(10, 6, 30, 117, NULL, 1, 1),
+(11, 6, 31, 119, NULL, 1, 1),
+(12, 6, 32, 126, NULL, 1, 1);
+
 -- --------------------------------------------------------
 
 --
@@ -72,13 +92,23 @@ CREATE TABLE `assessment_attempts` (
   `id` int(11) NOT NULL,
   `assessment_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `score` int(11) DEFAULT 0,
+  `score` decimal(5,2) DEFAULT NULL,
+  `status` enum('in_progress','completed') DEFAULT 'in_progress',
+  `started_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
   `passed` tinyint(1) DEFAULT 0,
-  `started_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `completed_at` timestamp NULL DEFAULT NULL,
-  `time_taken` int(11) DEFAULT NULL COMMENT 'Time taken in seconds',
-  `attempt_number` int(11) DEFAULT 1
+  `answers` longtext DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `assessment_attempts`
+--
+
+INSERT INTO `assessment_attempts` (`id`, `assessment_id`, `user_id`, `score`, `status`, `started_at`, `completed_at`, `passed`, `answers`) VALUES
+(3, 6, 76, 66.67, 'completed', '2026-03-16 16:36:52', '2026-03-16 16:39:05', 0, NULL),
+(4, 6, 76, 0.00, 'completed', '2026-03-16 16:39:18', '2026-03-16 16:39:28', 0, NULL),
+(5, 6, 76, 66.67, 'completed', '2026-03-16 16:40:06', '2026-03-16 16:40:16', 0, NULL),
+(6, 6, 76, 100.00, 'completed', '2026-03-16 16:40:26', '2026-03-16 16:40:35', 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -93,6 +123,40 @@ CREATE TABLE `assessment_options` (
   `is_correct` tinyint(1) DEFAULT 0,
   `order_number` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `assessment_options`
+--
+
+INSERT INTO `assessment_options` (`id`, `question_id`, `option_text`, `is_correct`, `order_number`) VALUES
+(63, 17, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 0, 0),
+(64, 17, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 0, 1),
+(65, 17, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 0, 2),
+(66, 17, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 1, 3),
+(115, 30, 'Powerpoint', 0, 0),
+(116, 30, 'PowerpointPowerpoint', 0, 1),
+(117, 30, 'PowerpointPowerpointPowerpoint', 1, 2),
+(118, 30, 'PowerpointPowerpointPowerpointPowerpoint', 0, 3),
+(119, 31, 'PowerpointPowerpoint', 1, 0),
+(120, 31, 'Powerpoint', 0, 1),
+(121, 31, 'PowerpointPowerpointPowerpoint', 0, 2),
+(122, 31, 'PowerpointPowerpointPowerpointPowerpoint', 0, 3),
+(123, 32, 'PowerpointPowerpointPowerpoint', 0, 0),
+(124, 32, 'Powerpoint', 0, 1),
+(125, 32, 'PowerpointPowerpoint', 0, 2),
+(126, 32, 'Regine Velasquez', 1, 3),
+(127, 33, 'MS WORD', 0, 0),
+(128, 33, 'MS WORDMS WORD', 1, 1),
+(129, 33, 'MS WORDMS WORDMS WORD', 0, 2),
+(130, 33, 'MS WORDMS WORDMS WORDMS WORD', 0, 3),
+(131, 34, 'MS WORDMS WORDMS WORDMS WORDMS WORD', 0, 0),
+(132, 34, 'MS WORDMS WORDMS WORDMS WORD', 0, 1),
+(133, 34, 'MS WORDMS WORDMS WORD', 1, 2),
+(134, 34, 'MS WORD', 0, 3),
+(135, 35, 'Powerpoint', 1, 0),
+(136, 35, 'Powerpointdddsd', 0, 1),
+(137, 35, 'asdas', 0, 2),
+(138, 35, 'asdasd', 0, 3);
 
 -- --------------------------------------------------------
 
@@ -109,6 +173,19 @@ CREATE TABLE `assessment_questions` (
   `order_number` int(11) DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `assessment_questions`
+--
+
+INSERT INTO `assessment_questions` (`id`, `assessment_id`, `question_text`, `question_type`, `points`, `order_number`, `created_at`) VALUES
+(17, 9, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'multiple_choice', 1, 0, '2026-03-12 05:12:30'),
+(30, 6, 'PowerpointPowerpointPowerpoint', 'multiple_choice', 1, 0, '2026-03-16 05:32:06'),
+(31, 6, 'PowerpointPowerpoint', 'multiple_choice', 1, 1, '2026-03-16 05:32:06'),
+(32, 6, 'Powerpoint', 'multiple_choice', 1, 2, '2026-03-16 05:32:06'),
+(33, 8, 'MS WORDMS WORD', 'multiple_choice', 1, 0, '2026-03-16 05:32:26'),
+(34, 8, 'MS WORDMS WORDMS WORD', 'multiple_choice', 1, 1, '2026-03-16 05:32:26'),
+(35, 8, 'Powerpoint', 'multiple_choice', 1, 2, '2026-03-16 05:32:26');
 
 -- --------------------------------------------------------
 
@@ -166,44 +243,46 @@ INSERT INTO `audit_log` (`id`, `table_name`, `record_id`, `action`, `old_data`, 
 (31, 'courses', 40, 'INSERT', NULL, '{\"title\": \"pogina kurso\", \"description\": \"pogina kurso\", \"summary\": \"pogina kurso\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 22, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-05 07:20:09'),
 (32, 'courses', 40, 'UPDATE', '{\"title\": \"pogina kurso\", \"description\": \"pogina kurso\", \"summary\": \"pogina kurso\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"\", \"description\": null, \"summary\": null, \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '[\"title\", \"description\", \"summary\"]', NULL, '2026-03-05 07:29:40'),
 (33, 'courses', 41, 'INSERT', NULL, '{\"title\": \"sadasdasdasd\", \"description\": \"asdasdasdasdas\", \"summary\": \"dasdasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 33, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-05 07:32:37'),
-(34, 'courses', 42, 'INSERT', NULL, '{\"title\": \"qweqweqwe\", \"description\": \"qweqweqwe\", \"summary\": \"qweqweqweqweqweqweqweqweqweqweqweqweqweqweqwe\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-05 08:30:40');
+(34, 'courses', 42, 'INSERT', NULL, '{\"title\": \"qweqweqwe\", \"description\": \"qweqweqwe\", \"summary\": \"qweqweqweqweqweqweqweqweqweqweqweqweqweqweqwe\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-05 08:30:40'),
+(35, 'courses', 40, 'UPDATE', '{\"title\": \"\", \"description\": null, \"summary\": null, \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"Microsoft Powerpoint\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '[\"title\", \"description\", \"summary\", \"thumbnail\", \"file_pdf\"]', NULL, '2026-03-11 01:39:27'),
+(36, 'courses', 43, 'INSERT', NULL, '{\"title\": \"MS Word\", \"description\": \"MS WordMS Word\", \"summary\": \"MS WordMS WordMS Word\", \"thumbnail\": \"feefeaf3fbd48e1b.png\", \"file_pdf\": \"72d755939d0b9f3f.pdf\", \"file_video\": null, \"proponent_id\": 24, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-11 01:58:07'),
+(37, 'courses', 44, 'INSERT', NULL, '{\"title\": \"MS Powerpoint\", \"description\": \"MS PowerpointMS Powerpoint\", \"summary\": \"MS PowerpointMS PowerpointMS Powerpoint\", \"thumbnail\": \"787649e329f7066e.png\", \"file_pdf\": \"2511cc375026c19b.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-11 01:59:03'),
+(38, 'courses', 40, 'UPDATE', '{\"title\": \"Microsoft Powerpoint\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"Microsoft Powerpointsssssssss\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '[\"title\"]', NULL, '2026-03-11 01:59:57'),
+(39, 'courses', 45, 'INSERT', NULL, '{\"title\": \"Republic Act No. 11313\", \"description\": \"Republic Act No. 11313Republic Act No. 11313\", \"summary\": \"Republic Act No. 11313Republic Act No. 11313Republic Act No. 11313Republic Act No. 11313\", \"thumbnail\": null, \"file_pdf\": \"2d522d1e8f7e388d.pdf\", \"file_video\": null, \"proponent_id\": 33, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-11 02:01:33'),
+(40, 'courses', 40, 'UPDATE', '{\"title\": \"Microsoft Powerpointsssssssss\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"Microsoft Powerpointsssssssssssssssssssssssssssssssssssss\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '[\"title\"]', NULL, '2026-03-11 02:20:08'),
+(41, 'courses', 38, 'DELETE', '{\"title\": \"EXAMPLE\", \"description\": \"EXAMPLE\", \"summary\": \"EXAMPLEEXAMPLEEXAMPLE\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 33, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-11 05:36:21'),
+(42, 'courses', 42, 'DELETE', '{\"title\": \"qweqweqwe\", \"description\": \"qweqweqwe\", \"summary\": \"qweqweqweqweqweqweqweqweqweqweqweqweqweqweqwe\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-11 05:36:25'),
+(43, 'courses', 41, 'DELETE', '{\"title\": \"sadasdasdasd\", \"description\": \"asdasdasdasdas\", \"summary\": \"dasdasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 33, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-11 05:36:28'),
+(44, 'courses', 40, 'UPDATE', '{\"title\": \"Microsoft Powerpointsssssssssssssssssssssssssssssssssssss\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"Microsoft Powerpoints\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '[\"title\"]', NULL, '2026-03-11 06:03:56'),
+(45, 'courses', 40, 'UPDATE', '{\"title\": \"Microsoft Powerpoints\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"Microsoft Powerpoints\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": \"a38542228f6286fd.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-11 06:19:17'),
+(46, 'courses', 40, 'DELETE', '{\"title\": \"Microsoft Powerpoints\", \"description\": \"for creating presentation\", \"summary\": \"Microsoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft PowerpointMicrosoft Powerpoint\", \"thumbnail\": \"5ad2543daa240b1a.png\", \"file_pdf\": \"914521970748b621.pdf\", \"file_video\": \"a38542228f6286fd.mp4\", \"proponent_id\": 22, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-12 02:43:28'),
+(47, 'courses', 46, 'INSERT', NULL, '{\"title\": \"BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING\", \"description\": \"BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING\", \"summary\": \"BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING\", \"thumbnail\": null, \"file_pdf\": \"553d0b74f1e03290.pdf\", \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-12 03:15:47'),
+(48, 'courses', 47, 'INSERT', NULL, '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-12 03:16:20'),
+(49, 'courses', 44, 'UPDATE', '{\"title\": \"MS Powerpoint\", \"description\": \"MS PowerpointMS Powerpoint\", \"summary\": \"MS PowerpointMS PowerpointMS Powerpoint\", \"thumbnail\": \"787649e329f7066e.png\", \"file_pdf\": \"2511cc375026c19b.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"MS Powerpoint\", \"description\": \"MS PowerpointMS Powerpoint\", \"summary\": \"MS PowerpointMS PowerpointMS Powerpoint\", \"thumbnail\": \"787649e329f7066e.png\", \"file_pdf\": \"2511cc375026c19b.pdf\", \"file_video\": \"3734cd9963722805.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-13 01:04:28'),
+(50, 'courses', 47, 'UPDATE', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": \"e8483caa3dd5f146.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-13 01:05:44'),
+(51, 'courses', 48, 'INSERT', NULL, '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, '2026-03-13 08:01:14'),
+(52, 'courses', 49, 'INSERT', NULL, '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-13 08:13:17');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `audit_logs`
+-- Table structure for table `committees`
 --
 
-CREATE TABLE `audit_logs` (
+CREATE TABLE `committees` (
   `id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `course_id` int(11) DEFAULT NULL,
-  `username` varchar(100) NOT NULL,
-  `user_role` enum('admin','proponent','user','superadmin') NOT NULL,
-  `action` enum('ADD','EDIT','DELETE','VIEW','ENROLL','COMPLETE','LOGIN','LOGOUT') NOT NULL,
-  `table_name` varchar(50) NOT NULL,
-  `record_id` int(11) DEFAULT NULL,
-  `old_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_data`)),
-  `new_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_data`)),
+  `name` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `user_agent` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `audit_logs`
+-- Dumping data for table `committees`
 --
 
-INSERT INTO `audit_logs` (`id`, `user_id`, `course_id`, `username`, `user_role`, `action`, `table_name`, `record_id`, `old_data`, `new_data`, `description`, `ip_address`, `user_agent`, `created_at`) VALUES
-(1, 5, NULL, 'alvin', 'admin', 'ADD', 'courses', 20, NULL, '{\"id\":20,\"title\":\"Course\"}', 'Added course: Course', NULL, NULL, '2026-02-13 05:25:40'),
-(2, 5, NULL, 'alvin', 'admin', 'ADD', 'courses', 21, NULL, '{\"id\":21,\"title\":\"Lorem Ipsum\"}', 'Added course: Lorem Ipsum', NULL, NULL, '2026-02-13 05:26:34'),
-(3, 8, NULL, 'proponent', 'proponent', 'ADD', 'courses', 22, NULL, '{\"id\":22,\"title\":\"proponent\"}', 'Added course: proponent', NULL, NULL, '2026-02-13 05:27:15'),
-(4, 8, NULL, 'proponent', 'proponent', 'ADD', 'courses', 23, NULL, '{\"id\":23,\"title\":\"Lorem ipsum\"}', 'Added course: Lorem ipsum', NULL, NULL, '2026-02-13 05:28:11'),
-(5, 8, NULL, 'proponent', 'proponent', 'ADD', 'courses', 24, NULL, '{\"id\":24,\"title\":\"Lorem Ipsum pro max\"}', 'Added course: Lorem Ipsum pro max', NULL, NULL, '2026-02-13 05:28:49'),
-(6, 22, NULL, 'pro', 'proponent', 'ADD', 'courses', 25, NULL, '{\"id\":25,\"title\":\"module one\"}', 'Added course: module one', NULL, NULL, '2026-02-18 07:46:38'),
-(7, 24, NULL, 'admin', 'admin', 'ADD', 'courses', 26, NULL, '{\"id\":26,\"title\":\"dataset\"}', 'Added course: dataset', NULL, NULL, '2026-02-20 03:28:06'),
-(8, 33, NULL, 'superadmin', 'superadmin', 'ADD', 'courses', 27, NULL, '{\"id\":27,\"title\":\"sdadadadasdsadsassssssssssssssssssssssssssssssssssssssssssssss\"}', 'Added course: sdadadadasdsadsassssssssssssssssssssssssssssssssssssssssssssss', NULL, NULL, '2026-02-21 06:32:22');
+INSERT INTO `committees` (`id`, `name`, `description`, `created_at`, `updated_at`) VALUES
+(1, 'inventory_sys', 'sad', '2026-03-17 03:52:45', NULL);
 
 -- --------------------------------------------------------
 
@@ -273,10 +352,11 @@ CREATE TABLE `courses` (
 --
 
 INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`) VALUES
-(38, 'EXAMPLE', 'EXAMPLE', NULL, 33, NULL, NULL, '2026-03-05 03:14:56', NULL, NULL, 1, 'EXAMPLEEXAMPLEEXAMPLE', NULL),
-(40, '', NULL, NULL, 22, NULL, NULL, '2026-03-05 07:20:09', '2026-03-05 07:29:45', NULL, 1, NULL, NULL),
-(41, 'sadasdasdasd', 'asdasdasdasdas', NULL, 33, NULL, NULL, '2026-03-05 07:32:37', NULL, NULL, 1, 'dasdasdasd', NULL),
-(42, 'qweqweqwe', 'qweqweqwe', NULL, 5, NULL, NULL, '2026-03-05 08:30:40', NULL, NULL, 1, 'qweqweqweqweqweqweqweqweqweqweqweqweqweqweqwe', NULL);
+(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-13 01:04:28', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL),
+(46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', NULL, NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL),
+(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-13 07:49:30', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL),
+(48, 'Tester', 'TesterTester', NULL, 22, '60457b0ca7bb3a8c.pdf', NULL, '2026-03-13 08:01:14', NULL, '2026-03-28', 1, 'TesterTesterTesterTesterTesterTester', NULL),
+(49, 'adsasdasd', 'adsasdasd', NULL, 5, NULL, NULL, '2026-03-13 08:13:17', NULL, NULL, 1, 'adsasdasdadsasdasdadsasdasdadsasdasd', NULL);
 
 --
 -- Triggers `courses`
@@ -418,7 +498,7 @@ CREATE TABLE `course_departments` (
 --
 
 INSERT INTO `course_departments` (`course_id`, `department_id`) VALUES
-(38, 2);
+(46, 3);
 
 -- --------------------------------------------------------
 
@@ -437,14 +517,23 @@ CREATE TABLE `departments` (
 --
 
 INSERT INTO `departments` (`id`, `name`, `created_at`) VALUES
-(1, 'Anesthetics', '2026-02-19 03:06:57'),
-(2, 'Breast Screening', '2026-02-19 03:06:57'),
-(3, 'Cardiology', '2026-02-19 03:06:57'),
-(4, 'Ear, Nose and Throat (ENT)', '2026-02-19 03:06:57'),
-(5, 'Elderly Services Department', '2026-02-19 03:06:57'),
-(6, 'Gastroenterology', '2026-02-19 03:06:57'),
-(7, 'General Surgery', '2026-02-19 03:06:57'),
-(8, 'Gynecology', '2026-02-19 03:06:57');
+(1, 'Medical', '2026-02-19 03:06:57'),
+(2, 'Akkued health proffectional staff', '2026-02-19 03:06:57'),
+(3, 'HOPPS', '2026-02-19 03:06:57'),
+(4, 'NURSING', '2026-02-19 03:06:57'),
+(5, 'FINANCE', '2026-02-19 03:06:57');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `depts`
+--
+
+CREATE TABLE `depts` (
+  `department_id` int(255) NOT NULL,
+  `depts_id` int(255) NOT NULL,
+  `Depts_name` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -495,7 +584,9 @@ CREATE TABLE `enrollments` (
 --
 
 INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `completed_at`, `expired_at`, `progress`, `video_progress`, `pdf_progress`, `video_completed`, `pdf_completed`, `pdf_current_page`, `pdf_total_pages`, `status`, `total_time_seconds`) VALUES
-(26, 14, 42, '2026-03-05 08:36:47', '2026-03-05 08:37:22', NULL, 50.00, 0, 0, 0, 0, 0, 0, 'completed', 65);
+(68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0),
+(69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0),
+(70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0);
 
 -- --------------------------------------------------------
 
@@ -584,7 +675,8 @@ CREATE TABLE `news` (
 INSERT INTO `news` (`id`, `title`, `body`, `created_by`, `created_at`, `is_published`) VALUES
 (1, 'This is News', 'is this new?', 1, '2026-02-03 23:41:35', 1),
 (3, 'asdasdad', 'asdasda', 5, '2026-02-12 19:50:05', 1),
-(4, 'jakshdkjashfkhakshfkjaksdhjasdhkasdha', 'jdskalhdkhaskhd', 5, '2026-02-12 23:23:28', 1);
+(4, 'jakshdkjashfkhakshfkjaksdhjasdhkasdha', 'jdskalhdkhaskhd', 5, '2026-02-12 23:23:28', 1),
+(7, 'adasdadasdasd ', 'adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd adasdadasdasd ', 72, '2026-03-12 19:28:22', 1);
 
 -- --------------------------------------------------------
 
@@ -601,6 +693,664 @@ CREATE TABLE `otp_verifications` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `expires_at` timestamp NOT NULL DEFAULT (current_timestamp() + interval 10 minute)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pdf_progress`
+--
+
+CREATE TABLE `pdf_progress` (
+  `id` int(11) NOT NULL,
+  `enrollment_id` int(11) NOT NULL,
+  `page_number` int(11) NOT NULL,
+  `viewed_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `pdf_progress`
+--
+
+INSERT INTO `pdf_progress` (`id`, `enrollment_id`, `page_number`, `viewed_at`) VALUES
+(0, 53, 1, '2026-03-12 07:24:54'),
+(0, 53, 2, '2026-03-12 07:25:15'),
+(0, 53, 3, '2026-03-12 07:25:15'),
+(0, 53, 4, '2026-03-12 07:25:16'),
+(0, 53, 5, '2026-03-12 07:25:16'),
+(0, 53, 6, '2026-03-12 07:25:17'),
+(0, 53, 7, '2026-03-12 07:25:17'),
+(0, 53, 8, '2026-03-12 07:25:17'),
+(0, 53, 9, '2026-03-12 07:25:18'),
+(0, 53, 10, '2026-03-12 07:25:19'),
+(0, 53, 11, '2026-03-12 07:25:19'),
+(0, 53, 12, '2026-03-12 07:25:20'),
+(0, 53, 13, '2026-03-12 07:25:20'),
+(0, 53, 14, '2026-03-12 07:25:20'),
+(0, 53, 15, '2026-03-12 07:25:21'),
+(0, 53, 16, '2026-03-12 07:25:21'),
+(0, 53, 17, '2026-03-12 07:25:21'),
+(0, 53, 18, '2026-03-12 07:25:22'),
+(0, 53, 19, '2026-03-12 07:25:22'),
+(0, 53, 20, '2026-03-12 07:25:23'),
+(0, 53, 21, '2026-03-12 07:25:23'),
+(0, 53, 22, '2026-03-12 07:25:23'),
+(0, 53, 23, '2026-03-12 07:25:24'),
+(0, 53, 24, '2026-03-12 07:25:24'),
+(0, 53, 25, '2026-03-12 07:25:24'),
+(0, 53, 26, '2026-03-12 07:25:25'),
+(0, 53, 27, '2026-03-12 07:25:25'),
+(0, 53, 28, '2026-03-12 07:25:25'),
+(0, 53, 29, '2026-03-12 07:25:26'),
+(0, 53, 30, '2026-03-12 07:25:26'),
+(0, 53, 31, '2026-03-12 07:25:26'),
+(0, 53, 32, '2026-03-12 07:25:27'),
+(0, 53, 33, '2026-03-12 07:25:27'),
+(0, 53, 34, '2026-03-12 07:25:28'),
+(0, 53, 35, '2026-03-12 07:25:28'),
+(0, 53, 36, '2026-03-12 07:25:28'),
+(0, 53, 37, '2026-03-12 07:25:28'),
+(0, 53, 38, '2026-03-12 07:25:29'),
+(0, 53, 39, '2026-03-12 07:25:29'),
+(0, 53, 40, '2026-03-12 07:25:34'),
+(0, 53, 41, '2026-03-12 07:25:37'),
+(0, 53, 42, '2026-03-12 07:25:45'),
+(0, 53, 43, '2026-03-12 07:25:45'),
+(0, 53, 44, '2026-03-12 07:25:45'),
+(0, 53, 45, '2026-03-12 07:25:46'),
+(0, 53, 46, '2026-03-12 07:25:46'),
+(0, 53, 47, '2026-03-12 07:25:46'),
+(0, 53, 48, '2026-03-12 07:25:46'),
+(0, 53, 49, '2026-03-12 07:25:46'),
+(0, 53, 50, '2026-03-12 07:25:46'),
+(0, 53, 51, '2026-03-12 07:25:46'),
+(0, 53, 52, '2026-03-12 07:25:47'),
+(0, 53, 53, '2026-03-12 07:25:47'),
+(0, 53, 54, '2026-03-12 07:25:47'),
+(0, 53, 55, '2026-03-12 07:25:47'),
+(0, 53, 56, '2026-03-12 07:25:48'),
+(0, 53, 57, '2026-03-12 07:25:48'),
+(0, 53, 58, '2026-03-12 07:25:48'),
+(0, 53, 59, '2026-03-12 07:25:48'),
+(0, 53, 60, '2026-03-12 07:25:48'),
+(0, 53, 61, '2026-03-12 07:25:48'),
+(0, 53, 62, '2026-03-12 07:25:48'),
+(0, 53, 63, '2026-03-12 07:25:49'),
+(0, 53, 64, '2026-03-12 07:25:49'),
+(0, 53, 65, '2026-03-12 07:25:49'),
+(0, 53, 66, '2026-03-12 07:25:49'),
+(0, 55, 1, '2026-03-12 07:34:31'),
+(0, 55, 2, '2026-03-12 07:46:26'),
+(0, 55, 3, '2026-03-12 07:46:26'),
+(0, 55, 4, '2026-03-12 07:46:27'),
+(0, 55, 5, '2026-03-12 07:46:27'),
+(0, 55, 6, '2026-03-12 07:46:27'),
+(0, 55, 7, '2026-03-12 07:46:28'),
+(0, 55, 8, '2026-03-12 07:46:28'),
+(0, 55, 9, '2026-03-12 07:46:29'),
+(0, 55, 10, '2026-03-12 07:46:29'),
+(0, 55, 11, '2026-03-12 07:46:30'),
+(0, 55, 12, '2026-03-12 07:46:30'),
+(0, 55, 13, '2026-03-12 07:46:30'),
+(0, 55, 14, '2026-03-12 07:46:31'),
+(0, 55, 15, '2026-03-12 07:46:31'),
+(0, 55, 16, '2026-03-12 07:46:32'),
+(0, 55, 17, '2026-03-12 07:46:32'),
+(0, 55, 18, '2026-03-12 07:46:32'),
+(0, 55, 19, '2026-03-12 07:46:33'),
+(0, 55, 20, '2026-03-12 07:46:33'),
+(0, 55, 21, '2026-03-12 07:46:33'),
+(0, 55, 22, '2026-03-12 07:46:34'),
+(0, 55, 23, '2026-03-12 07:46:34'),
+(0, 55, 24, '2026-03-12 07:46:34'),
+(0, 55, 25, '2026-03-12 07:46:35'),
+(0, 55, 26, '2026-03-12 07:46:35'),
+(0, 55, 27, '2026-03-12 07:46:35'),
+(0, 55, 28, '2026-03-12 07:46:36'),
+(0, 55, 29, '2026-03-12 07:46:36'),
+(0, 55, 30, '2026-03-12 07:46:36'),
+(0, 55, 31, '2026-03-12 07:46:37'),
+(0, 55, 32, '2026-03-12 07:46:37'),
+(0, 55, 33, '2026-03-12 07:46:37'),
+(0, 55, 34, '2026-03-12 07:46:38'),
+(0, 55, 35, '2026-03-12 07:46:38'),
+(0, 55, 36, '2026-03-12 07:46:39'),
+(0, 55, 37, '2026-03-12 07:46:39'),
+(0, 55, 38, '2026-03-12 07:46:39'),
+(0, 55, 39, '2026-03-12 07:46:40'),
+(0, 55, 40, '2026-03-12 07:46:40'),
+(0, 55, 41, '2026-03-12 07:46:40'),
+(0, 55, 42, '2026-03-12 07:46:41'),
+(0, 55, 43, '2026-03-12 07:46:41'),
+(0, 55, 44, '2026-03-12 07:46:41'),
+(0, 55, 45, '2026-03-12 07:46:42'),
+(0, 55, 46, '2026-03-12 07:46:42'),
+(0, 55, 47, '2026-03-12 07:46:43'),
+(0, 55, 48, '2026-03-12 07:46:43'),
+(0, 55, 49, '2026-03-12 07:46:43'),
+(0, 55, 50, '2026-03-12 07:46:44'),
+(0, 55, 51, '2026-03-12 07:46:44'),
+(0, 55, 52, '2026-03-12 07:46:44'),
+(0, 55, 53, '2026-03-12 07:46:45'),
+(0, 55, 54, '2026-03-12 07:46:45'),
+(0, 55, 55, '2026-03-12 07:46:45'),
+(0, 55, 56, '2026-03-12 07:46:46'),
+(0, 55, 57, '2026-03-12 07:46:46'),
+(0, 55, 58, '2026-03-12 07:46:46'),
+(0, 55, 59, '2026-03-12 07:46:47'),
+(0, 55, 60, '2026-03-12 07:46:47'),
+(0, 55, 61, '2026-03-12 07:46:47'),
+(0, 55, 62, '2026-03-12 07:46:48'),
+(0, 56, 1, '2026-03-13 01:08:17'),
+(0, 56, 2, '2026-03-13 01:11:27'),
+(0, 56, 3, '2026-03-13 01:11:51'),
+(0, 56, 4, '2026-03-13 01:11:51'),
+(0, 56, 5, '2026-03-13 01:12:38'),
+(0, 56, 6, '2026-03-13 01:12:38'),
+(0, 56, 7, '2026-03-13 01:12:39'),
+(0, 56, 8, '2026-03-13 01:12:39'),
+(0, 56, 9, '2026-03-13 01:12:40'),
+(0, 56, 10, '2026-03-13 01:12:40'),
+(0, 56, 11, '2026-03-13 01:12:40'),
+(0, 56, 12, '2026-03-13 01:12:41'),
+(0, 56, 13, '2026-03-13 01:12:41'),
+(0, 56, 14, '2026-03-13 01:12:41'),
+(0, 56, 15, '2026-03-13 01:12:42'),
+(0, 56, 16, '2026-03-13 01:12:42'),
+(0, 56, 17, '2026-03-13 01:12:43'),
+(0, 56, 18, '2026-03-13 01:12:43'),
+(0, 56, 19, '2026-03-13 01:12:43'),
+(0, 56, 20, '2026-03-13 01:12:44'),
+(0, 56, 21, '2026-03-13 01:12:44'),
+(0, 56, 22, '2026-03-13 01:12:44'),
+(0, 56, 23, '2026-03-13 01:12:45'),
+(0, 56, 24, '2026-03-13 01:12:45'),
+(0, 56, 25, '2026-03-13 01:12:45'),
+(0, 56, 26, '2026-03-13 01:12:46'),
+(0, 56, 27, '2026-03-13 01:12:46'),
+(0, 56, 28, '2026-03-13 01:12:46'),
+(0, 56, 29, '2026-03-13 01:12:47'),
+(0, 56, 30, '2026-03-13 01:12:47'),
+(0, 56, 31, '2026-03-13 01:12:47'),
+(0, 56, 32, '2026-03-13 01:12:48'),
+(0, 56, 33, '2026-03-13 01:12:48'),
+(0, 56, 34, '2026-03-13 01:12:48'),
+(0, 56, 35, '2026-03-13 01:12:49'),
+(0, 56, 36, '2026-03-13 01:12:49'),
+(0, 56, 37, '2026-03-13 01:12:49'),
+(0, 56, 38, '2026-03-13 01:12:50'),
+(0, 56, 39, '2026-03-13 01:12:50'),
+(0, 56, 40, '2026-03-13 01:12:50'),
+(0, 56, 41, '2026-03-13 01:12:51'),
+(0, 56, 42, '2026-03-13 01:12:51'),
+(0, 56, 43, '2026-03-13 01:12:51'),
+(0, 56, 44, '2026-03-13 01:12:52'),
+(0, 56, 45, '2026-03-13 01:12:52'),
+(0, 56, 46, '2026-03-13 01:12:52'),
+(0, 56, 47, '2026-03-13 01:12:53'),
+(0, 56, 48, '2026-03-13 01:12:53'),
+(0, 56, 49, '2026-03-13 01:12:53'),
+(0, 56, 50, '2026-03-13 01:12:54'),
+(0, 56, 51, '2026-03-13 01:12:54'),
+(0, 56, 52, '2026-03-13 01:12:54'),
+(0, 56, 53, '2026-03-13 01:12:54'),
+(0, 56, 54, '2026-03-13 01:12:55'),
+(0, 56, 55, '2026-03-13 01:12:55'),
+(0, 56, 56, '2026-03-13 01:12:56'),
+(0, 56, 57, '2026-03-13 01:12:56'),
+(0, 56, 58, '2026-03-13 01:12:56'),
+(0, 56, 59, '2026-03-13 01:12:57'),
+(0, 56, 60, '2026-03-13 01:12:57'),
+(0, 56, 61, '2026-03-13 01:12:57'),
+(0, 56, 62, '2026-03-13 01:12:58'),
+(0, 60, 1, '2026-03-13 07:07:27'),
+(0, 60, 2, '2026-03-13 07:07:27'),
+(0, 60, 3, '2026-03-13 07:07:27'),
+(0, 60, 4, '2026-03-13 07:07:27'),
+(0, 60, 6, '2026-03-13 07:07:27'),
+(0, 60, 7, '2026-03-13 07:07:27'),
+(0, 60, 8, '2026-03-13 07:07:27'),
+(0, 60, 9, '2026-03-13 07:07:27'),
+(0, 60, 10, '2026-03-13 07:07:27'),
+(0, 60, 11, '2026-03-13 07:07:27'),
+(0, 60, 12, '2026-03-13 07:07:28'),
+(0, 60, 5, '2026-03-13 07:07:29'),
+(0, 60, 13, '2026-03-13 07:07:31'),
+(0, 60, 14, '2026-03-13 07:07:31'),
+(0, 60, 15, '2026-03-13 07:07:31'),
+(0, 60, 16, '2026-03-13 07:07:31'),
+(0, 60, 17, '2026-03-13 07:07:31'),
+(0, 60, 18, '2026-03-13 07:07:31'),
+(0, 60, 19, '2026-03-13 07:07:31'),
+(0, 60, 20, '2026-03-13 07:07:31'),
+(0, 60, 21, '2026-03-13 07:07:31'),
+(0, 60, 22, '2026-03-13 07:07:32'),
+(0, 60, 23, '2026-03-13 07:07:32'),
+(0, 60, 25, '2026-03-13 07:07:32'),
+(0, 60, 26, '2026-03-13 07:07:32'),
+(0, 60, 27, '2026-03-13 07:07:32'),
+(0, 60, 28, '2026-03-13 07:07:32'),
+(0, 60, 29, '2026-03-13 07:07:32'),
+(0, 60, 30, '2026-03-13 07:07:32'),
+(0, 60, 34, '2026-03-13 07:07:32'),
+(0, 60, 35, '2026-03-13 07:07:32'),
+(0, 60, 36, '2026-03-13 07:07:32'),
+(0, 60, 37, '2026-03-13 07:07:32'),
+(0, 60, 38, '2026-03-13 07:07:32'),
+(0, 60, 39, '2026-03-13 07:07:32'),
+(0, 60, 40, '2026-03-13 07:07:32'),
+(0, 60, 41, '2026-03-13 07:07:32'),
+(0, 60, 42, '2026-03-13 07:07:33'),
+(0, 60, 43, '2026-03-13 07:07:33'),
+(0, 60, 44, '2026-03-13 07:07:33'),
+(0, 60, 45, '2026-03-13 07:07:33'),
+(0, 60, 46, '2026-03-13 07:07:33'),
+(0, 60, 47, '2026-03-13 07:07:33'),
+(0, 60, 48, '2026-03-13 07:07:33'),
+(0, 60, 49, '2026-03-13 07:07:33'),
+(0, 60, 50, '2026-03-13 07:07:33'),
+(0, 60, 51, '2026-03-13 07:07:33'),
+(0, 60, 52, '2026-03-13 07:07:33'),
+(0, 60, 53, '2026-03-13 07:07:33'),
+(0, 60, 54, '2026-03-13 07:07:33'),
+(0, 60, 55, '2026-03-13 07:07:33'),
+(0, 60, 56, '2026-03-13 07:07:33'),
+(0, 60, 57, '2026-03-13 07:07:33'),
+(0, 60, 58, '2026-03-13 07:07:33'),
+(0, 60, 59, '2026-03-13 07:07:33'),
+(0, 60, 60, '2026-03-13 07:07:34'),
+(0, 60, 61, '2026-03-13 07:07:34'),
+(0, 60, 62, '2026-03-13 07:07:34'),
+(0, 60, 63, '2026-03-13 07:07:34'),
+(0, 60, 64, '2026-03-13 07:07:34'),
+(0, 60, 65, '2026-03-13 07:07:34'),
+(0, 60, 66, '2026-03-13 07:07:34'),
+(0, 60, 33, '2026-03-13 07:07:37'),
+(0, 60, 32, '2026-03-13 07:07:37'),
+(0, 60, 31, '2026-03-13 07:07:38'),
+(0, 60, 24, '2026-03-13 07:07:38'),
+(0, 61, 1, '2026-03-13 07:50:19'),
+(0, 61, 4, '2026-03-13 07:50:19'),
+(0, 61, 5, '2026-03-13 07:50:19'),
+(0, 61, 6, '2026-03-13 07:50:19'),
+(0, 61, 8, '2026-03-13 07:50:19'),
+(0, 61, 11, '2026-03-13 07:50:19'),
+(0, 61, 16, '2026-03-13 07:50:19'),
+(0, 61, 22, '2026-03-13 07:50:19'),
+(0, 61, 32, '2026-03-13 07:50:19'),
+(0, 61, 36, '2026-03-13 07:50:19'),
+(0, 61, 37, '2026-03-13 07:50:19'),
+(0, 61, 42, '2026-03-13 07:50:19'),
+(0, 61, 49, '2026-03-13 07:50:19'),
+(0, 61, 50, '2026-03-13 07:50:19'),
+(0, 61, 51, '2026-03-13 07:50:19'),
+(0, 61, 52, '2026-03-13 07:50:19'),
+(0, 61, 54, '2026-03-13 07:50:20'),
+(0, 61, 57, '2026-03-13 07:50:20'),
+(0, 61, 58, '2026-03-13 07:50:20'),
+(0, 61, 59, '2026-03-13 07:50:20'),
+(0, 61, 60, '2026-03-13 07:50:20'),
+(0, 61, 61, '2026-03-13 07:50:20'),
+(0, 61, 56, '2026-03-13 07:50:22'),
+(0, 61, 45, '2026-03-13 07:50:22'),
+(0, 61, 44, '2026-03-13 07:50:22'),
+(0, 61, 38, '2026-03-13 07:50:22'),
+(0, 61, 34, '2026-03-13 07:50:22'),
+(0, 61, 30, '2026-03-13 07:50:22'),
+(0, 61, 29, '2026-03-13 07:50:22'),
+(0, 61, 28, '2026-03-13 07:50:22'),
+(0, 61, 27, '2026-03-13 07:50:22'),
+(0, 61, 21, '2026-03-13 07:50:22'),
+(0, 61, 19, '2026-03-13 07:50:22'),
+(0, 61, 17, '2026-03-13 07:50:23'),
+(0, 61, 15, '2026-03-13 07:50:23'),
+(0, 61, 14, '2026-03-13 07:50:23'),
+(0, 61, 12, '2026-03-13 07:50:23'),
+(0, 61, 9, '2026-03-13 07:50:23'),
+(0, 61, 7, '2026-03-13 07:50:23'),
+(0, 61, 3, '2026-03-13 07:50:23'),
+(0, 62, 1, '2026-03-13 07:51:21'),
+(0, 62, 2, '2026-03-13 07:51:21'),
+(0, 62, 3, '2026-03-13 07:51:21'),
+(0, 62, 4, '2026-03-13 07:51:29'),
+(0, 62, 5, '2026-03-13 07:51:35'),
+(0, 62, 6, '2026-03-13 07:51:36'),
+(0, 62, 7, '2026-03-13 07:51:37'),
+(0, 62, 8, '2026-03-13 07:51:37'),
+(0, 62, 9, '2026-03-13 07:51:38'),
+(0, 62, 10, '2026-03-13 07:51:38'),
+(0, 62, 11, '2026-03-13 07:51:39'),
+(0, 62, 12, '2026-03-13 07:51:40'),
+(0, 62, 13, '2026-03-13 07:51:40'),
+(0, 62, 14, '2026-03-13 07:51:41'),
+(0, 62, 15, '2026-03-13 07:51:41'),
+(0, 62, 16, '2026-03-13 07:51:42'),
+(0, 62, 17, '2026-03-13 07:51:42'),
+(0, 62, 18, '2026-03-13 07:51:43'),
+(0, 62, 19, '2026-03-13 07:51:43'),
+(0, 62, 20, '2026-03-13 07:51:44'),
+(0, 62, 21, '2026-03-13 07:51:44'),
+(0, 62, 22, '2026-03-13 07:51:46'),
+(0, 62, 25, '2026-03-13 07:51:55'),
+(0, 62, 26, '2026-03-13 07:51:55'),
+(0, 62, 29, '2026-03-13 07:51:55'),
+(0, 62, 35, '2026-03-13 07:51:55'),
+(0, 62, 37, '2026-03-13 07:51:56'),
+(0, 62, 40, '2026-03-13 07:51:56'),
+(0, 62, 43, '2026-03-13 07:51:56'),
+(0, 62, 44, '2026-03-13 07:51:56'),
+(0, 62, 45, '2026-03-13 07:51:56'),
+(0, 62, 47, '2026-03-13 07:51:56'),
+(0, 62, 48, '2026-03-13 07:51:56'),
+(0, 62, 50, '2026-03-13 07:51:56'),
+(0, 62, 51, '2026-03-13 07:51:56'),
+(0, 62, 52, '2026-03-13 07:51:56'),
+(0, 62, 53, '2026-03-13 07:51:56'),
+(0, 62, 54, '2026-03-13 07:51:56'),
+(0, 62, 55, '2026-03-13 07:51:56'),
+(0, 62, 56, '2026-03-13 07:51:57'),
+(0, 62, 57, '2026-03-13 07:51:58'),
+(0, 62, 58, '2026-03-13 07:51:58'),
+(0, 62, 59, '2026-03-13 07:51:58'),
+(0, 62, 60, '2026-03-13 07:51:59'),
+(0, 62, 61, '2026-03-13 07:51:59'),
+(0, 62, 62, '2026-03-13 07:51:59'),
+(0, 62, 49, '2026-03-13 07:52:03'),
+(0, 62, 46, '2026-03-13 07:52:03'),
+(0, 62, 42, '2026-03-13 07:52:04'),
+(0, 62, 41, '2026-03-13 07:52:04'),
+(0, 62, 39, '2026-03-13 07:52:04'),
+(0, 62, 38, '2026-03-13 07:52:05'),
+(0, 62, 36, '2026-03-13 07:52:05'),
+(0, 62, 34, '2026-03-13 07:52:05'),
+(0, 62, 33, '2026-03-13 07:52:05'),
+(0, 62, 32, '2026-03-13 07:52:05'),
+(0, 62, 31, '2026-03-13 07:52:05'),
+(0, 62, 30, '2026-03-13 07:52:05'),
+(0, 62, 28, '2026-03-13 07:52:06'),
+(0, 62, 27, '2026-03-13 07:52:06'),
+(0, 62, 24, '2026-03-13 07:52:07'),
+(0, 62, 23, '2026-03-13 07:52:07'),
+(0, 63, 1, '2026-03-16 05:30:35'),
+(0, 63, 2, '2026-03-16 05:30:35'),
+(0, 63, 3, '2026-03-16 05:30:36'),
+(0, 63, 4, '2026-03-16 05:30:36'),
+(0, 63, 5, '2026-03-16 05:30:36'),
+(0, 63, 7, '2026-03-16 05:30:36'),
+(0, 63, 8, '2026-03-16 05:30:36'),
+(0, 63, 9, '2026-03-16 05:30:36'),
+(0, 63, 10, '2026-03-16 05:30:36'),
+(0, 63, 11, '2026-03-16 05:30:36'),
+(0, 63, 12, '2026-03-16 05:30:36'),
+(0, 63, 13, '2026-03-16 05:30:36'),
+(0, 63, 14, '2026-03-16 05:30:36'),
+(0, 63, 15, '2026-03-16 05:30:36'),
+(0, 63, 16, '2026-03-16 05:30:36'),
+(0, 63, 17, '2026-03-16 05:30:36'),
+(0, 63, 18, '2026-03-16 05:30:36'),
+(0, 63, 19, '2026-03-16 05:30:36'),
+(0, 63, 20, '2026-03-16 05:30:36'),
+(0, 63, 21, '2026-03-16 05:30:36'),
+(0, 63, 22, '2026-03-16 05:30:36'),
+(0, 63, 23, '2026-03-16 05:30:36'),
+(0, 63, 6, '2026-03-16 05:30:40'),
+(0, 63, 24, '2026-03-16 05:30:43'),
+(0, 63, 25, '2026-03-16 05:30:43'),
+(0, 63, 26, '2026-03-16 05:30:43'),
+(0, 63, 27, '2026-03-16 05:30:43'),
+(0, 63, 28, '2026-03-16 05:30:44'),
+(0, 63, 29, '2026-03-16 05:30:44'),
+(0, 63, 30, '2026-03-16 05:30:44'),
+(0, 63, 31, '2026-03-16 05:30:44'),
+(0, 63, 32, '2026-03-16 05:30:44'),
+(0, 63, 33, '2026-03-16 05:30:44'),
+(0, 63, 34, '2026-03-16 05:30:44'),
+(0, 63, 35, '2026-03-16 05:30:44'),
+(0, 63, 36, '2026-03-16 05:30:45'),
+(0, 63, 37, '2026-03-16 05:30:45'),
+(0, 63, 38, '2026-03-16 05:30:45'),
+(0, 63, 39, '2026-03-16 05:30:45'),
+(0, 63, 40, '2026-03-16 05:30:45'),
+(0, 63, 41, '2026-03-16 05:30:45'),
+(0, 63, 42, '2026-03-16 05:30:45'),
+(0, 63, 43, '2026-03-16 05:30:46'),
+(0, 63, 44, '2026-03-16 05:30:46'),
+(0, 63, 45, '2026-03-16 05:30:46'),
+(0, 63, 46, '2026-03-16 05:30:46'),
+(0, 63, 47, '2026-03-16 05:30:47'),
+(0, 63, 48, '2026-03-16 05:30:47'),
+(0, 63, 49, '2026-03-16 05:30:47'),
+(0, 63, 50, '2026-03-16 05:30:47'),
+(0, 63, 51, '2026-03-16 05:30:48'),
+(0, 63, 52, '2026-03-16 05:30:48'),
+(0, 63, 53, '2026-03-16 05:30:48'),
+(0, 63, 54, '2026-03-16 05:30:48'),
+(0, 63, 55, '2026-03-16 05:30:48'),
+(0, 63, 56, '2026-03-16 05:30:49'),
+(0, 63, 57, '2026-03-16 05:30:49'),
+(0, 63, 58, '2026-03-16 05:30:49'),
+(0, 63, 59, '2026-03-16 05:30:49'),
+(0, 63, 60, '2026-03-16 05:30:49'),
+(0, 63, 61, '2026-03-16 05:30:50'),
+(0, 63, 62, '2026-03-16 05:30:50'),
+(0, 64, 1, '2026-03-16 05:32:59'),
+(0, 64, 2, '2026-03-16 05:33:00'),
+(0, 64, 3, '2026-03-16 05:33:00'),
+(0, 64, 4, '2026-03-16 05:33:00'),
+(0, 64, 5, '2026-03-16 05:33:01'),
+(0, 64, 6, '2026-03-16 05:33:01'),
+(0, 64, 7, '2026-03-16 05:33:01'),
+(0, 64, 8, '2026-03-16 05:33:02'),
+(0, 64, 9, '2026-03-16 05:33:02'),
+(0, 64, 10, '2026-03-16 05:33:02'),
+(0, 64, 11, '2026-03-16 05:33:02'),
+(0, 64, 12, '2026-03-16 05:33:03'),
+(0, 64, 13, '2026-03-16 05:33:03'),
+(0, 64, 14, '2026-03-16 05:33:04'),
+(0, 64, 15, '2026-03-16 05:33:04'),
+(0, 64, 16, '2026-03-16 05:33:04'),
+(0, 64, 17, '2026-03-16 05:33:05'),
+(0, 64, 18, '2026-03-16 05:33:05'),
+(0, 64, 19, '2026-03-16 05:33:05'),
+(0, 64, 20, '2026-03-16 05:33:06'),
+(0, 64, 21, '2026-03-16 05:33:06'),
+(0, 64, 22, '2026-03-16 05:33:07'),
+(0, 64, 23, '2026-03-16 05:33:07'),
+(0, 64, 24, '2026-03-16 05:33:07'),
+(0, 64, 25, '2026-03-16 05:33:08'),
+(0, 64, 26, '2026-03-16 05:33:08'),
+(0, 64, 27, '2026-03-16 05:33:08'),
+(0, 64, 28, '2026-03-16 05:33:08'),
+(0, 64, 29, '2026-03-16 05:33:09'),
+(0, 64, 30, '2026-03-16 05:33:09'),
+(0, 64, 31, '2026-03-16 05:33:09'),
+(0, 64, 32, '2026-03-16 05:33:10'),
+(0, 64, 33, '2026-03-16 05:33:10'),
+(0, 64, 34, '2026-03-16 05:33:10'),
+(0, 64, 35, '2026-03-16 05:33:11'),
+(0, 64, 36, '2026-03-16 05:33:11'),
+(0, 64, 37, '2026-03-16 05:33:11'),
+(0, 64, 38, '2026-03-16 05:33:11'),
+(0, 64, 39, '2026-03-16 05:33:12'),
+(0, 65, 1, '2026-03-16 06:23:54'),
+(0, 65, 2, '2026-03-16 06:23:55'),
+(0, 65, 3, '2026-03-16 06:23:55'),
+(0, 65, 4, '2026-03-16 06:23:55'),
+(0, 65, 5, '2026-03-16 06:23:56'),
+(0, 65, 6, '2026-03-16 06:23:56'),
+(0, 65, 7, '2026-03-16 06:23:56'),
+(0, 65, 8, '2026-03-16 06:23:57'),
+(0, 65, 9, '2026-03-16 06:23:57'),
+(0, 65, 10, '2026-03-16 06:23:57'),
+(0, 65, 11, '2026-03-16 06:23:57'),
+(0, 65, 12, '2026-03-16 06:23:58'),
+(0, 65, 13, '2026-03-16 06:23:58'),
+(0, 65, 14, '2026-03-16 06:23:58'),
+(0, 65, 15, '2026-03-16 06:23:58'),
+(0, 65, 16, '2026-03-16 06:23:59'),
+(0, 65, 17, '2026-03-16 06:23:59'),
+(0, 65, 18, '2026-03-16 06:23:59'),
+(0, 65, 19, '2026-03-16 06:24:00'),
+(0, 65, 20, '2026-03-16 06:24:00'),
+(0, 65, 21, '2026-03-16 06:24:00'),
+(0, 65, 22, '2026-03-16 06:24:01'),
+(0, 65, 23, '2026-03-16 06:24:01'),
+(0, 65, 24, '2026-03-16 06:24:01'),
+(0, 65, 25, '2026-03-16 06:24:01'),
+(0, 65, 26, '2026-03-16 06:24:02'),
+(0, 65, 27, '2026-03-16 06:24:02'),
+(0, 65, 28, '2026-03-16 06:24:02'),
+(0, 65, 29, '2026-03-16 06:24:03'),
+(0, 65, 30, '2026-03-16 06:24:03'),
+(0, 65, 31, '2026-03-16 06:24:03'),
+(0, 65, 32, '2026-03-16 06:24:03'),
+(0, 65, 33, '2026-03-16 06:24:04'),
+(0, 65, 34, '2026-03-16 06:24:04'),
+(0, 65, 35, '2026-03-16 06:24:04'),
+(0, 65, 36, '2026-03-16 06:24:04'),
+(0, 65, 37, '2026-03-16 06:24:05'),
+(0, 65, 38, '2026-03-16 06:24:05'),
+(0, 65, 39, '2026-03-16 06:24:06'),
+(0, 65, 40, '2026-03-16 06:24:06'),
+(0, 65, 41, '2026-03-16 06:24:06'),
+(0, 65, 42, '2026-03-16 06:24:06'),
+(0, 65, 43, '2026-03-16 06:24:06'),
+(0, 65, 44, '2026-03-16 06:24:07'),
+(0, 65, 45, '2026-03-16 06:24:07'),
+(0, 65, 46, '2026-03-16 06:24:07'),
+(0, 65, 47, '2026-03-16 06:24:08'),
+(0, 65, 48, '2026-03-16 06:24:08'),
+(0, 65, 49, '2026-03-16 06:24:08'),
+(0, 65, 50, '2026-03-16 06:24:08'),
+(0, 65, 51, '2026-03-16 06:24:09'),
+(0, 65, 52, '2026-03-16 06:24:09'),
+(0, 65, 53, '2026-03-16 06:24:09'),
+(0, 65, 54, '2026-03-16 06:24:10'),
+(0, 65, 55, '2026-03-16 06:24:10'),
+(0, 65, 56, '2026-03-16 06:24:10'),
+(0, 65, 57, '2026-03-16 06:24:10'),
+(0, 65, 58, '2026-03-16 06:24:11'),
+(0, 65, 59, '2026-03-16 06:24:11'),
+(0, 65, 60, '2026-03-16 06:24:11'),
+(0, 65, 61, '2026-03-16 06:24:11'),
+(0, 65, 62, '2026-03-16 06:24:12'),
+(0, 66, 1, '2026-03-16 06:39:24'),
+(0, 66, 2, '2026-03-16 06:39:26'),
+(0, 66, 3, '2026-03-16 06:39:26'),
+(0, 66, 4, '2026-03-16 06:39:27'),
+(0, 66, 5, '2026-03-16 06:39:27'),
+(0, 66, 6, '2026-03-16 06:39:27'),
+(0, 66, 7, '2026-03-16 06:39:29'),
+(0, 66, 8, '2026-03-16 06:39:29'),
+(0, 66, 9, '2026-03-16 06:39:29'),
+(0, 66, 10, '2026-03-16 06:39:29'),
+(0, 66, 11, '2026-03-16 06:39:29'),
+(0, 66, 12, '2026-03-16 06:39:29'),
+(0, 66, 13, '2026-03-16 06:39:29'),
+(0, 66, 14, '2026-03-16 06:39:29'),
+(0, 66, 15, '2026-03-16 06:39:29'),
+(0, 66, 16, '2026-03-16 06:39:29'),
+(0, 66, 17, '2026-03-16 06:39:29'),
+(0, 66, 18, '2026-03-16 06:39:29'),
+(0, 66, 19, '2026-03-16 06:39:29'),
+(0, 66, 20, '2026-03-16 06:39:29'),
+(0, 66, 21, '2026-03-16 06:39:29'),
+(0, 66, 22, '2026-03-16 06:39:30'),
+(0, 66, 23, '2026-03-16 06:39:30'),
+(0, 66, 24, '2026-03-16 06:39:30'),
+(0, 66, 25, '2026-03-16 06:39:30'),
+(0, 66, 26, '2026-03-16 06:39:30'),
+(0, 66, 27, '2026-03-16 06:39:30'),
+(0, 66, 28, '2026-03-16 06:39:30'),
+(0, 66, 29, '2026-03-16 06:39:30'),
+(0, 66, 30, '2026-03-16 06:39:30'),
+(0, 66, 31, '2026-03-16 06:39:31'),
+(0, 66, 32, '2026-03-16 06:39:31'),
+(0, 66, 33, '2026-03-16 06:39:31'),
+(0, 66, 34, '2026-03-16 06:39:31'),
+(0, 66, 35, '2026-03-16 06:39:31'),
+(0, 66, 36, '2026-03-16 06:39:32'),
+(0, 66, 37, '2026-03-16 06:39:32'),
+(0, 66, 38, '2026-03-16 06:39:32'),
+(0, 66, 39, '2026-03-16 06:39:32'),
+(0, 68, 1, '2026-03-16 07:20:18'),
+(0, 69, 1, '2026-03-16 07:20:25'),
+(0, 69, 2, '2026-03-16 07:20:26'),
+(0, 69, 3, '2026-03-16 07:20:26'),
+(0, 69, 4, '2026-03-16 07:20:27'),
+(0, 69, 5, '2026-03-16 07:20:27'),
+(0, 69, 6, '2026-03-16 07:20:27'),
+(0, 69, 7, '2026-03-16 07:20:27'),
+(0, 69, 8, '2026-03-16 07:20:27'),
+(0, 69, 9, '2026-03-16 07:20:27'),
+(0, 69, 11, '2026-03-16 07:20:27'),
+(0, 69, 12, '2026-03-16 07:20:27'),
+(0, 69, 13, '2026-03-16 07:20:27'),
+(0, 69, 14, '2026-03-16 07:20:27'),
+(0, 69, 15, '2026-03-16 07:20:28'),
+(0, 69, 16, '2026-03-16 07:20:28'),
+(0, 69, 17, '2026-03-16 07:20:28'),
+(0, 69, 18, '2026-03-16 07:20:28'),
+(0, 69, 19, '2026-03-16 07:20:28'),
+(0, 69, 20, '2026-03-16 07:20:29'),
+(0, 69, 21, '2026-03-16 07:20:29'),
+(0, 69, 22, '2026-03-16 07:20:30'),
+(0, 69, 23, '2026-03-16 07:20:30'),
+(0, 69, 24, '2026-03-16 07:20:30'),
+(0, 69, 26, '2026-03-16 07:20:30'),
+(0, 69, 28, '2026-03-16 07:20:30'),
+(0, 69, 29, '2026-03-16 07:20:30'),
+(0, 69, 30, '2026-03-16 07:20:30'),
+(0, 69, 31, '2026-03-16 07:20:31'),
+(0, 69, 32, '2026-03-16 07:20:31'),
+(0, 69, 33, '2026-03-16 07:20:31'),
+(0, 69, 34, '2026-03-16 07:20:31'),
+(0, 69, 35, '2026-03-16 07:20:32'),
+(0, 69, 36, '2026-03-16 07:20:33'),
+(0, 69, 37, '2026-03-16 07:20:33'),
+(0, 69, 38, '2026-03-16 07:20:33'),
+(0, 69, 39, '2026-03-16 07:20:33'),
+(0, 69, 27, '2026-03-16 07:20:34'),
+(0, 69, 10, '2026-03-16 07:20:38'),
+(0, 69, 25, '2026-03-16 07:20:41'),
+(0, 70, 1, '2026-03-16 08:21:33'),
+(0, 70, 2, '2026-03-16 08:21:34'),
+(0, 70, 3, '2026-03-16 08:21:34'),
+(0, 70, 4, '2026-03-16 08:21:34'),
+(0, 70, 5, '2026-03-16 08:21:35'),
+(0, 70, 6, '2026-03-16 08:21:35'),
+(0, 70, 7, '2026-03-16 08:21:35'),
+(0, 70, 8, '2026-03-16 08:21:35'),
+(0, 70, 9, '2026-03-16 08:21:35'),
+(0, 70, 10, '2026-03-16 08:21:40'),
+(0, 70, 11, '2026-03-16 08:21:40'),
+(0, 70, 12, '2026-03-16 08:21:40'),
+(0, 70, 13, '2026-03-16 08:21:40'),
+(0, 70, 14, '2026-03-16 08:21:41'),
+(0, 70, 15, '2026-03-16 08:21:41'),
+(0, 70, 16, '2026-03-16 08:21:41'),
+(0, 70, 17, '2026-03-16 08:21:45'),
+(0, 70, 18, '2026-03-16 08:21:46'),
+(0, 70, 19, '2026-03-16 08:21:46'),
+(0, 70, 20, '2026-03-16 08:21:46'),
+(0, 70, 21, '2026-03-16 08:21:46'),
+(0, 70, 22, '2026-03-16 08:21:46'),
+(0, 70, 23, '2026-03-16 08:21:46'),
+(0, 70, 24, '2026-03-16 08:21:46'),
+(0, 70, 25, '2026-03-16 08:21:46'),
+(0, 70, 26, '2026-03-16 08:21:46'),
+(0, 70, 27, '2026-03-16 08:21:47'),
+(0, 70, 28, '2026-03-16 08:21:47'),
+(0, 70, 29, '2026-03-16 08:21:47'),
+(0, 70, 30, '2026-03-16 08:21:47'),
+(0, 70, 31, '2026-03-16 08:21:47'),
+(0, 70, 32, '2026-03-16 08:21:47'),
+(0, 70, 33, '2026-03-16 08:21:47'),
+(0, 70, 34, '2026-03-16 08:21:47'),
+(0, 70, 35, '2026-03-16 08:21:47'),
+(0, 70, 36, '2026-03-16 08:21:47'),
+(0, 70, 37, '2026-03-16 08:21:47'),
+(0, 70, 38, '2026-03-16 08:21:47'),
+(0, 70, 39, '2026-03-16 08:21:47');
 
 -- --------------------------------------------------------
 
@@ -651,46 +1401,13 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 (1, 'kooky', '$2y$10$wjiEABSo/nLus0Nno0Y/dODGX6ZmNR6xkvmPGWndxaP4yZgBqpWja', 'Kooky', 'Arabia', 'Kookyarabia07@gmail.com', 'admin', '2026-01-30 01:25:37', NULL, 0, '842486', '2026-02-04 12:00:52', 'confirmed', 1, 1, NULL),
 (5, 'alvin', '$2y$10$p.0kdoyIco1ye14NdYTqY.FgdL3UF7Vpd/fo3rcEQEQo/qEhTATlO', 'Alvin', 'Lopez', 'traxcie21@gmail.com', 'admin', '2026-02-04 06:32:23', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (8, 'proponent', '$2y$10$YuqFFhnfrrPuXceFDMaVZugK18qFizJyOxrzKgrQX8nSkWRU4BLgW', 'Mr.', 'Proponent', 'proponent@gmail.com', 'proponent', '2026-02-11 00:43:36', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(14, 'user', '$2y$10$eFkQsneyDNipGemuZI9qpO4HhBC/.Y1XyOKDOSvUn0T6pURNbTize', 'user', 'user', 'user@gmail.com', 'user', '2026-02-13 05:30:06', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(15, 'user1', '$2y$10$GmQcyRr/zPXarLQicX2ifuuZQlw840EoV5nWrac35SRxX6M/LRcnu', 'user1', 'user1', 'user1@gmail.com', 'user', '2026-02-13 05:30:44', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(16, 'user2', '$2y$10$7x9Qw.DMEjDoYiTCwdPBXe1gqXk81rduhSv.3tF7721h3UFdow4km', 'user2', 'user2', 'user2@gmail.com', 'user', '2026-02-13 05:31:07', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(17, 'user4', '$2y$10$eZYCf/oBNINjucMXqZKrBOPfPgFkUB4iEvB8dg8XIHVco7hAByVRO', 'user4', 'user4', 'user4@gmail.com', 'user', '2026-02-13 05:31:26', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(18, 'github', '$2y$10$Q52DI9vwE6ZqrVtdJlbnmevPcBsGJPsC8K5iW5W0YUCCUxewCWVM6', 'F', 'Github', 'fgithub455@gmail.com', 'user', '2026-02-13 05:33:49', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(19, 'user3', '$2y$10$Q0P.dZvXhbXZLaAP/DaF5.BYhIEuycpmzx9TZrx2turG27kRHM2ui', 'user3', 'user3', 'user3@gmail.com', 'user', '2026-02-13 07:41:56', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (22, 'pro', '$2y$10$gpII/P2uzcDch.35MinEve7EO4uQD05eaIkHpTshPmszmeMPArXaO', 'pro', 'pro', 'pro@gmail.com', 'proponent', '2026-02-16 05:15:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(24, 'admin', '$2y$10$hG0raIRisWillWRvFq4y9uRtS5yj5q0OF8iv1yVL1cO.TfZiWzGKK', 'admin', 'admin', 'admin@gmail.com', 'admin', '2026-02-16 05:16:40', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(26, 'ako', '$2y$10$bEZ2j/gY4he1JYKK51LkKOpsoXxPxGrfR/f62oPgExoMQp4aTBMjG', 'ako', 'ako', 'ako@gmail.com', 'user', '2026-02-16 07:17:16', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(27, 'aoisuhdasihdashd', '$2y$10$lFcXCZ86cK9tsVQBOZ06uef5hc3RYcgUy339RXU2u8w2ZEklzgYAO', 'kjhsakjhdkasjhdkajsdh', 'kjhaskjdhakdhjk', 'asdjkhasdjkhak@gmail.com', 'user', '2026-02-16 07:20:56', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(31, 'sdasdasdasdasd', '$2y$10$0xMIFwxhImAGl3Brq3vawOb2uSYvBpMLmeHBQSTR5r5HJRz/WAmTm', 'dasdasdasdas', 'dasdasdasd', 'mikaellayap23@gmail.com', 'user', '2026-02-16 08:05:57', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(33, 'superadmin', '$2y$10$9L1NSLJ8xbyIVLvRHRuv7e/jNYOQVvVowcDRH7q07EyYD1FPIgzuq', 'superadmin', 'superadmin', 'superadmin@gmail.com', 'superadmin', '2026-02-16 08:33:09', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(36, 'departexample', '$2y$10$s7/MswvP3azi8xK/J/7LterE.6NYvCw89WSj9Id28yFMYZBK8qAra', 'departexample', 'departexample', 'departexample@gmail.com', 'user', '2026-02-19 00:54:03', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(37, 'dasdhasdkljhasdkjhasdkj', '$2y$10$2NiStqWVhFIGb5hoEFruS.IjfawWKCIhFQjFGcIJlH.Z1PSW2paqm', 'khklasjhdakshdaskdhaskh', 'khdaskdhaskdhasdkjhaskhddkjsahdaskhd', 'asdlkjashdkjashdkjashdjhd@gmail.com', 'user', '2026-02-19 01:07:35', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(40, 'sadasdasdasdaskjdhakjdhaskjdhaskjdh', '$2y$10$B0ocvZq7p/VwTbSokFWkp.bTxz2meTwtiyFOi3T4Mqn70h4UOaxrK', 'khsakhdaksjdhaskjdhkasjdhkj', 'khadkhaskdjhasjkdhaskdh', 'askdjhakdhadshaskj@gmail.com', 'user', '2026-02-19 01:49:34', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(41, 'ooooooooooooooooooooooooooooo', '$2y$10$h/vdSEHpiBfXLe4cjWC44uXFhbxTvEDcubJqolHFCD.muTOB57Hs.', 'oooooooooooooooo', 'ooooooooooooo', 'oooooooooooooo@gmail.com', 'user', '2026-02-19 01:51:22', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(42, 'mmmmmmmmmmmmmmmmm', '$2y$10$H/n3NHJ827wP030Rr5pB1.tWtpMI6RODnAiENeJeI7dBG3D9yOz2S', 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm', 'mmmmmmmmmmmmmmmmm', 'mmmmm@gmail.com', 'user', '2026-02-19 02:44:05', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(43, 'sadasdasdaddasasdsadasd', '$2y$10$LKTbl5/hjoQ4wSaLXpzfdOjXaWA7edzzWlugJj1PTwmkJ2ROKChOG', 'sadasdasdaddasasdsadasd', 'sadasdasdaddasasdsadasd', 'sadlkjsadlksadlkjas@gmail.com', 'user', '2026-02-19 03:58:48', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(44, 'asdasdasdasdasdasdasd', '$2y$10$UGSxa.qcq9Xrl6dd6BnTQ.3FuaPh8vO4.VYSn9dGeF6CaNlRxt1z6', 'dasdasdasdasdasdasdasdasdasd', 'sssssssssssssssssssssssssssssssss', 'dasdasd@gmail.com', 'user', '2026-02-19 23:42:53', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(45, 'oooooooooooooooooooooooooooooooooooooooooooooooo', '$2y$10$1ccOmfld79d89kKj89TuSe416cFQHX1SYPPfqaZLgWTOXA3gTiJPa', 'ooooooooooooooooo', 'oooooooooooooooooooooooooooo', 'ooooooooooooooooooooooooooooooooooooo@gmail.com', 'user', '2026-02-19 23:54:12', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(46, 'mmmmmmmmmmmmmmmmmmmmm', '$2y$10$4pVqUvpFZJzuXyqTUMhZvePWlI7l41oOBfN2nHFj8rHNliegYQkie', 'mmmmmmmmmmmmmmmmmm', 'mmmmmmmmmmmmmm', 'mmmmmmmmmmmmmmmmmm@gmail.com', 'user', '2026-02-19 23:55:49', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(47, 'nnnnnnnnnnnnnn', '$2y$10$2lTtYPJmz0.B32fishReAuZZo2C6oBpD/Mkm4DZVUWXhpgJKyHlqq', 'nnnnnnnnnnnn', 'nnnnnnnnn', 'nnnnnnnnnnnnn@gmail.com', 'user', '2026-02-19 23:57:31', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(48, 'sssssssssssssssssss', '$2y$10$7n9VY0jw/3cLGqdu8y7DteDV.mIcgLa7iMvq/BzaAZXNpr/zlqfny', 'sssssssssssssss', 'ssssssssssssssss', 'ssssss@gmail.com', 'user', '2026-02-19 23:57:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(49, 'pppppppppppppppppp', '$2y$10$MmJXtTGj2rKwnr8uJbzNJuWvaBkEKJQIs4rzcKqRfE/.uEvwHpPv6', 'ppppppppppppppppp', 'pppppppppp', 'pppppppp@gmail.com', 'user', '2026-02-20 01:24:23', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(50, 'xxxxxxxxxxxxxxxxxxxx', '$2y$10$RwIHtfcGQLiy/WoZtf/kYeFrVmqWd/cSmVKNWAEuwmcohHzv1Y01a', 'xxxxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxxx', 'xxxxxxxxx@gmail.com', 'user', '2026-02-20 01:26:19', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(51, 'lllllllllllllllllllllll', '$2y$10$bF46YIrnudYSh2pBW46dkeUwbx68/ZuVBVP4V1oA9sP.4jQNwRDOO', 'lllllllllllllllllllll', 'lllllllllllllllllllll', 'lllllllll@gmail.com', 'user', '2026-02-20 01:29:40', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(52, 'jhhhhhhhhhhhhhhhgjhgjhgjhgjhgjh', '$2y$10$3/dZiD8GRJNbc/L.AZ4INeEo87D75LwRm7aF86YGf/Q5f1mDRdogS', 'lkjfdsljfsdlkfjlk', 'klfjdslkfjsdlkfj', 'klsdjfljksdflkj@gmail.com', 'user', '2026-02-20 02:26:46', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(53, 'asdkj ashdaskhdakshdakshdashkdk', '$2y$10$VlIeIOjqzjARuchaaPLcZOznWMNT1uFvjVfFhobplVQirEf5zM6oi', 'khaskhdkashdakshdaskjdhaskdjh', 'dashkasdhkasdhkj', 'hdlaksjdhalshdkajsdhaksjdh@gmail.com', 'user', '2026-02-20 02:34:08', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(54, 'dpttttttt', '$2y$10$IXUQ4yvLvsdBQy2Z2peRMOHU3/gb1gFfeMruSS4Gf5QZ58dOq0pz.', 'dpttttttt', 'dpttttttt', 'dpttttttt@gmail.com', 'user', '2026-02-20 03:01:39', NULL, 0, NULL, NULL, 'confirmed', 1, 1, '8'),
-(55, 'sssssssssssssssssssssssssssssss', '$2y$10$JcnRbXjL2Vy6KPC0REKwbud1IDkQz148y2MwBuz.j9V8XEtcJABBW', 'sssssssssssss', 'sssssssssssssssssssss', 'sssssssssssssssss@gmail.com', 'user', '2026-02-20 03:02:34', NULL, 0, NULL, NULL, 'confirmed', 1, 1, ''),
-(56, 'zssssssssssssssssssss', '$2y$10$a4V87ZtfEDO0Lq7X8Jbxku4pmUN/AYzUHgZHI/F8FqhfqwfSWUEK2', 'sssssssssssssssssssssssssss', 'ssssssssssssssssssss', 'ssssssssssscccccc@gmail.com', 'user', '2026-02-20 03:13:54', NULL, 0, NULL, NULL, 'confirmed', 1, 1, '2'),
-(57, 'asdasdasdad', '$2y$10$yVrIrlM/nktvgy/gmDjDYuDZOXX/3Q1wy3vclx9yN2l1st.7FCege', 'asdasdasdasdasd', 'asdasdasdasd', 'gplankton1@gmail.com', 'user', '2026-02-20 05:22:25', NULL, 0, NULL, NULL, 'confirmed', 1, 1, '7'),
-(58, 'test', '$2y$10$xBE0X7W4Gr1BvpsQXfoQYe5Kyz8fl.syAbdKHrSyBg68pWuTNgtJO', 'Gerry', 'Tigolo', 'gerrytigolo101@gmail.com', 'user', '2026-02-20 07:47:30', NULL, 0, NULL, NULL, 'confirmed', 1, 1, '1'),
-(61, 'departs', '$2y$10$WxEspGCQ0PSoyysgaGQg4esHXfTPiUbf5rkIUec.Z0mmftwI5WoHC', 'departs', 'departs', 'departs@gmail.com', 'user', '2026-02-21 03:32:33', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(62, 'llllllllllllll', '$2y$10$xL5.khhMuHNUfUJkLqWknebpdYaoVtaHvoYsmC3JUPJ/wGQxNAvjq', 'llllllllllllllllllllll', 'lllllllllllllllllllllll', 'lllllllllllllllll@gmail.com', 'user', '2026-02-21 22:27:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(63, 'try', '$2y$10$NR3QJ7ABB/QXRABqV17RFO/Jf6CVnfzniDG4dUBI4Tl6FlFV4qlaO', 'try', 'try', 'trydept@gmail.com', 'user', '2026-02-21 22:29:44', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(64, 'asdpijasdlihsadlksahdlh', '$2y$10$vPSrfXYi2ct8R7ddSdmDrebIx0HhK3h7rGqLr3LcAUN9ZHmzEHMB.', 'LKJSALJDLASKJDLAKSJLASKJD', 'LJLKASJDLASJDLKASJDLJK', 'LKASJDALSKDJLAKSDJLKJ@GMAI.COM', 'user', '2026-02-23 05:07:35', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(67, 'prop', '$2y$10$d45oGnjPOA9RF0Qqiulsk..dsD1wm16I2dCoCnAJjeKnOXAgsZarO', 'prop', 'prop', 'prop@gmail.com', 'proponent', '2026-03-04 07:24:26', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(68, 'propuser', '$2y$10$j6VGYkLnhNWEhg9l9N8Y6O37atuA6DsleRnPzIoPDP6DPw/170bKS', 'propuser', 'propuser', 'propuser@gmail.com', 'user', '2026-03-04 07:49:53', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(69, 'proppuser', '$2y$10$zTHLjO5O/qve4P1NZbuPxebZEwFsaviH6r3SXju3hxMxmyh4NlmL.', 'proppuser', 'proppuser', 'proppuser@gmail.com', 'user', '2026-03-05 00:18:46', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
+(72, 'superadmin', '$2y$10$L.sWs03m7FGhvcGQdRZ1JOditv/DeBO.OGiY.jIRfehV.bQLmnl5K', 'superadmin', 'superadmin', 'superadmin@mail.com', 'superadmin', '2026-03-12 03:04:11', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(76, 'user', '$2y$10$KwCQY6078.5GGWaXOWv3B.kxmomQZJYosIEpeN8YVJu8Yy.6Amysm', 'user', 'user', 'user', 'user', '2026-03-12 03:13:47', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(77, 'user1', '$2y$10$a1qcZxaMZ1Zq.miP/VB/luw5ia1i/rdDALUXHrtitWvsEJIbGiLL.', 'user1', 'user1', 'user1', 'user', '2026-03-12 03:14:38', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(80, 'user3', '$2y$10$51PKxLrYdyhsJeGEBcOsgOTWSxABDvFXFwFHZ1QB4ZEn1rGn6Nnnm', 'user3', 'user3', 'user3@mail.com', 'user', '2026-03-12 05:34:35', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(81, 'user4', '$2y$10$D0anqyyNSuFksYUpxdm6O.RwJa2f6WkRwxh.IGyffilA7e52l3MYu', 'user4', 'user4', 'user4@mail.zxc', 'user', '2026-03-12 05:34:59', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(82, 'user5', '$2y$10$byqELjtKf2ytKo0myGF.M.Y9RXN4G5sHGxHKRM/jwtMEvfHI7Gifi', 'user5', 'user5', 'user5@gmail.com', 'user', '2026-03-12 05:41:04', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -703,28 +1420,27 @@ CREATE TABLE `user_departments` (
   `department_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `user_departments`
+-- Table structure for table `video_progress`
 --
 
-INSERT INTO `user_departments` (`user_id`, `department_id`) VALUES
-(61, 1),
-(61, 2),
-(61, 3),
-(61, 4),
-(61, 5),
-(62, 1),
-(62, 3),
-(62, 5),
-(62, 6),
-(63, 2),
-(64, 5),
-(64, 6),
-(64, 7),
-(67, 1),
-(67, 3),
-(67, 5),
-(67, 7);
+CREATE TABLE `video_progress` (
+  `id` int(11) NOT NULL,
+  `enrollment_id` int(11) NOT NULL,
+  `video_position` int(11) DEFAULT 0,
+  `completed` tinyint(4) DEFAULT 0,
+  `last_watched` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `video_progress`
+--
+
+INSERT INTO `video_progress` (`id`, `enrollment_id`, `video_position`, `completed`, `last_watched`) VALUES
+(1, 69, 39, 1, '2026-03-16 15:48:52'),
+(2, 70, 39, 1, '2026-03-16 16:22:31');
 
 --
 -- Indexes for dumped tables
@@ -752,7 +1468,8 @@ ALTER TABLE `assessment_answers`
 ALTER TABLE `assessment_attempts`
   ADD PRIMARY KEY (`id`),
   ADD KEY `assessment_id` (`assessment_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_assessment_user_status_completed` (`assessment_id`,`user_id`,`status`,`completed_at`);
 
 --
 -- Indexes for table `assessment_options`
@@ -777,16 +1494,10 @@ ALTER TABLE `audit_log`
   ADD KEY `user_id` (`user_id`);
 
 --
--- Indexes for table `audit_logs`
+-- Indexes for table `committees`
 --
-ALTER TABLE `audit_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_user` (`user_id`),
-  ADD KEY `idx_course` (`course_id`),
-  ADD KEY `idx_action` (`action`),
-  ADD KEY `idx_table` (`table_name`),
-  ADD KEY `idx_created` (`created_at`),
-  ADD KEY `idx_record` (`record_id`);
+ALTER TABLE `committees`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `contact_messages`
@@ -825,6 +1536,12 @@ ALTER TABLE `course_departments`
 ALTER TABLE `departments`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
+
+--
+-- Indexes for table `depts`
+--
+ALTER TABLE `depts`
+  ADD PRIMARY KEY (`depts_id`);
 
 --
 -- Indexes for table `edit`
@@ -886,6 +1603,13 @@ ALTER TABLE `otp_verifications`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `pdf_progress`
+--
+ALTER TABLE `pdf_progress`
+  ADD KEY `idx_enrollment_page` (`enrollment_id`,`page_number`),
+  ADD KEY `idx_page` (`page_number`);
+
+--
 -- Indexes for table `time_logs`
 --
 ALTER TABLE `time_logs`
@@ -908,6 +1632,13 @@ ALTER TABLE `user_departments`
   ADD KEY `department_id` (`department_id`);
 
 --
+-- Indexes for table `video_progress`
+--
+ALTER TABLE `video_progress`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_enrollment` (`enrollment_id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -915,43 +1646,43 @@ ALTER TABLE `user_departments`
 -- AUTO_INCREMENT for table `assessments`
 --
 ALTER TABLE `assessments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `assessment_answers`
 --
 ALTER TABLE `assessment_answers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `assessment_attempts`
 --
 ALTER TABLE `assessment_attempts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `assessment_options`
 --
 ALTER TABLE `assessment_options`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=139;
 
 --
 -- AUTO_INCREMENT for table `assessment_questions`
 --
 ALTER TABLE `assessment_questions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
 
 --
--- AUTO_INCREMENT for table `audit_logs`
+-- AUTO_INCREMENT for table `committees`
 --
-ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+ALTER TABLE `committees`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `contact_messages`
@@ -969,13 +1700,13 @@ ALTER TABLE `conversations`
 -- AUTO_INCREMENT for table `courses`
 --
 ALTER TABLE `courses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=43;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
 
 --
 -- AUTO_INCREMENT for table `departments`
 --
 ALTER TABLE `departments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `edit`
@@ -987,7 +1718,7 @@ ALTER TABLE `edit`
 -- AUTO_INCREMENT for table `enrollments`
 --
 ALTER TABLE `enrollments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=71;
 
 --
 -- AUTO_INCREMENT for table `lessons`
@@ -1017,7 +1748,7 @@ ALTER TABLE `message_attachments`
 -- AUTO_INCREMENT for table `news`
 --
 ALTER TABLE `news`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `otp_verifications`
@@ -1035,7 +1766,13 @@ ALTER TABLE `time_logs`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=70;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+
+--
+-- AUTO_INCREMENT for table `video_progress`
+--
+ALTER TABLE `video_progress`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- Constraints for dumped tables
@@ -1056,13 +1793,6 @@ ALTER TABLE `assessment_answers`
   ADD CONSTRAINT `assessment_answers_ibfk_3` FOREIGN KEY (`selected_option_id`) REFERENCES `assessment_options` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `assessment_attempts`
---
-ALTER TABLE `assessment_attempts`
-  ADD CONSTRAINT `assessment_attempts_ibfk_1` FOREIGN KEY (`assessment_id`) REFERENCES `assessments` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `assessment_attempts_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
-
---
 -- Constraints for table `assessment_options`
 --
 ALTER TABLE `assessment_options`
@@ -1073,13 +1803,6 @@ ALTER TABLE `assessment_options`
 --
 ALTER TABLE `assessment_questions`
   ADD CONSTRAINT `assessment_questions_ibfk_1` FOREIGN KEY (`assessment_id`) REFERENCES `assessments` (`id`) ON DELETE CASCADE;
-
---
--- Constraints for table `audit_logs`
---
-ALTER TABLE `audit_logs`
-  ADD CONSTRAINT `fk_audit_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `fk_audit_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `conversations`
@@ -1154,6 +1877,12 @@ ALTER TABLE `time_logs`
 ALTER TABLE `user_departments`
   ADD CONSTRAINT `user_departments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `user_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `video_progress`
+--
+ALTER TABLE `video_progress`
+  ADD CONSTRAINT `video_progress_ibfk_1` FOREIGN KEY (`enrollment_id`) REFERENCES `enrollments` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

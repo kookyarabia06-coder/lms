@@ -110,7 +110,8 @@
     padding: 25px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
     border: 1px solid #e2e8f0;
-    min-width: 0;
+    max-height: 500px;
+    overflow-y: auto;
 }
 
 .section-header {
@@ -148,7 +149,7 @@
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
-    min-width: 0;
+    max-width: 100%;
     overflow-wrap: break-word;
 }
 
@@ -168,8 +169,9 @@
     font-weight: 600;
     color: #1e3c72;
     margin-bottom: 8px;
-    word-wrap: break-word;
+    word-break: break-word;
     overflow-wrap: break-word;
+    max-width: 100%;
 }
 
 .news-content-wrapper {
@@ -181,7 +183,7 @@
     font-size: 14px;
     line-height: 1.5;
     margin: 0;
-    word-wrap: break-word;
+    word-break: break-word;
     overflow-wrap: break-word;
 }
 
@@ -192,10 +194,11 @@
     margin: 0;
     display: none;
     white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
     max-height: 300px;
     overflow-y: auto;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
 }
 
 .news-item.expanded .news-content-full {

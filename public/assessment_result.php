@@ -80,693 +80,37 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/assessment_result.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --success-gradient: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            --danger-gradient: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            --warning-gradient: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-        }
-
-        body {
-            background: #f4f6f9;
-        }
-
-        .main-content-wrapper {
-            margin-left: 280px;
-            padding: 30px;
-            transition: all 0.3s ease;
-        }
-
-        .result-container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        /* Header Section */
-        .result-header {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .result-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 5px;
-            background: <?= $attempt['passed'] ? 'var(--success-gradient)' : 'var(--danger-gradient)' ?>;
-        }
-
-        .header-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .title-section h2 {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 5px;
-            color: #333;
-        }
-
-        .title-section .course-name {
-            color: #667eea;
-            font-weight: 600;
-            font-size: 16px;
-        }
-
-        .title-section .course-name i {
-            margin-right: 8px;
-        }
-
-        .score-section {
-            text-align: center;
-        }
-
-        .score-circle {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-            font-weight: 700;
-            color: white;
-            margin: 0 auto 10px;
-            position: relative;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-
-        .score-circle.passed {
-            background: var(--success-gradient);
-        }
-
-        .score-circle.failed {
-            background: var(--danger-gradient);
-        }
-
-        .score-circle::after {
-            content: '';
-            position: absolute;
-            top: -5px;
-            left: -5px;
-            right: -5px;
-            bottom: -5px;
-            border-radius: 50%;
-            background: inherit;
-            opacity: 0.3;
-            z-index: -1;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.3; }
-            50% { transform: scale(1.1); opacity: 0.1; }
-            100% { transform: scale(1); opacity: 0.3; }
-        }
-
-        .result-badge {
-            display: inline-block;
-            padding: 8px 30px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 18px;
-        }
-
-        .badge-passed {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .badge-failed {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 30px 0 0;
-        }
-
-        .stat-card {
-            background: #f8f9fa;
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-
-        .stat-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            color: white;
-        }
-
-        .stat-icon.total { background: var(--primary-gradient); }
-        .stat-icon.correct { background: var(--success-gradient); }
-        .stat-icon.points { background: var(--warning-gradient); }
-        .stat-icon.time { background: linear-gradient(135deg, #17a2b8, #138496); }
-
-        .stat-details h4 {
-            font-size: 24px;
-            font-weight: 700;
-            margin: 0;
-            color: #333;
-        }
-
-        .stat-details p {
-            margin: 0;
-            color: #666;
-            font-size: 14px;
-        }
-
-        /* Performance Meter */
-        .performance-meter {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-        }
-
-        .meter-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .meter-title h4 {
-            font-size: 18px;
-            font-weight: 600;
-            margin: 0;
-        }
-
-        .meter-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #667eea;
-        }
-
-        .progress-bar-custom {
-            height: 20px;
-            background: #e9ecef;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--primary-gradient);
-            border-radius: 10px;
-            transition: width 1s ease;
-            position: relative;
-            animation: fillAnimation 1.5s ease-out;
-        }
-
-        @keyframes fillAnimation {
-            from { width: 0; }
-            to { width: <?= $attempt['score'] ?>%; }
-        }
-
-        .milestones {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-        }
-
-        .milestone {
-            text-align: center;
-            flex: 1;
-        }
-
-        .milestone-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #dee2e6;
-            margin: 0 auto 5px;
-        }
-
-        .milestone-dot.passed {
-            background: #28a745;
-        }
-
-        .milestone-label {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .milestone-value {
-            font-weight: 600;
-            color: #333;
-        }
-
-        /* Answers List */
-        .answers-section {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-        }
-
-        .section-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-
-        .section-title h3 {
-            font-size: 20px;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .filter-btn {
-            padding: 8px 16px;
-            border: 1px solid #dee2e6;
-            background: white;
-            border-radius: 8px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .filter-btn:hover {
-            background: #f8f9fa;
-            border-color: #667eea;
-        }
-
-        .filter-btn.active {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
-        }
-
-        .answers-list {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .answer-item {
-            border: 1px solid #e9ecef;
-            border-radius: 16px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .answer-item:hover {
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        }
-
-        .answer-header {
-            padding: 15px 20px;
-            background: #f8f9fa;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-        }
-
-        .answer-header.correct {
-            border-bottom-color: #28a745;
-        }
-
-        .answer-header.incorrect {
-            border-bottom-color: #dc3545;
-        }
-
-        .answer-header.partial {
-            border-bottom-color: #ffc107;
-        }
-
-        .question-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .question-number {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            background: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .question-type {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .score-indicator {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .score-badge {
-            padding: 5px 12px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .score-badge.correct {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .score-badge.incorrect {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .score-badge.partial {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .expand-icon {
-            color: #999;
-            transition: all 0.3s;
-        }
-
-        .answer-content {
-            padding: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .answer-content.expanded {
-            padding: 20px;
-            max-height: 500px;
-        }
-
-        .answer-detail {
-            margin-bottom: 15px;
-        }
-
-        .detail-label {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .detail-value {
-            padding: 12px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            font-weight: 500;
-        }
-
-        .detail-value.correct {
-            background: #d4edda;
-        }
-
-        .detail-value.incorrect {
-            background: #f8d7da;
-        }
-
-        .explanation-box {
-            margin-top: 15px;
-            padding: 15px;
-            background: #e7f5ff;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 30px;
-            flex-wrap: wrap;
-        }
-
-        .btn-action {
-            padding: 12px 35px;
-            border-radius: 50px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn-primary {
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-            color: white;
-        }
-
-        .btn-outline {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .btn-outline:hover {
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-        }
-
-        .btn-retake {
-            background: var(--warning-gradient);
-            color: white;
-            border: none;
-        }
-
-        .btn-retake:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(255, 193, 7, 0.3);
-            color: white;
-        }
-
-        .btn-retake.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-
-        /* Share Card */
-        .share-card {
-            background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
-            border-radius: 16px;
-            padding: 20px;
-            margin-top: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .share-text {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .share-text i {
-            font-size: 24px;
-            color: #667eea;
-        }
-
-        .share-text span {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .share-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .share-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-
-        .share-btn.facebook { background: #3b5998; }
-        .share-btn.twitter { background: #1da1f2; }
-        .share-btn.linkedin { background: #0077b5; }
-        .share-btn.email { background: #ea4335; }
-
-        .share-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        /* Print Styles */
-        @media print {
-            .lms-sidebar-container,
-            .action-buttons,
-            .share-card,
-            .filter-buttons {
-                display: none !important;
-            }
-            
-            .main-content-wrapper {
-                margin-left: 0;
-                padding: 20px;
-            }
-            
-            .result-header {
-                box-shadow: none;
-                border: 1px solid #ddd;
-            }
-            
-            .answer-content {
-                max-height: none !important;
-                padding: 20px !important;
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .main-content-wrapper {
-                margin-left: 0;
-                padding: 20px;
-            }
-            
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .action-buttons {
-                flex-direction: column;
-            }
-            
-            .btn-action {
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .share-card {
-                flex-direction: column;
-                text-align: center;
-            }
-        }
-
-        /* Print button */
-        .btn-print {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: var(--primary-gradient);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
-            border: none;
-            z-index: 1000;
-            transition: all 0.3s;
-        }
-
-        .btn-print:hover {
-            transform: scale(1.1);
-        }
-    </style>
 </head>
 <body>
     <!-- Print button -->
-    <button class="btn-print" onclick="window.print()" title="Print Result">
+    <button class="ar-btn-print" onclick="window.print()" title="Print Result">
         <i class="fas fa-print"></i>
     </button>
 
     <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
-    
-    <div class="main-content-wrapper">
-        <div class="result-container">
+
+    <div class="ar-main-container">
+        <div class="ar-result-container">
             <!-- Result Header -->
-            <div class="result-header">
-                <div class="header-content">
-                    <div class="title-section">
+            <div class="ar-result-header <?= $attempt['passed'] ? 'passed' : 'failed' ?>">
+                <div class="ar-header-content">
+                    <div class="ar-title-section">
                         <h2><?= htmlspecialchars($attempt['assessment_title']) ?></h2>
-                        <div class="course-name">
+                        <div class="ar-course-name">
                             <i class="fas fa-book"></i>
                             <?= htmlspecialchars($attempt['course_title']) ?>
                         </div>
                     </div>
-                    
-                    <div class="score-section">
-                        <div class="score-circle <?= $attempt['passed'] ? 'passed' : 'failed' ?>">
+
+                    <div class="ar-score-section">
+                        <div class="ar-score-circle <?= $attempt['passed'] ? 'passed' : 'failed' ?>">
                             <?= round($attempt['score']) ?>%
                         </div>
-                        <div class="result-badge <?= $attempt['passed'] ? 'badge-passed' : 'badge-failed' ?>">
+                        <div class="ar-result-badge <?= $attempt['passed'] ? 'badge-passed' : 'badge-failed' ?>">
                             <i class="fas <?= $attempt['passed'] ? 'fa-check-circle' : 'fa-times-circle' ?> me-2"></i>
                             <?= $attempt['passed'] ? 'PASSED' : 'FAILED' ?>
                         </div>
@@ -774,42 +118,22 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                 </div>
 
                 <!-- Statistics Grid -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon total">
-                            <i class="fas fa-question-circle"></i>
-                        </div>
-                        <div class="stat-details">
-                            <h4><?= $totalQuestions ?></h4>
-                            <p>Total Questions</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon correct">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-details">
-                            <h4><?= $correctAnswers ?></h4>
-                            <p>Correct Answers</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon points">
+                <div class="ar-stats-grid">
+                    <div class="ar-stat-card">
+                        <div class="ar-stat-icon points">
                             <i class="fas fa-star"></i>
                         </div>
-                        <div class="stat-details">
+                        <div class="ar-stat-details">
                             <h4><?= $earnedPoints ?>/<?= $totalPoints ?></h4>
                             <p>Points Earned</p>
                         </div>
                     </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon time">
+
+                    <div class="ar-stat-card">
+                        <div class="ar-stat-icon time">
                             <i class="fas fa-calendar-check"></i>
                         </div>
-                        <div class="stat-details">
+                        <div class="ar-stat-details">
                             <h4><?= date('M d, Y', strtotime($attempt['completed_at'])) ?></h4>
                             <p>Date Completed</p>
                         </div>
@@ -817,89 +141,54 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                 </div>
             </div>
 
-            <!-- Performance Meter -->
-            <div class="performance-meter">
-                <div class="meter-title">
-                    <h4>Performance Overview</h4>
-                    <span class="meter-value"><?= round($attempt['score']) ?>%</span>
-                </div>
-                
-                <div class="progress-bar-custom">
-                    <div class="progress-fill" style="width: <?= $attempt['score'] ?>%;"></div>
-                </div>
-                
-                <div class="milestones">
-                    <div class="milestone">
-                        <div class="milestone-dot <?= $attempt['score'] >= 25 ? 'passed' : '' ?>"></div>
-                        <div class="milestone-label">Poor</div>
-                        <div class="milestone-value">25%</div>
-                    </div>
-                    <div class="milestone">
-                        <div class="milestone-dot <?= $attempt['score'] >= 50 ? 'passed' : '' ?>"></div>
-                        <div class="milestone-label">Fair</div>
-                        <div class="milestone-value">50%</div>
-                    </div>
-                    <div class="milestone">
-                        <div class="milestone-dot <?= $attempt['score'] >= 75 ? 'passed' : '' ?>"></div>
-                        <div class="milestone-label">Good</div>
-                        <div class="milestone-value">75%</div>
-                    </div>
-                    <div class="milestone">
-                        <div class="milestone-dot <?= $attempt['score'] >= 90 ? 'passed' : '' ?>"></div>
-                        <div class="milestone-label">Excellent</div>
-                        <div class="milestone-value">90%</div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Detailed Answers -->
-            <div class="answers-section">
-                <div class="section-title">
+            <div class="ar-answers-section">
+                <div class="ar-section-title">
                     <h3>Detailed Answers</h3>
-                    <div class="filter-buttons">
-                        <button class="filter-btn active" onclick="filterAnswers('all')">All</button>
-                        <button class="filter-btn" onclick="filterAnswers('correct')">Correct</button>
-                        <button class="filter-btn" onclick="filterAnswers('incorrect')">Incorrect</button>
+                    <div class="ar-filter-buttons">
+                        <button class="ar-filter-btn active" onclick="filterAnswers('all')">All</button>
+                        <button class="ar-filter-btn" onclick="filterAnswers('correct')">Correct</button>
+                        <button class="ar-filter-btn" onclick="filterAnswers('incorrect')">Incorrect</button>
                     </div>
                 </div>
 
-                <div class="answers-list" id="answersList">
+                <div class="ar-answers-list" id="answersList">
                     <?php foreach ($answers as $index => $answer): 
                         $status = $answer['is_correct'] ? 'correct' : 'incorrect';
                         if ($answer['question_type'] == 'essay' && $answer['points_earned'] < $answer['points'] && $answer['points_earned'] > 0) {
                             $status = 'partial';
                         }
                     ?>
-                    <div class="answer-item" data-status="<?= $status ?>">
-                        <div class="answer-header <?= $status ?>" onclick="toggleAnswer(this)">
-                            <div class="question-info">
-                                <span class="question-number"><?= $index + 1 ?></span>
+                    <div class="ar-answer-item" data-status="<?= $status ?>">
+                        <div class="ar-answer-header <?= $status ?>" onclick="toggleAnswer(this)">
+                            <div class="ar-question-info">
+                                <span class="ar-question-number"><?= $index + 1 ?></span>
                                 <div>
                                     <div class="fw-600">Question <?= $index + 1 ?></div>
-                                    <div class="question-type">
+                                    <div class="ar-question-type">
                                         <i class="fas <?= $answer['question_type'] == 'essay' ? 'fa-pencil-alt' : 'fa-check-circle' ?> me-1"></i>
                                                                                 <?= ucfirst(str_replace('_', ' ', $answer['question_type'])) ?>
                                     </div>
                                 </div>
                             </div>
-                            <div class="score-indicator">
-                                <span class="score-badge <?= $status ?>">
+                            <div class="ar-score-indicator">
+                                <span class="ar-score-badge <?= $status ?>">
                                     <i class="fas <?= $status == 'correct' ? 'fa-check-circle' : ($status == 'partial' ? 'fa-adjust' : 'fa-times-circle') ?> me-1"></i>
                                     <?= $answer['points_earned'] ?>/<?= $answer['points'] ?> pts
                                 </span>
-                                <i class="fas fa-chevron-down expand-icon"></i>
+                                <i class="fas fa-chevron-down ar-expand-icon"></i>
                             </div>
                         </div>
-                        
-                        <div class="answer-content">
-                            <div class="answer-detail">
-                                <div class="detail-label">Question:</div>
-                                <div class="detail-value"><?= nl2br(htmlspecialchars($answer['question_text'])) ?></div>
+
+                        <div class="ar-answer-content">
+                            <div class="ar-answer-detail">
+                                <div class="ar-detail-label">Question:</div>
+                                <div class="ar-detail-value"><?= nl2br(htmlspecialchars($answer['question_text'])) ?></div>
                             </div>
-                            
-                            <div class="answer-detail">
-                                <div class="detail-label">Your Answer:</div>
-                                <div class="detail-value <?= $status ?>">
+
+                            <div class="ar-answer-detail">
+                                <div class="ar-detail-label">Your Answer:</div>
+                                <div class="ar-detail-value <?= $status ?>">
                                     <?php if ($answer['question_type'] == 'essay'): ?>
                                         <?= nl2br(htmlspecialchars($answer['essay_answer'] ?: 'No answer provided')) ?>
                                     <?php else: ?>
@@ -909,9 +198,9 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                             </div>
 
                             <?php if ($answer['question_type'] != 'essay' && $answer['correct_answer']): ?>
-                            <div class="answer-detail">
-                                <div class="detail-label">Correct Answer:</div>
-                                <div class="detail-value correct">
+                            <div class="ar-answer-detail">
+                                <div class="ar-detail-label">Correct Answer:</div>
+                                <div class="ar-detail-value correct">
                                     <i class="fas fa-check-circle text-success me-2"></i>
                                     <?= htmlspecialchars($answer['correct_answer']) ?>
                                 </div>
@@ -919,7 +208,7 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                             <?php endif; ?>
 
                             <?php if ($answer['question_type'] == 'essay'): ?>
-                            <div class="explanation-box">
+                            <div class="ar-explanation-box">
                                 <i class="fas fa-info-circle me-2" style="color: #667eea;"></i>
                                 <strong>Note:</strong> Essay questions are graded manually. The score shown (<?= $answer['points_earned'] ?>/<?= $answer['points'] ?>) may be adjusted by the instructor.
                             </div>
@@ -930,51 +219,25 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                 </div>
             </div>
 
-            <!-- Share Card -->
-            <div class="share-card">
-                <div class="share-text">
-                    <i class="fas fa-share-alt"></i>
-                    <span>Share your achievement!</span>
-                </div>
-                <div class="share-buttons">
-                    <a href="https://www.facebook.com/sharer/sharer.php?u=<?= urlencode(BASE_URL . '/assessment_result.php?attempt_id=' . $attemptId) ?>" 
-                       target="_blank" class="share-btn facebook">
-                        <i class="fab fa-facebook-f"></i>
-                    </a>
-                    <a href="https://twitter.com/intent/tweet?text=I just scored <?= $attempt['score'] ?>% on <?= urlencode($attempt['assessment_title']) ?>&url=<?= urlencode(BASE_URL . '/assessment_result.php?attempt_id=' . $attemptId) ?>" 
-                       target="_blank" class="share-btn twitter">
-                        <i class="fab fa-twitter"></i>
-                    </a>
-                    <a href="https://www.linkedin.com/shareArticle?mini=true&url=<?= urlencode(BASE_URL . '/assessment_result.php?attempt_id=' . $attemptId) ?>&title=<?= urlencode($attempt['assessment_title']) ?>&summary=I just scored <?= $attempt['score'] ?>% on this assessment" 
-                       target="_blank" class="share-btn linkedin">
-                        <i class="fab fa-linkedin-in"></i>
-                    </a>
-                    <a href="mailto:?subject=My Assessment Result&body=I just scored <?= $attempt['score'] ?>% on <?= $attempt['assessment_title'] ?>. View my result here: <?= BASE_URL ?>/assessment_result.php?attempt_id=<?= $attemptId ?>" 
-                       class="share-btn email">
-                        <i class="fas fa-envelope"></i>
-                    </a>
-                </div>
-            </div>
-
             <!-- Action Buttons -->
-            <div class="action-buttons">
-                <a href="course_view.php?id=<?= $attempt['course_id'] ?>" class="btn-action btn-primary">
+            <div class="ar-action-buttons">
+                <a href="course_view.php?id=<?= $attempt['course_id'] ?>" class="ar-btn-action ar-btn-primary">
                     <i class="fas fa-arrow-left"></i>
                     Back to Course
                 </a>
-                
-                <a href="assessments.php" class="btn-action btn-outline">
+
+                <a href="assessments.php" class="ar-btn-action ar-btn-outline">
                     <i class="fas fa-list"></i>
                     All Assessments
                 </a>
-                
+
                 <?php if (!$attempt['passed'] && $canRetake): ?>
-                    <a href="take_assessment.php?assessment_id=<?= $attempt['assessment_id'] ?>" class="btn-action btn-retake">
+                    <a href="take_assessment.php?assessment_id=<?= $attempt['assessment_id'] ?>" class="ar-btn-action ar-btn-retake">
                         <i class="fas fa-redo-alt"></i>
                         Retake Assessment
                     </a>
                 <?php elseif (!$attempt['passed'] && !$canRetake): ?>
-                    <button class="btn-action btn-retake disabled" disabled>
+                    <button class="ar-btn-action ar-btn-retake disabled" disabled>
                         <i class="fas fa-ban"></i>
                         No Attempts Left
                     </button>
@@ -987,8 +250,8 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
         // Toggle answer details
         function toggleAnswer(header) {
             const content = header.nextElementSibling;
-            const icon = header.querySelector('.expand-icon');
-            
+            const icon = header.querySelector('.ar-expand-icon');
+
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
                 icon.classList.remove('fa-chevron-up');
@@ -1002,9 +265,9 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
 
         // Filter answers
         function filterAnswers(status) {
-            const answers = document.querySelectorAll('.answer-item');
-            const buttons = document.querySelectorAll('.filter-btn');
-            
+            const answers = document.querySelectorAll('.ar-answer-item');
+            const buttons = document.querySelectorAll('.ar-filter-btn');
+
             // Update active button
             buttons.forEach(btn => {
                 btn.classList.remove('active');
@@ -1012,7 +275,7 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                     btn.classList.add('active');
                 }
             });
-            
+
             // Filter answers
             answers.forEach(answer => {
                 if (status === 'all') {
@@ -1030,13 +293,13 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
 
         // Expand all answers
         function expandAll() {
-            const contents = document.querySelectorAll('.answer-content');
-            const icons = document.querySelectorAll('.expand-icon');
-            
+            const contents = document.querySelectorAll('.ar-answer-content');
+            const icons = document.querySelectorAll('.ar-expand-icon');
+
             contents.forEach(content => {
                 content.classList.add('expanded');
             });
-            
+
             icons.forEach(icon => {
                 icon.classList.remove('fa-chevron-down');
                 icon.classList.add('fa-chevron-up');
@@ -1045,13 +308,13 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
 
         // Collapse all answers
         function collapseAll() {
-            const contents = document.querySelectorAll('.answer-content');
-            const icons = document.querySelectorAll('.expand-icon');
-            
+            const contents = document.querySelectorAll('.ar-answer-content');
+            const icons = document.querySelectorAll('.ar-expand-icon');
+
             contents.forEach(content => {
                 content.classList.remove('expanded');
             });
-            
+
             icons.forEach(icon => {
                 icon.classList.remove('fa-chevron-up');
                 icon.classList.add('fa-chevron-down');
@@ -1065,13 +328,13 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                 e.preventDefault();
                 window.print();
             }
-            
+
             // Ctrl + E to expand all
             if (e.ctrlKey && e.key === 'e') {
                 e.preventDefault();
                 expandAll();
             }
-            
+
             // Ctrl + C to collapse all
             if (e.ctrlKey && e.key === 'c') {
                 e.preventDefault();
@@ -1083,22 +346,10 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
         document.addEventListener('DOMContentLoaded', function() {
             // Add keyboard shortcut hint
             const hint = document.createElement('div');
-            hint.style.cssText = `
-                position: fixed;
-                bottom: 80px;
-                right: 20px;
-                background: rgba(0,0,0,0.7);
-                color: white;
-                padding: 8px 16px;
-                border-radius: 30px;
-                font-size: 12px;
-                z-index: 999;
-                backdrop-filter: blur(5px);
-                border: 1px solid rgba(255,255,255,0.2);
-            `;
+            hint.className = 'ar-shortcut-hint';
             hint.innerHTML = '<i class="fas fa-keyboard me-2"></i>Ctrl+E: Expand All | Ctrl+C: Collapse All | Ctrl+P: Print';
             document.body.appendChild(hint);
-            
+
             setTimeout(() => {
                 hint.style.opacity = '0';
                 hint.style.transition = 'opacity 0.5s';
@@ -1137,12 +388,12 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
 
         // Auto-expand incorrect answers
         document.addEventListener('DOMContentLoaded', function() {
-            const incorrectAnswers = document.querySelectorAll('.answer-item[data-status="incorrect"]');
+            const incorrectAnswers = document.querySelectorAll('.ar-answer-item[data-status="incorrect"]');
             incorrectAnswers.forEach(answer => {
-                const header = answer.querySelector('.answer-header');
-                const content = answer.querySelector('.answer-content');
-                const icon = answer.querySelector('.expand-icon');
-                
+                const header = answer.querySelector('.ar-answer-header');
+                const content = answer.querySelector('.ar-answer-content');
+                const icon = answer.querySelector('.ar-expand-icon');
+
                 content.classList.add('expanded');
                 icon.classList.remove('fa-chevron-down');
                 icon.classList.add('fa-chevron-up');

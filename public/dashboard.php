@@ -204,50 +204,438 @@ if ($isAdmin) {
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    /* News section scrollable area */
-    .news-section {
-        max-height: 500px;
+    /* Stats Cards - Minimized (for both admin and users) */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
+    .stat-card {
+        background: linear-gradient(145deg, #ffffff, #f8fafc);
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-number {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 5px;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 14px;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* Card Colors */
+    .stat-card-ongoing .stat-number {
+        background: linear-gradient(135deg, #ffc107, #ffd54f);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .stat-card-completed .stat-number {
+        background: linear-gradient(135deg, #28a745, #34d058);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .stat-card-notenrolled .stat-number {
+        background: linear-gradient(135deg, #3498db, #1a75d2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Scrollable Column Styles - For ALL scrollable columns */
+    .scrollable-column {
+        max-height: 450px;
         overflow-y: auto;
-        padding-right: 10px;
+        padding-right: 5px;
         scrollbar-width: thin;
         -ms-overflow-style: auto;
         transition: scrollbar-color 0.3s ease;
     }
 
-    /* Webkit scrollbar styles for news section */
-    .news-section::-webkit-scrollbar {
+    /* Webkit scrollbar styles for scrollable columns */
+    .scrollable-column::-webkit-scrollbar {
         width: 8px;
         height: 8px;
         transition: all 0.3s ease;
     }
 
-    .news-section::-webkit-scrollbar-track {
+    .scrollable-column::-webkit-scrollbar-track {
         background: #f1f1f1;
         border-radius: 10px;
         transition: all 0.3s ease;
     }
 
-    .news-section::-webkit-scrollbar-thumb {
+    .scrollable-column::-webkit-scrollbar-thumb {
         background: #888;
         border-radius: 10px;
         transition: all 0.3s ease;
     }
 
-    .news-section::-webkit-scrollbar-thumb:hover {
+    .scrollable-column::-webkit-scrollbar-thumb:hover {
         background: #555;
     }
 
-    /* Class to hide scrollbar in news section */
-    .news-section.scrollbar-hidden {
-        scrollbar-width: none; /* Firefox */
-        -ms-overflow-style: none; /* IE/Edge */
+    /* Class to hide scrollbar */
+    .scrollable-column.scrollbar-hidden {
+        scrollbar-width: none !important; /* Firefox */
+        -ms-overflow-style: none !important; /* IE/Edge */
     }
 
-    .news-section.scrollbar-hidden::-webkit-scrollbar {
-        display: none; /* Chrome/Safari/Opera */
+    .scrollable-column.scrollbar-hidden::-webkit-scrollbar {
+        display: none !important; /* Chrome/Safari/Opera */
     }
 
-    
+    /* Courses and Recent Courses - NOW SCROLLABLE */
+    .courses-column-list,
+    .recent-column-list {
+        max-height: 450px;
+        overflow-y: auto;
+        padding-right: 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Two Column Layout for Admin */
+    .dashboard-two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    /* Three Column Layout for Users */
+    .dashboard-three-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    /* Column Cards */
+    .column-card {
+        background: linear-gradient(145deg, #ffffff, #f8fafc);
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e2e8f0;
+        height: fit-content;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .column-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e3c72;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .column-header h3 i {
+        color: #3498db;
+    }
+
+    /* News Column Items */
+    .news-column-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .news-column-item:last-child {
+        border-bottom: none;
+    }
+
+    .news-column-item:hover {
+        background: rgba(52, 152, 219, 0.05);
+        border-radius: 8px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .news-column-item h5 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1e3c72;
+        margin-bottom: 5px;
+        padding-right: 25px;
+    }
+
+    .news-column-content {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 8px;
+        line-height: 1.5;
+    }
+
+    .news-column-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: #94a3b8;
+    }
+
+    .news-column-expand {
+        position: absolute;
+        top: 12px;
+        right: 5px;
+        color: #3498db;
+        font-size: 11px;
+    }
+
+    /* Courses in Column - NOW SCROLLABLE */
+    .courses-column-list {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .course-column-item {
+        display: flex;
+        gap: 12px;
+        text-decoration: none;
+        color: inherit;
+        padding: 10px;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: white;
+        border: 1px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+
+    .course-column-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background: #f8fafc;
+    }
+
+    .course-column-img {
+        width: 70px;
+        height: 70px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .course-column-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .course-column-info {
+        flex: 1;
+    }
+
+    .course-column-info h5 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1e3c72;
+        margin: 0 0 5px 0;
+        line-height: 1.3;
+    }
+
+    .course-column-info p {
+        font-size: 12px;
+        color: #64748b;
+        margin: 0 0 5px 0;
+        line-height: 1.4;
+    }
+
+    .course-column-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    /* Recent Courses Column - NOW SCROLLABLE */
+    .recent-column-list {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .recent-column-item {
+        display: flex;
+        gap: 12px;
+        text-decoration: none;
+        color: inherit;
+        padding: 10px;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: white;
+        border: 1px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+
+    .recent-column-item:hover {
+        transform: translateX(3px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .recent-column-img {
+        width: 50px;
+        height: 50px;
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .recent-column-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .recent-column-info {
+        flex: 1;
+    }
+
+    .recent-column-info h6 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e3c72;
+        margin: 0 0 3px 0;
+        line-height: 1.3;
+    }
+
+    .recent-column-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+    }
+
+    .recent-column-badge {
+        padding: 2px 6px;
+        border-radius: 20px;
+        font-size: 9px;
+        font-weight: 600;
+    }
+
+    .badge-ongoing {
+        background: linear-gradient(135deg, #ffc107, #ffd54f);
+        color: #1a202c;
+    }
+
+    .badge-completed {
+        background: linear-gradient(135deg, #28a745, #34d058);
+        color: white;
+    }
+
+    .badge-notenrolled {
+        background: linear-gradient(135deg, #3498db, #1a75d2);
+        color: white;
+    }
+
+    .recent-progress {
+        color: #64748b;
+    }
+
+    /* Empty State for Columns */
+    .column-empty-state {
+        text-align: center;
+        padding: 30px 15px;
+        color: #94a3b8;
+    }
+
+    .column-empty-state i {
+        font-size: 36px;
+        margin-bottom: 10px;
+        opacity: 0.5;
+    }
+
+    .column-empty-state h6 {
+        color: #64748b;
+        margin-bottom: 5px;
+        font-size: 14px;
+    }
+
+    .column-empty-state p {
+        font-size: 12px;
+        margin: 0;
+    }
+
+    /* Audit trail scrollbar if needed */
+    .audit-content-scroll {
+        max-height: 300px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+
+    .audit-content-scroll::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .audit-content-scroll::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .audit-content-scroll::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .dashboard-three-column,
+        .dashboard-two-column {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-three-column,
+        .dashboard-two-column {
+            grid-template-columns: 1fr;
+        }
+        
+        .courses-column-list,
+        .recent-column-list,
+        .news-column-list {
+            max-height: 350px;
+        }
+    }
 </style>
 </head>
 <body>
@@ -261,10 +649,10 @@ if ($isAdmin) {
         <!-- Dashboard Header -->
         <div class="dashboard-header">
             <h1>Welcome Back, <?= htmlspecialchars($_SESSION['user']['fname'] ?? 'User') ?>!</h1>
-            <p>Track your learning progress and stay updated with announcements</p>
+            <p><?= $isAdmin ? 'Monitor system activity and announcements' : 'Track your learning progress and stay updated with announcements' ?></p>
         </div>
 
-        <!-- Stats Cards -->
+        <!-- Stats Cards - Visible for BOTH admin and users -->
         <div class="stats-grid">
             <div class="stat-card stat-card-ongoing">
                 <div class="stat-number"><?= $counter['ongoing'] ?></div>
@@ -282,56 +670,56 @@ if ($isAdmin) {
             </div>
         </div>
 
-        <!-- News & Content Section -->
-        <div class="content-section">
-            <!-- News Section -->
-            <div class="news-section" id="newsSection">
-                <div class="section-header">
-                    <h3><i class="fas fa-newspaper me-2"></i>News & Announcements</h3>
-                    <?php if(is_admin() || is_superadmin()): ?>
-                        <a href="<?= BASE_URL ?>/admin/news_crud.php">View All</a>
-                    <?php endif; ?>
-                </div>
+        <!-- Conditional Dashboard Layout based on User Role -->
+        
+        <?php if ($isAdmin): ?>
+            <!-- ADMIN DASHBOARD: Two Column Layout - News & Announcements + Recent Activity -->
+            <div class="dashboard-two-column">
                 
-                <?php if (!empty($news)): ?>
-                    <?php foreach ($news as $item): ?>
-                        <div class="news-item" onclick="toggleNews(this)">
-                            <h5><?= htmlspecialchars($item['title']) ?></h5>
-                            <div class="news-content-wrapper">
-                                <p class="news-content-short"><?= htmlspecialchars(substr($item['content'], 0, 100)) ?>...</p>
-                                <p class="news-content-full"><?= htmlspecialchars($item['content']) ?></p>
-                            </div>
-                            <div class="news-meta">
-                                <span><i class="fas fa-calendar-alt me-1"></i> <?= date('M d, Y', strtotime($item['created_at'])) ?></span>
-                                <span><i class="fas fa-user me-1"></i> <?= htmlspecialchars($item['author']) ?></span>
-                            </div>
-                            <span class="expand-indicator"><i class="fas fa-chevron-down"></i></span>
-                        </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="empty-state">
-                        <i class="fas fa-newspaper"></i>
-                        <h4>No announcements yet</h4>
-                        <p>Check back later for updates</p>
+                <!-- Column 1: News & Announcements (Scrollable) -->
+                <div class="column-card">
+                    <div class="column-header">
+                        <h3><i class="fas fa-newspaper me-2"></i>News & Announcements</h3>
+                        <a href="<?= BASE_URL ?>/admin/news_crud.php" class="view-all-link">
+                            <i class="fas fa-external-link-alt me-1"></i>Manage
+                        </a>
                     </div>
-                <?php endif; ?>
-            </div>
+                    
+                    <div class="news-column-list scrollable-column" id="newsColumn">
+                        <?php if (!empty($news)): ?>
+                            <?php foreach ($news as $item): ?>
+                                <div class="news-column-item" onclick="toggleNews(this)">
+                                    <h5><?= htmlspecialchars($item['title']) ?></h5>
+                                    <div class="news-column-content">
+                                        <span class="news-content-short"><?= htmlspecialchars(substr($item['content'], 0, 80)) ?>...</span>
+                                        <span class="news-content-full" style="display: none;"><?= htmlspecialchars($item['content']) ?></span>
+                                    </div>
+                                    <div class="news-column-meta">
+                                        <span><i class="fas fa-calendar-alt me-1"></i> <?= date('M d, Y', strtotime($item['created_at'])) ?></span>
+                                        <span><i class="fas fa-user me-1"></i> <?= htmlspecialchars($item['author']) ?></span>
+                                    </div>
+                                    <span class="news-column-expand"><i class="fas fa-chevron-down"></i></span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="column-empty-state">
+                                <i class="fas fa-newspaper"></i>
+                                <h6>No announcements yet</h6>
+                                <p>Create your first announcement</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
 
-            <!-- Content Section - Shows either Recent Courses or Mini Audit Trail based on role -->
-            <div class="courses-section">
-                <div class="section-header">
-                    <?php if ($isAdmin): ?>
+                <!-- Column 2: Recent Activity (Audit Trail) -->
+                <div class="column-card">
+                    <div class="column-header">
                         <h3><i class="fas fa-history me-2 text-primary"></i>Recent Activity</h3>
                         <a href="<?= BASE_URL ?>/admin/audit_courses.php" class="view-all-link">
-                            <i class="fas fa-external-link-alt me-1"></i>Full Audit Trail
+                            <i class="fas fa-external-link-alt me-1"></i>View All
                         </a>
-                    <?php else: ?>
-                        <h3><i class="fas fa-book me-2"></i>Recent Courses</h3>
-                    <?php endif; ?>
-                </div>
-                
-                <?php if ($isAdmin): ?>
-                    <!-- Mini Audit Trail for Admin/Superadmin -->
+                    </div>
+                    
                     <?php if (!empty($audit_entries)): ?>
                         <div class="audit-content-scroll" id="auditScroll">
                             <table class="audit-table-mini">
@@ -376,19 +764,106 @@ if ($isAdmin) {
                             </table>
                         </div>
                     <?php else: ?>
-                        <div class="empty-state">
+                        <div class="column-empty-state">
                             <i class="fas fa-history"></i>
-                            <h4>No recent activity</h4>
-                            <p>Audit trail will appear here when changes are made</p>
+                            <h6>No recent activity</h6>
+                            <p>Activity will appear here when changes are made</p>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+
+        <?php else: ?>
+            <!-- USER DASHBOARD: Three Column Layout - News + Courses + Recent Courses (ALL SCROLLABLE) -->
+            <div class="dashboard-three-column">
+                
+                <!-- Column 1: News & Announcements (Scrollable) -->
+                <div class="column-card">
+                    <div class="column-header">
+                        <h3><i class="fas fa-newspaper me-2"></i>News & Announcements</h3>
+                        <a href="<?= BASE_URL ?>/public/news.php" class="view-all-link">
+                            <i class="fas fa-eye me-1"></i>View All
+                        </a>
+                    </div>
                     
-                <?php else: ?>
-                    <!-- Recent Courses for Regular Users -->
+                    <div class="news-column-list scrollable-column" id="newsColumn">
+                        <?php if (!empty($news)): ?>
+                            <?php foreach ($news as $item): ?>
+                                <div class="news-column-item" onclick="toggleNews(this)">
+                                    <h5><?= htmlspecialchars($item['title']) ?></h5>
+                                    <div class="news-column-content">
+                                        <span class="news-content-short"><?= htmlspecialchars(substr($item['content'], 0, 80)) ?>...</span>
+                                        <span class="news-content-full" style="display: none;"><?= htmlspecialchars($item['content']) ?></span>
+                                    </div>
+                                    <div class="news-column-meta">
+                                        <span><i class="fas fa-calendar-alt me-1"></i> <?= date('M d, Y', strtotime($item['created_at'])) ?></span>
+                                        <span><i class="fas fa-user me-1"></i> <?= htmlspecialchars($item['author']) ?></span>
+                                    </div>
+                                    <span class="news-column-expand"><i class="fas fa-chevron-down"></i></span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="column-empty-state">
+                                <i class="fas fa-newspaper"></i>
+                                <h6>No announcements yet</h6>
+                                <p>Check back later for updates</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Column 2: Courses (NOW SCROLLABLE) -->
+                <div class="column-card">
+                    <div class="column-header">
+                        <h3><i class="fas fa-graduation-cap me-2"></i>Courses</h3>
+                        <a href="<?= BASE_URL ?>/public/courses.php" class="view-all-link">
+                            <i class="fas fa-eye me-1"></i>View All
+                        </a>
+                    </div>
+                    
                     <?php if (!empty($courses)): ?>
-                        <div class="course-grid">
+                        <div class="courses-column-list scrollable-column" id="coursesColumn">
                             <?php 
-                            $recentCourses = array_slice($courses, 0, 4);
+                            $mainCourses = array_slice($courses, 0, 10); // Show more courses now that it's scrollable
+                            foreach ($mainCourses as $c): 
+                                $courseUrl = BASE_URL . "/public/course_view.php?id={$c['id']}";
+                            ?>
+                                <a href="<?= $courseUrl ?>" class="course-column-item">
+                                    <div class="course-column-img">
+                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image">
+                                    </div>
+                                    <div class="course-column-info">
+                                        <h5><?= htmlspecialchars($c['title']) ?></h5>
+                                        <p><?= htmlspecialchars(substr($c['description'], 0, 60)) ?>...</p>
+                                        <span class="course-column-badge <?= $c['enroll_status'] ? 'badge-' . $c['enroll_status'] : 'badge-notenrolled' ?>">
+                                            <?= $c['enroll_status'] ? ucfirst($c['enroll_status']) : 'Not Enrolled' ?>
+                                        </span>
+                                    </div>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="column-empty-state">
+                            <i class="fas fa-book-open"></i>
+                            <h6>No courses available</h6>
+                            <p>Check back later for new courses</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Column 3: Recent Courses (NOW SCROLLABLE) -->
+                <div class="column-card">
+                    <div class="column-header">
+                        <h3><i class="fas fa-clock me-2"></i>Recent Courses</h3>
+                        <a href="<?= BASE_URL ?>/public/courses.php" class="view-all-link">
+                            <i class="fas fa-eye me-1"></i>View All
+                        </a>
+                    </div>
+                    
+                    <?php if (!empty($courses)): ?>
+                        <div class="recent-column-list scrollable-column" id="recentColumn">
+                            <?php 
+                            $recentCourses = array_slice($courses, 0, 8); // Show more recent courses now that it's scrollable
                             foreach ($recentCourses as $c): 
                                 $progressPercent = 0;
                                 if ($c['enroll_status'] && $c['progress'] && ($c['file_pdf'] || $c['file_video'])) {
@@ -401,56 +876,86 @@ if ($isAdmin) {
                                 }
                                 $courseUrl = BASE_URL . "/public/course_view.php?id={$c['id']}";
                             ?>
-                                <a href="<?= $courseUrl ?>" class="course-card-link">
-                                    <div class="course-card">
-                                        <div class="course-card-img">
-                                            <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image.png">
-                                        </div>
-                                        <div class="course-card-body">
-                                            <div class="course-card-title">
-                                                <h6><?= htmlspecialchars($c['title']) ?></h6>
-                                                <span class="course-badge <?= $c['enroll_status'] ? 'badge-' . $c['enroll_status'] : 'badge-notenrolled' ?>">
-                                                    <?= $c['enroll_status'] ? ucfirst($c['enroll_status']) : 'Not Enrolled' ?>
-                                                </span>
-                                            </div>
-                                            <p><?= htmlspecialchars(substr($c['description'], 0, 80)) ?>...</p>
-                                            
+                                <a href="<?= $courseUrl ?>" class="recent-column-item">
+                                    <div class="recent-column-img">
+                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image">
+                                    </div>
+                                    <div class="recent-column-info">
+                                        <h6><?= htmlspecialchars($c['title']) ?></h6>
+                                        <div class="recent-column-meta">
+                                            <span class="recent-column-badge <?= $c['enroll_status'] ? 'badge-' . $c['enroll_status'] : 'badge-notenrolled' ?>">
+                                                <?= $c['enroll_status'] ? ucfirst($c['enroll_status']) : 'Not Enrolled' ?>
+                                            </span>
                                             <?php if ($c['enroll_status'] && $c['enroll_status'] === 'ongoing'): ?>
-                                                <div class="course-progress">
-                                                    <div class="progress">
-                                                        <div class="progress-bar" style="width: <?= $progressPercent ?>%; background: linear-gradient(90deg, #ffc107, #ffd54f);"></div>
-                                                    </div>
-                                                    <div class="progress-percent"><?= $progressPercent ?>% Complete</div>
-                                                </div>
+                                                <span class="recent-progress">
+                                                    <i class="fas fa-chart-line me-1"></i><?= $progressPercent ?>%
+                                                </span>
                                             <?php endif; ?>
                                         </div>
                                     </div>
                                 </a>
                             <?php endforeach; ?>
                         </div>
-                        
-                        <div class="text-center mt-4">
-                            <a href="<?= BASE_URL ?>/public/courses.php" class="view-all-btn">
-                                <i class="fas fa-eye"></i> View All Courses
-                            </a>
-                        </div>
                     <?php else: ?>
-                        <div class="empty-state">
-                            <i class="fas fa-book-open"></i>
-                            <h4>No courses available</h4>
-                            <p>Check back later for new courses</p>
+                        <div class="column-empty-state">
+                            <i class="fas fa-clock"></i>
+                            <h6>No recent courses</h6>
+                            <p>Enroll in courses to see them here</p>
                         </div>
                     <?php endif; ?>
-                <?php endif; ?>
+                </div>
             </div>
-        </div>
+        <?php endif; ?>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Simple animation for cards on scroll
+        // Function to setup auto-hide scrollbar for any element
+        function setupScrollbarAutoHide(element, hideDelay = 3000) {
+            if (!element) return;
+            
+            let hideTimeout;
+            
+            // Function to hide scrollbar
+            function hideScrollbar() {
+                element.classList.add('scrollbar-hidden');
+            }
+            
+            // Function to show scrollbar
+            function showScrollbar() {
+                element.classList.remove('scrollbar-hidden');
+            }
+            
+            // Function to reset timer and show scrollbar
+            function resetScrollbarTimer() {
+                showScrollbar();
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(hideScrollbar, hideDelay);
+            }
+            
+            // Initial hide after delay (so scrollbar starts visible then hides)
+            hideTimeout = setTimeout(hideScrollbar, hideDelay);
+            
+            // Show scrollbar on mouse enter and reset timer
+            element.addEventListener('mouseenter', resetScrollbarTimer);
+            
+            // Reset timer on mouse move (user is actively looking)
+            element.addEventListener('mousemove', resetScrollbarTimer);
+            
+            // Show scrollbar when scrolling and reset timer
+            element.addEventListener('scroll', resetScrollbarTimer);
+            
+            // Reset timer on mouse leave to ensure it hides after delay
+            element.addEventListener('mouseleave', function() {
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(hideScrollbar, hideDelay);
+            });
+        }
+
+        // Animation for cards on scroll
         document.addEventListener('DOMContentLoaded', function() {
-            const cards = document.querySelectorAll('.stat-card, .course-card, .news-item, .audit-table-mini');
+            const cards = document.querySelectorAll('.stat-card, .column-card, .course-column-item, .recent-column-item, .news-column-item');
 
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -468,76 +973,25 @@ if ($isAdmin) {
                 observer.observe(card);
             });
 
-            // Auto-hide scrollbar for news section after 3 seconds
-            const newsSection = document.getElementById('newsSection');
-            
-            if (newsSection) {
-                let newsHideTimeout;
-                
-                // Function to hide scrollbar
-                function hideNewsScrollbar() {
-                    newsSection.classList.add('scrollbar-hidden');
-                }
-                
-                // Function to show scrollbar
-                function showNewsScrollbar() {
-                    newsSection.classList.remove('scrollbar-hidden');
-                }
-                
-                // Function to reset timer and show scrollbar
-                function resetNewsScrollbar() {
-                    showNewsScrollbar();
-                    clearTimeout(newsHideTimeout);
-                    newsHideTimeout = setTimeout(hideNewsScrollbar, 3000);
-                }
-                
-                // Initial hide after 3 seconds
-                newsHideTimeout = setTimeout(hideNewsScrollbar, 3000);
-                
-                // Show scrollbar on mouse enter and reset timer
-                newsSection.addEventListener('mouseenter', resetNewsScrollbar);
-                
-                // Reset timer on mouse move (user is actively looking)
-                newsSection.addEventListener('mousemove', resetNewsScrollbar);
-                
-                // Show scrollbar when scrolling and reset timer
-                newsSection.addEventListener('scroll', resetNewsScrollbar);
-            }
-
-            // Auto-hide scrollbar for audit trail after 3 seconds
+            // Apply auto-hide scrollbar to ALL scrollable columns
+            const newsColumn = document.getElementById('newsColumn');
+            const coursesColumn = document.getElementById('coursesColumn');
+            const recentColumn = document.getElementById('recentColumn');
             const auditScroll = document.getElementById('auditScroll');
             
+            // Setup auto-hide for all scrollable columns
+            setupScrollbarAutoHide(newsColumn, 3000);
+            
+            if (coursesColumn) {
+                setupScrollbarAutoHide(coursesColumn, 3000);
+            }
+            
+            if (recentColumn) {
+                setupScrollbarAutoHide(recentColumn, 3000);
+            }
+            
             if (auditScroll) {
-                let auditHideTimeout;
-                
-                // Function to hide scrollbar
-                function hideAuditScrollbar() {
-                    auditScroll.classList.add('scrollbar-hidden');
-                }
-                
-                // Function to show scrollbar
-                function showAuditScrollbar() {
-                    auditScroll.classList.remove('scrollbar-hidden');
-                }
-                
-                // Function to reset timer and show scrollbar
-                function resetAuditScrollbar() {
-                    showAuditScrollbar();
-                    clearTimeout(auditHideTimeout);
-                    auditHideTimeout = setTimeout(hideAuditScrollbar, 3000);
-                }
-                
-                // Initial hide after 3 seconds
-                auditHideTimeout = setTimeout(hideAuditScrollbar, 3000);
-                
-                // Show scrollbar on mouse enter and reset timer
-                auditScroll.addEventListener('mouseenter', resetAuditScrollbar);
-                
-                // Reset timer on mouse move
-                auditScroll.addEventListener('mousemove', resetAuditScrollbar);
-                
-                // Show scrollbar when scrolling and reset timer
-                auditScroll.addEventListener('scroll', resetAuditScrollbar);
+                setupScrollbarAutoHide(auditScroll, 3000);
             }
         });
 
@@ -546,26 +1000,25 @@ if ($isAdmin) {
             element.classList.toggle('expanded');
             const shortContent = element.querySelector('.news-content-short');
             const fullContent = element.querySelector('.news-content-full');
-            const icon = element.querySelector('.expand-indicator i');
+            const icon = element.querySelector('.news-column-expand i');
             
             if (element.classList.contains('expanded')) {
                 shortContent.style.display = 'none';
-                fullContent.style.display = 'block';
+                fullContent.style.display = 'inline';
                 icon.classList.remove('fa-chevron-down');
                 icon.classList.add('fa-chevron-up');
             } else {
-                shortContent.style.display = 'block';
+                shortContent.style.display = 'inline';
                 fullContent.style.display = 'none';
                 icon.classList.remove('fa-chevron-up');
                 icon.classList.add('fa-chevron-down');
             }
             
             // Reset scrollbar timer when toggling news
-            const newsSection = document.getElementById('newsSection');
-            if (newsSection) {
-                // Trigger the reset function
+            const newsColumn = document.getElementById('newsColumn');
+            if (newsColumn) {
                 const event = new Event('scroll');
-                newsSection.dispatchEvent(event);
+                newsColumn.dispatchEvent(event);
             }
         }
     </script>
