@@ -527,7 +527,9 @@ $max_post_size = ini_get('post_max_size');
         </div>
     <?php endif; ?>
 
+<?php if ($act !== 'addform' && !($act === 'edit' && $id)): ?>
     <a href="?act=addform" class="btn btn-success mb-3">Add New Course</a>
+<?php endif; ?>
 
     <?php if ($act === 'addform'): ?>
         <?php 

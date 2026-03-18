@@ -38,7 +38,7 @@ function get_role_icon($role = '') {
             <div class="sidebar-logo">
                 <img src="<?= BASE_URL ?>/uploads/images/armmc-logo.png" 
                      alt="armmc logo" 
-                     class="logo-img">
+                     class="logo-img" style="max-width: 120px; margin-bottom: 10px;">
             </div>
 
             <!-- Space after logo (built into CSS) -->
@@ -72,88 +72,77 @@ function get_role_icon($role = '') {
                 <!-- DIVIDER 1 -->
                 <li class="nav-divider"></li>
 
-                <!-- ALL COURSES TABS SECTION -->
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> All Courses tab <i class="fa fa-caret-down float-end"></i>
-                    </a>
-                    <div class="collapse" id="coursesSubMenu">
-                        <ul class="nav flex-column ms-3">
-                            <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
-                                        <i class="fa fa-gear"></i> Manage Courses
-                                    </a>
-                                </li>
-                            <?php else: ?>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
-                                        <i class="fa fa-list"></i> All Courses
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                            
-                            <?php if($u && is_student()): ?>
-                            <li class="nav-item">
-                                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
-                                    <i class="fa fa-graduation-cap"></i> My Courses
-                                </a>
-                            </li>
-                            <?php endif; ?>
-                            
-                            <?php if($u && (is_proponent() || is_admin())): ?>
-                               <li class="nav-item">
-                                    <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
-                                        <i class="fa-solid fa-folder-tree"></i> All Courses
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
+                <!-- ALL COURSES SECTION -->
+                <li class="nav-item" style="margin-top: 10px;">
+                    <div style="color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px;">
+                        <i class="fa fa-book me-1" style="font-size: 10px;"></i> COURSES
                     </div>
                 </li>
 
-<!-- User Management -->
-
-
-
- <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-                        <i class="fa fa-book"></i> User Management <i class="fa fa-caret-down float-end"></i>
-                    </a>
-                    <div class="collapse" id="coursesSubMenu">
-                        <ul class="nav flex-column ms-3">
-                            <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
-                                <li class="nav-item">
-                                    <li class="nav-item"><a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
-                                        <i class="fa fa-gear"></i> User List
-                                    </a>
-                                </li>
-                            <li class="nav-item">
-                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/Departments_crud.php">
-                                        <i class="fa fa-gear"></i> Departments
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="<?= BASE_URL ?>/admin/committee_crud.php">
-                                        <i class="fa fa-gear"></i> Committee
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
-                    </div>
-                </li>
-
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
+                            <i class="fa fa-sliders"></i> Manage Courses
+                        </a>
+                    </li>
+                <?php else: ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
+                            <i class="fa fa-stack-overflow"></i> All Courses
+                        </a>
+                    </li>
+                <?php endif; ?>
                 
-              
+                <?php if($u && is_student()): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
+                        <i class="fa fa-book-bookmark"></i> My Courses
+                    </a>
+                </li>
+                <?php endif; ?>
+                
+                <?php if($u && (is_proponent() || is_admin())): ?>
+                   <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
+                            <i class="fa-solid fa-folder-tree"></i> All Courses
+                        </a>
+                    </li>
+                <?php endif; ?>
 
+                <!-- USER MANAGEMENT SECTION -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                <li class="nav-item" style="margin-top: 15px;">
+                    <div style="color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px;">
+                        <i class="fa fa-users me-1" style="font-size: 10px;"></i> USER MANAGEMENT
+                    </div>
+                </li>
+                <?php endif; ?>
+
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
+                            <i class="fa fa-user-gear"></i> User List
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/Departments_crud.php">
+                            <i class="fa fa-building-user"></i> Departments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/committee_crud.php">
+                            <i class="fa fa-users-gear"></i> Committee
+                        </a>
+                    </li>
+                <?php endif; ?>
 
                 <!-- DIVIDER 2 -->
-                <?php if($u && (is_admin() || is_superadmin())): ?>
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-divider"></li>
                 <?php endif; ?>
 
                 <!-- News -->
-                <?php if($u && (is_admin() || is_superadmin())): ?>
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/news_crud.php">
                             <i class="fa fa-newspaper"></i> News

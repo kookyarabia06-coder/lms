@@ -111,23 +111,14 @@ $stmt = $pdo->prepare('
 $stmt->execute([$courseId]);
 $enrolledStudents = $stmt->fetchAll();
 
-// 2. Statistics
-$stmt = $pdo->prepare('
-    SELECT 
-        COUNT(*) as total_enrolled,
-        SUM(CASE WHEN status = "ongoing" THEN 1 ELSE 0 END) as ongoing_count,
-        SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed_count
-    FROM enrollments 
-    WHERE course_id = ?
-');
-$stmt->execute([$courseId]);
-$stats = $stmt->fetch();
-if (!$stats) {
-    $stats = [
-        'total_enrolled' => 0,
-        'ongoing_count' => 0,
-        'completed_count' => 0
-    ];
+// Debug: Check if data is being fetched
+if (empty($enrolledStudents)) {
+    error_log("No enrolled students found for course ID: " . $courseId);
+} else {
+    error_log("Found " . count($enrolledStudents) . " enrolled students");
+    foreach ($enrolledStudents as $student) {
+        error_log("Student: " . $student['fname'] . " - Progress: " . $student['progress'] . " - Status: " . $student['status']);
+    }
 }
 
 // Export CSV

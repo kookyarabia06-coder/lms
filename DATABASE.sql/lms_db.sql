@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 17, 2026 at 06:14 AM
+-- Generation Time: Mar 18, 2026 at 07:51 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -80,7 +80,9 @@ INSERT INTO `assessment_answers` (`id`, `attempt_id`, `question_id`, `selected_o
 (9, 5, 32, 124, NULL, 0, 0),
 (10, 6, 30, 117, NULL, 1, 1),
 (11, 6, 31, 119, NULL, 1, 1),
-(12, 6, 32, 126, NULL, 1, 1);
+(12, 6, 32, 126, NULL, 1, 1),
+(13, 7, 17, 64, NULL, 0, 0),
+(14, 8, 17, 66, NULL, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -108,7 +110,9 @@ INSERT INTO `assessment_attempts` (`id`, `assessment_id`, `user_id`, `score`, `s
 (3, 6, 76, 66.67, 'completed', '2026-03-16 16:36:52', '2026-03-16 16:39:05', 0, NULL),
 (4, 6, 76, 0.00, 'completed', '2026-03-16 16:39:18', '2026-03-16 16:39:28', 0, NULL),
 (5, 6, 76, 66.67, 'completed', '2026-03-16 16:40:06', '2026-03-16 16:40:16', 0, NULL),
-(6, 6, 76, 100.00, 'completed', '2026-03-16 16:40:26', '2026-03-16 16:40:35', 1, NULL);
+(6, 6, 76, 100.00, 'completed', '2026-03-16 16:40:26', '2026-03-16 16:40:35', 1, NULL),
+(7, 9, 76, 0.00, 'completed', '2026-03-17 14:08:08', '2026-03-17 14:08:13', 0, NULL),
+(8, 9, 76, 100.00, 'completed', '2026-03-17 14:08:17', '2026-03-17 14:08:20', 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -282,7 +286,9 @@ CREATE TABLE `committees` (
 --
 
 INSERT INTO `committees` (`id`, `name`, `description`, `created_at`, `updated_at`) VALUES
-(1, 'inventory_sys', 'sad', '2026-03-17 03:52:45', NULL);
+(1, 'inventory_sys', 'sadasdasd', '2026-03-17 03:52:45', '2026-03-18 00:25:51'),
+(2, 'sadasdasdasdas', 'dasdasdasdasd', '2026-03-18 00:23:28', NULL),
+(3, 'maluiptuu', 'asodhasjkldhsad', '2026-03-18 00:25:36', NULL);
 
 -- --------------------------------------------------------
 
@@ -309,7 +315,7 @@ CREATE TABLE `contact_messages` (
 --
 
 INSERT INTO `contact_messages` (`id`, `name`, `email`, `subject`, `message`, `is_read`, `is_replied`, `admin_notes`, `ip_address`, `user_agent`, `created_at`) VALUES
-(2, 'aslkdhashdashdsajh', 'dlskhfsldakjfsdjkfsdlkjflk@gmail.com', 'aslkdjsalkjdaslkdjsakdlj', 'lkjlaskjdlaskjdlkasdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlksajdlkjasdlkjasdlkjasdkljasdkljsaldkjaskldjaslkjdsa', 0, 0, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-02-23 05:06:49');
+(2, 'aslkdhashdashdsajh', 'dlskhfsldakjfsdjkfsdlkjflk@gmail.com', 'aslkdjsalkjdaslkdjsakdlj', 'lkjlaskjdlaskjdlkasdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlkasjdlksajdlkjasdlkjasdlkjasdkljasdkljsaldkjaskldjaslkjdsa', 1, 0, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-02-23 05:06:49');
 
 -- --------------------------------------------------------
 
@@ -509,19 +515,21 @@ INSERT INTO `course_departments` (`course_id`, `department_id`) VALUES
 CREATE TABLE `departments` (
   `id` int(11) NOT NULL,
   `name` varchar(100) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `description` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `departments`
 --
 
-INSERT INTO `departments` (`id`, `name`, `created_at`) VALUES
-(1, 'Medical', '2026-02-19 03:06:57'),
-(2, 'Akkued health proffectional staff', '2026-02-19 03:06:57'),
-(3, 'HOPPS', '2026-02-19 03:06:57'),
-(4, 'NURSING', '2026-02-19 03:06:57'),
-(5, 'FINANCE', '2026-02-19 03:06:57');
+INSERT INTO `departments` (`id`, `name`, `created_at`, `description`) VALUES
+(1, 'NURSING SERVICE', '2026-02-19 03:06:57', NULL),
+(2, 'MEDICAL SERVICE', '2026-02-19 03:06:57', NULL),
+(3, 'HOSPITAL OPERATIONS AND PATIENT SUPPORT SERVICE', '2026-02-19 03:06:57', NULL),
+(4, 'ALLIED HEALTH PROFESSIONAL SERVICE', '2026-02-19 03:06:57', NULL),
+(5, 'FINANCES', '2026-02-19 03:06:57', 'Division finance descriptopn'),
+(15, 'nancy binay', '2026-03-18 06:06:19', 'binaynancy');
 
 -- --------------------------------------------------------
 
@@ -530,10 +538,22 @@ INSERT INTO `departments` (`id`, `name`, `created_at`) VALUES
 --
 
 CREATE TABLE `depts` (
-  `department_id` int(255) NOT NULL,
-  `depts_id` int(255) NOT NULL,
-  `Depts_name` varchar(255) NOT NULL
+  `department_id` int(11) NOT NULL,
+  `id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `depts`
+--
+
+INSERT INTO `depts` (`department_id`, `id`, `name`, `description`, `created_at`, `updated_at`) VALUES
+(1, 1, 'Example committee', 'Example committee description', '2026-03-18 01:03:43', NULL),
+(5, 3, 'fdsfsdfsdfsdf', 'sdfsdfsdfsdf', '2026-03-18 01:05:30', NULL),
+(15, 4, 'jojomarbnay', 'nognogpandak', '2026-03-18 06:15:21', NULL);
 
 -- --------------------------------------------------------
 
@@ -586,7 +606,8 @@ CREATE TABLE `enrollments` (
 INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `completed_at`, `expired_at`, `progress`, `video_progress`, `pdf_progress`, `video_completed`, `pdf_completed`, `pdf_current_page`, `pdf_total_pages`, `status`, `total_time_seconds`) VALUES
 (68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0),
 (69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0),
-(70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0);
+(70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0),
+(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0);
 
 -- --------------------------------------------------------
 
@@ -1350,7 +1371,73 @@ INSERT INTO `pdf_progress` (`id`, `enrollment_id`, `page_number`, `viewed_at`) V
 (0, 70, 36, '2026-03-16 08:21:47'),
 (0, 70, 37, '2026-03-16 08:21:47'),
 (0, 70, 38, '2026-03-16 08:21:47'),
-(0, 70, 39, '2026-03-16 08:21:47');
+(0, 70, 39, '2026-03-16 08:21:47'),
+(0, 71, 1, '2026-03-17 06:07:20'),
+(0, 71, 2, '2026-03-17 06:07:24'),
+(0, 71, 3, '2026-03-17 06:07:27'),
+(0, 71, 4, '2026-03-17 06:07:27'),
+(0, 71, 5, '2026-03-17 06:07:28'),
+(0, 71, 6, '2026-03-17 06:07:28'),
+(0, 71, 7, '2026-03-17 06:07:29'),
+(0, 71, 8, '2026-03-17 06:07:29'),
+(0, 71, 9, '2026-03-17 06:07:29'),
+(0, 71, 10, '2026-03-17 06:07:30'),
+(0, 71, 11, '2026-03-17 06:07:30'),
+(0, 71, 12, '2026-03-17 06:07:31'),
+(0, 71, 13, '2026-03-17 06:07:32'),
+(0, 71, 14, '2026-03-17 06:07:32'),
+(0, 71, 15, '2026-03-17 06:07:33'),
+(0, 71, 16, '2026-03-17 06:07:33'),
+(0, 71, 17, '2026-03-17 06:07:34'),
+(0, 71, 18, '2026-03-17 06:07:34'),
+(0, 71, 19, '2026-03-17 06:07:35'),
+(0, 71, 20, '2026-03-17 06:07:35'),
+(0, 71, 21, '2026-03-17 06:07:36'),
+(0, 71, 22, '2026-03-17 06:07:36'),
+(0, 71, 23, '2026-03-17 06:07:36'),
+(0, 71, 24, '2026-03-17 06:07:37'),
+(0, 71, 25, '2026-03-17 06:07:37'),
+(0, 71, 26, '2026-03-17 06:07:38'),
+(0, 71, 27, '2026-03-17 06:07:38'),
+(0, 71, 28, '2026-03-17 06:07:39'),
+(0, 71, 29, '2026-03-17 06:07:41'),
+(0, 71, 30, '2026-03-17 06:07:42'),
+(0, 71, 31, '2026-03-17 06:07:42'),
+(0, 71, 32, '2026-03-17 06:07:44'),
+(0, 71, 33, '2026-03-17 06:07:44'),
+(0, 71, 34, '2026-03-17 06:07:45'),
+(0, 71, 35, '2026-03-17 06:07:45'),
+(0, 71, 36, '2026-03-17 06:07:46'),
+(0, 71, 37, '2026-03-17 06:07:46'),
+(0, 71, 38, '2026-03-17 06:07:47'),
+(0, 71, 39, '2026-03-17 06:07:47'),
+(0, 71, 40, '2026-03-17 06:07:47'),
+(0, 71, 41, '2026-03-17 06:07:48'),
+(0, 71, 42, '2026-03-17 06:07:48'),
+(0, 71, 43, '2026-03-17 06:07:49'),
+(0, 71, 44, '2026-03-17 06:07:49'),
+(0, 71, 45, '2026-03-17 06:07:50'),
+(0, 71, 46, '2026-03-17 06:07:50'),
+(0, 71, 47, '2026-03-17 06:07:50'),
+(0, 71, 48, '2026-03-17 06:07:51'),
+(0, 71, 49, '2026-03-17 06:07:51'),
+(0, 71, 50, '2026-03-17 06:07:52'),
+(0, 71, 51, '2026-03-17 06:07:52'),
+(0, 71, 52, '2026-03-17 06:07:52'),
+(0, 71, 53, '2026-03-17 06:07:53'),
+(0, 71, 54, '2026-03-17 06:07:53'),
+(0, 71, 55, '2026-03-17 06:07:54'),
+(0, 71, 56, '2026-03-17 06:07:54'),
+(0, 71, 57, '2026-03-17 06:07:55'),
+(0, 71, 58, '2026-03-17 06:07:55'),
+(0, 71, 59, '2026-03-17 06:07:55'),
+(0, 71, 60, '2026-03-17 06:07:56'),
+(0, 71, 61, '2026-03-17 06:07:56'),
+(0, 71, 62, '2026-03-17 06:07:56'),
+(0, 71, 63, '2026-03-17 06:07:57'),
+(0, 71, 64, '2026-03-17 06:07:57'),
+(0, 71, 65, '2026-03-17 06:07:59'),
+(0, 71, 66, '2026-03-17 06:07:59');
 
 -- --------------------------------------------------------
 
@@ -1403,11 +1490,19 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 (8, 'proponent', '$2y$10$YuqFFhnfrrPuXceFDMaVZugK18qFizJyOxrzKgrQX8nSkWRU4BLgW', 'Mr.', 'Proponent', 'proponent@gmail.com', 'proponent', '2026-02-11 00:43:36', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (22, 'pro', '$2y$10$gpII/P2uzcDch.35MinEve7EO4uQD05eaIkHpTshPmszmeMPArXaO', 'pro', 'pro', 'pro@gmail.com', 'proponent', '2026-02-16 05:15:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (72, 'superadmin', '$2y$10$L.sWs03m7FGhvcGQdRZ1JOditv/DeBO.OGiY.jIRfehV.bQLmnl5K', 'superadmin', 'superadmin', 'superadmin@mail.com', 'superadmin', '2026-03-12 03:04:11', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(76, 'user', '$2y$10$KwCQY6078.5GGWaXOWv3B.kxmomQZJYosIEpeN8YVJu8Yy.6Amysm', 'user', 'user', 'user', 'user', '2026-03-12 03:13:47', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(76, 'user', '$2y$10$KwCQY6078.5GGWaXOWv3B.kxmomQZJYosIEpeN8YVJu8Yy.6Amysm', 'User', 'User', 'user@gmail.com', 'user', '2026-03-12 03:13:47', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (77, 'user1', '$2y$10$a1qcZxaMZ1Zq.miP/VB/luw5ia1i/rdDALUXHrtitWvsEJIbGiLL.', 'user1', 'user1', 'user1', 'user', '2026-03-12 03:14:38', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (80, 'user3', '$2y$10$51PKxLrYdyhsJeGEBcOsgOTWSxABDvFXFwFHZ1QB4ZEn1rGn6Nnnm', 'user3', 'user3', 'user3@mail.com', 'user', '2026-03-12 05:34:35', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (81, 'user4', '$2y$10$D0anqyyNSuFksYUpxdm6O.RwJa2f6WkRwxh.IGyffilA7e52l3MYu', 'user4', 'user4', 'user4@mail.zxc', 'user', '2026-03-12 05:34:59', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(82, 'user5', '$2y$10$byqELjtKf2ytKo0myGF.M.Y9RXN4G5sHGxHKRM/jwtMEvfHI7Gifi', 'user5', 'user5', 'user5@gmail.com', 'user', '2026-03-12 05:41:04', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
+(82, 'user5', '$2y$10$byqELjtKf2ytKo0myGF.M.Y9RXN4G5sHGxHKRM/jwtMEvfHI7Gifi', 'user5', 'user5', 'user5@gmail.com', 'user', '2026-03-12 05:41:04', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(85, 'asdasdasda', '$2y$10$E/p8NTIRzUvqgjAjnYzyX.27oRr9OXe.pND4u.ECrFXVf03kvSQzO', 'sdadasd', 'dasdasdasd', 'asdasdasd@gmail.com', 'admin', '2026-03-18 01:44:00', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(86, 'deivision example and department example', '$2y$10$OLWD5sySoLGZiZxEh3LrE.tRb4ietZYSGUnuqpLCH5iZtSUKk18pe', 'deivision example and department example', 'deivision example and department example', 'adjashdaskhdkja@gmail.com', 'user', '2026-03-18 01:57:11', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(87, 'awitawitawitawitawit', '$2y$10$jxa6pJ/KMxhivOpCz.kHXOXvU0g2M.7mVQeByryeJaAgQ0OG4vQyC', 'awitawitawitawitawit', 'awitawitawitawitawit', 'awitawitawitawitawit@adasd.copm', 'proponent', '2026-03-18 03:15:58', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(88, 'exampleof commitehere', '$2y$10$5Xlj7p8Y9ca1IswXbi2FNunGW6rqeKhwjN5hdVBfg2EMhP8aVi3va', 'exampleof commitehere', 'exampleof commitehere', 'exampleofcommitehere@gmail.com', 'proponent', '2026-03-18 03:48:57', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(89, 'exampleuser', '$2y$10$5MR1AJsZvsCUIxYHfFiHquxH7BaZj7FpDTVjmI.FlH7omtQ.g9MHy', 'exampleuser', 'exampleuser', 'exampleuse@gmail.com', 'user', '2026-03-18 03:52:48', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(94, 'bbbbbbbbbbbbbbbb', '$2y$10$OI8ivIehU1f7nLxRFNv1FeHkJb1knarWVvQs4TrNhNzsboRk9kwGC', 'bbbbbbbbbbbbbbbbbbbbb', 'bbbbbbbbbbb', 'bbbbbbbbbbb@gmail.com', 'proponent', '2026-03-18 05:22:26', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(95, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', '$2y$10$x1T8MnpAVkOUiGNffYUtpeMv0G4LjZtZJKnAnUwOAKenldLQqPNcO', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxx@gmail.com', 'proponent', '2026-03-18 05:22:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(96, 'asdasdasdasdasdasda', '$2y$10$N4QD0RZiWcqELYfJgMLDH.0EtfY72GQC0.Uwrw1XKWnjs4ezUMyUy', 'asdasdasdsa', 'dasdasdasdasd', 'asdasdasdassd@gmail.com', 'user', '2026-03-18 05:23:15', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -1416,9 +1511,22 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 --
 
 CREATE TABLE `user_departments` (
+  `id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `department_id` int(11) NOT NULL
+  `department_id` int(11) DEFAULT NULL,
+  `committee_id` int(11) DEFAULT NULL,
+  `assigned_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `user_departments`
+--
+
+INSERT INTO `user_departments` (`id`, `user_id`, `department_id`, `committee_id`, `assigned_at`) VALUES
+(1, 94, NULL, 1, '2026-03-18 05:22:26'),
+(2, 95, NULL, 2, '2026-03-18 05:22:51'),
+(3, 95, NULL, 3, '2026-03-18 05:22:51'),
+(4, 96, 4, NULL, '2026-03-18 05:23:15');
 
 -- --------------------------------------------------------
 
@@ -1541,7 +1649,8 @@ ALTER TABLE `departments`
 -- Indexes for table `depts`
 --
 ALTER TABLE `depts`
-  ADD PRIMARY KEY (`depts_id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_department_id` (`department_id`);
 
 --
 -- Indexes for table `edit`
@@ -1628,8 +1737,11 @@ ALTER TABLE `users`
 -- Indexes for table `user_departments`
 --
 ALTER TABLE `user_departments`
-  ADD PRIMARY KEY (`user_id`,`department_id`),
-  ADD KEY `department_id` (`department_id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_user_dept` (`user_id`,`department_id`),
+  ADD UNIQUE KEY `unique_user_comm` (`user_id`,`committee_id`),
+  ADD KEY `idx_department_id` (`department_id`),
+  ADD KEY `idx_committee_id` (`committee_id`);
 
 --
 -- Indexes for table `video_progress`
@@ -1652,13 +1764,13 @@ ALTER TABLE `assessments`
 -- AUTO_INCREMENT for table `assessment_answers`
 --
 ALTER TABLE `assessment_answers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `assessment_attempts`
 --
 ALTER TABLE `assessment_attempts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `assessment_options`
@@ -1682,7 +1794,7 @@ ALTER TABLE `audit_log`
 -- AUTO_INCREMENT for table `committees`
 --
 ALTER TABLE `committees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `contact_messages`
@@ -1706,7 +1818,13 @@ ALTER TABLE `courses`
 -- AUTO_INCREMENT for table `departments`
 --
 ALTER TABLE `departments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+
+--
+-- AUTO_INCREMENT for table `depts`
+--
+ALTER TABLE `depts`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `edit`
@@ -1718,7 +1836,7 @@ ALTER TABLE `edit`
 -- AUTO_INCREMENT for table `enrollments`
 --
 ALTER TABLE `enrollments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=71;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `lessons`
@@ -1766,7 +1884,13 @@ ALTER TABLE `time_logs`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
+
+--
+-- AUTO_INCREMENT for table `user_departments`
+--
+ALTER TABLE `user_departments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `video_progress`
@@ -1826,6 +1950,12 @@ ALTER TABLE `course_departments`
   ADD CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `depts`
+--
+ALTER TABLE `depts`
+  ADD CONSTRAINT `fk_depts_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `edit`
 --
 ALTER TABLE `edit`
@@ -1875,8 +2005,9 @@ ALTER TABLE `time_logs`
 -- Constraints for table `user_departments`
 --
 ALTER TABLE `user_departments`
-  ADD CONSTRAINT `user_departments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `user_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `fk_user_departments_comm` FOREIGN KEY (`committee_id`) REFERENCES `committees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_user_departments_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_user_departments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `video_progress`
