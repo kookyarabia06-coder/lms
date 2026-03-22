@@ -10,33 +10,6 @@ if (!is_admin() && !is_proponent() && !is_superadmin()) {
     exit('Access denied');
 }
 
-// First, check if course_departments table exists and create it if not
-try {
-    $pdo->query("SELECT 1 FROM course_departments LIMIT 1");
-} catch (Exception $e) {
-    // Table doesn't exist, create it
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `course_departments` (
-            `course_id` int(11) NOT NULL,
-            `department_id` int(11) NOT NULL,
-            PRIMARY KEY (`course_id`, `department_id`),
-            KEY `department_id` (`department_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-    ");
-    
-    // Add foreign key constraints if they don't exist
-    try {
-        $pdo->exec("ALTER TABLE `course_departments` ADD CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE");
-        $pdo->exec("ALTER TABLE `course_departments` ADD CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE");
-    } catch (Exception $e) {
-        // Foreign keys might already exist
-    }
-}
-
-/* =========================
-FETCH COURSES WITH UPDATED AT AND DEPARTMENTS
-========================= */
-
 // First, check if updated_at column exists and add it if not
 try {
     $pdo->query("SELECT updated_at FROM courses LIMIT 1");
@@ -58,20 +31,20 @@ $stmt = $pdo->query("
 ");
 $courses = $stmt->fetchAll();
 
-// Fetch departments for each course
+// Fetch committees for each course
 foreach ($courses as &$course) {
     try {
-        $dept_stmt = $pdo->prepare("
-            SELECT d.id, d.name 
-            FROM departments d
-            INNER JOIN course_departments cd ON d.id = cd.department_id
+        $comm_stmt = $pdo->prepare("
+            SELECT c.id, c.name 
+            FROM committees c
+            INNER JOIN course_departments cd ON c.id = cd.committee_id
             WHERE cd.course_id = :course_id
-            ORDER BY d.name
+            ORDER BY c.name
         ");
-        $dept_stmt->execute([':course_id' => $course['id']]);
-        $course['departments'] = $dept_stmt->fetchAll();
+        $comm_stmt->execute([':course_id' => $course['id']]);
+        $course['committees'] = $comm_stmt->fetchAll();
     } catch (Exception $e) {
-        $course['departments'] = [];
+        $course['committees'] = [];
     }
 }
 ?>
@@ -90,10 +63,10 @@ foreach ($courses as &$course) {
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <style>
-        .department-badge {
+        .committee-badge {
             display: inline-block;
-            background-color: #e9ecef;
-            color: #495057;
+            background-color: #8227a9;
+            color: white;
             padding: 0.25rem 0.5rem;
             margin: 0.125rem;
             border-radius: 0.25rem;
@@ -172,6 +145,11 @@ foreach ($courses as &$course) {
         .no-results p {
             color: #718096;
         }
+        .program-committee-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 2px;
+        }
     </style>
 </head>
 <body>
@@ -218,12 +196,14 @@ foreach ($courses as &$course) {
                         </div>
                         <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>
 
-                        <!-- Departments -->
-                        <?php if (!empty($c['departments'])): ?>
-                            <div class="mb-2">
-                                <strong>Departments:</strong><br>
-                                <?php foreach ($c['departments'] as $dept): ?>
-                                    <span class="department-badge"><?= htmlspecialchars($dept['name']) ?></span>
+                        <!-- Program Committees -->
+                        <?php if (!empty($c['committees'])): ?>
+                            <div class="mb-3">
+                                <div class="program-committee-label">
+                                    <i class="fas fa-users me-1" style="color: #8227a9;"></i> Program Committee:
+                                </div>
+                                <?php foreach ($c['committees'] as $comm): ?>
+                                    <span class="committee-badge"><?= htmlspecialchars($comm['name']) ?></span>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>

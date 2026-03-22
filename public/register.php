@@ -5,155 +5,195 @@ require_once __DIR__ . '/../inc/config.php';
 // Check if PHPMailer exists
 $mailer_path = __DIR__ . '/../inc/mailer.php';
 if (file_exists($mailer_path)) {
-require_once $mailer_path;
+    require_once $mailer_path;
 } else {
-die("Mailer configuration not found!");
+    die("Mailer configuration not found!");
 }
+
+// Fetch all divisions from departments table
+$divisionStmt = $pdo->query("SELECT id, name FROM departments ORDER BY name ASC");
+$divisions = $divisionStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $err = ''; 
 $success = '';
 $showOTP = false;
 
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-if (isset($_POST['otp_verify'])) {
-// OTP VERIFICATION
-$enteredOTP = $_POST['security_code'] ?? '';
-$storedOTP = $_SESSION['registration_otp'] ?? '';
-$userData = $_SESSION['registration_data'] ?? [];
+    if (isset($_POST['otp_verify'])) {
+        // OTP VERIFICATION
+        $enteredOTP = $_POST['security_code'] ?? '';
+        $storedOTP = $_SESSION['registration_otp'] ?? '';
+        $userData = $_SESSION['registration_data'] ?? [];
 
-if (empty($enteredOTP)) {
-$err = 'Please enter the OTP';
-$showOTP = true;
-} elseif (empty($storedOTP) || empty($userData)) {
-$err = 'OTP session expired. Please register again.';
-} elseif ($enteredOTP !== $storedOTP) {
-$err = 'Invalid OTP. Please try again.';
-$showOTP = true;
-} else {
-// OTP is correct! Create the user account
-$hash = password_hash($userData['password'], PASSWORD_DEFAULT);
+        if (empty($enteredOTP)) {
+            $err = 'Please enter the OTP';
+            $showOTP = true;
+        } elseif (empty($storedOTP) || empty($userData)) {
+            $err = 'OTP session expired. Please register again.';
+        } elseif ($enteredOTP !== $storedOTP) {
+            $err = 'Invalid OTP. Please try again.';
+            $showOTP = true;
+        } else {
+            // OTP is correct! Create the user account
+            $hash = password_hash($userData['password'], PASSWORD_DEFAULT);
 
-// Insert into database 
-$stmt = $pdo->prepare('INSERT INTO users (username, password, fname, lname, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, "user", "pending", NOW())');
+            try {
+                $pdo->beginTransaction();
 
-if ($stmt->execute([
-$userData['username'], 
-$hash, 
-$userData['fname'], 
-$userData['lname'], 
-$userData['email'],
+                // Insert into database 
+                $stmt = $pdo->prepare('INSERT INTO users (username, password, fname, lname, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, "user", "pending", NOW())');
 
-])) {
-// Clear session data
-unset($_SESSION['registration_otp']);
-unset($_SESSION['registration_data']);
-unset($_SESSION['otp_time']);
+                if ($stmt->execute([
+                    $userData['username'], 
+                    $hash, 
+                    $userData['fname'], 
+                    $userData['lname'], 
+                    $userData['email'],
+                ])) {
+                    $userId = $pdo->lastInsertId();
 
-// Redirect to login
-header('Location: login.php?registered=1');
-exit();
-} else {
-$err = 'Registration failed. Please try again.';
-$showOTP = true;
-}
-}
+                    // Insert department assignments
+                    if (!empty($userData['departments'])) {
+                        $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, dept_id) VALUES (?, ?)");
+                        foreach ($userData['departments'] as $deptId) {
+                            $deptStmt->execute([$userId, $deptId]);
+                        }
+                    }
 
-} elseif (isset($_POST['resend_otp'])) {
-// Resend OTP
-$userData = $_SESSION['registration_data'] ?? [];
+                    $pdo->commit();
 
-if (!empty($userData)) {
-// Generate new OTP
-$newOTP = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-$_SESSION['registration_otp'] = $newOTP;
-$_SESSION['otp_time'] = time();
+                    // Clear session data
+                    unset($_SESSION['registration_otp']);
+                    unset($_SESSION['registration_data']);
+                    unset($_SESSION['otp_time']);
 
-// Send OTP
-$fullName = $userData['fname'] . ' ' . $userData['lname'];
-$emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
+                    // Redirect to login
+                    header('Location: login.php?registered=1');
+                    exit();
+                } else {
+                    $pdo->rollBack();
+                    $err = 'Registration failed. Please try again.';
+                    $showOTP = true;
+                }
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $err = 'Registration failed. Please try again.';
+                error_log("Registration error: " . $e->getMessage());
+                $showOTP = true;
+            }
+        }
 
-if (!$emailResult['success']) {
-$emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
-}
+    } elseif (isset($_POST['resend_otp'])) {
+        // Resend OTP
+        $userData = $_SESSION['registration_data'] ?? [];
 
-$success = $emailResult['success'] ? "New OTP sent to your email" : "Failed to resend OTP";
-$showOTP = true;
-} else {
-$err = 'Session expired. Please register again.';
-}
+        if (!empty($userData)) {
+            // Generate new OTP
+            $newOTP = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $_SESSION['registration_otp'] = $newOTP;
+            $_SESSION['otp_time'] = time();
 
-} else {
-// INITIAL REGISTRATION FORM
-$username = trim($_POST['username'] ?? '');
-$password = $_POST['password'] ?? '';
-$fname = trim($_POST['fname'] ?? '');
-$lname = trim($_POST['lname'] ?? '');
-$email = trim($_POST['email'] ?? '');
-$course = trim($_POST['course'] ?? '');
+            // Send OTP
+            $fullName = $userData['fname'] . ' ' . $userData['lname'];
+            $emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
 
-// Validation
-if (!$username || !$password || !$email) { 
-$err = 'All fields are required.'; 
-} elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-$err = 'Invalid email format';
-} elseif (strlen($password) < 8) {
-$err = 'Password must be at least 8 characters';
-} else {
-// Check if user exists
-$stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
-$stmt->execute([$username, $email]);
-if ($stmt->fetch()) { 
-$err = 'Username or email already exists'; 
-} else {
-// Generate OTP
-$otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            if (!$emailResult['success']) {
+                $emailResult = sendOTPEmail($userData['email'], $fullName, $newOTP);
+            }
 
-// store session
-$_SESSION['registration_data'] = [
-    'username' => $username,
-    'password' => $password,
-    'fname' => $fname,
-    'lname' => $lname,
-    'email' => $email,
-    'course' => $course
-];
-$_SESSION['registration_otp'] = $otp;
-$_SESSION['otp_time'] = time();
+            $success = $emailResult['success'] ? "New OTP sent to your email" : "Failed to resend OTP";
+            $showOTP = true;
+        } else {
+            $err = 'Session expired. Please register again.';
+        }
 
-// Send OTP
-$fullName = $fname . ' ' . $lname;
-$emailResult = sendOTPEmail($email, $fullName, $otp);
-
-// If PHPMailer fails
-if (!$emailResult['success']) {
-    error_log("PHPMailer failed: " . $emailResult['message']);
-    $emailResult = sendOTPEmail($email, $fullName, $otp);
-    
-    if ($emailResult['success']) {
-        $success = "OTP generated: <strong>$otp</strong> (Check server logs)";
-        $showOTP = true;
     } else {
-        $err = 'Failed to generate OTP. Please try again.';
+        // INITIAL REGISTRATION FORM
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $fname = trim($_POST['fname'] ?? '');
+        $lname = trim($_POST['lname'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        
+        // Get the selected department from the form (single department)
+        $selectedDept = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
+        
+        // Convert to array format for existing code (since your code expects an array)
+        $selectedDepts = $selectedDept > 0 ? [$selectedDept] : [];
+
+        // Validation
+        if (!$username || !$password || !$email || !$fname || !$lname) { 
+            $err = 'All fields are required.'; 
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $err = 'Invalid email format';
+        } elseif (strlen($password) < 8) {
+            $err = 'Password must be at least 8 characters';
+        } elseif (empty($selectedDepts)) {
+            $err = 'Please select a department';
+        } else {
+            // Check if user exists
+            $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+            $stmt->execute([$username, $email]);
+            if ($stmt->fetch()) { 
+                $err = 'Username or email already exists'; 
+            } else {
+                // Verify department exists
+                $checkStmt = $pdo->prepare("SELECT id FROM depts WHERE id = ?");
+                $checkStmt->execute([$selectedDept]);
+                $validDeptId = $checkStmt->fetchColumn();
+                
+                if (!$validDeptId) {
+                    $err = 'Invalid department selection';
+                } else {
+                    // Generate OTP
+                    $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+                    // store session
+                    $_SESSION['registration_data'] = [
+                        'username' => $username,
+                        'password' => $password,
+                        'fname' => $fname,
+                        'lname' => $lname,
+                        'email' => $email,
+                        'departments' => [$validDeptId] // Store as array with one ID
+                    ];
+                    $_SESSION['registration_otp'] = $otp;
+                    $_SESSION['otp_time'] = time();
+
+                    // Send OTP
+                    $fullName = $fname . ' ' . $lname;
+                    $emailResult = sendOTPEmail($email, $fullName, $otp);
+
+                    // If PHPMailer fails
+                    if (!$emailResult['success']) {
+                        error_log("PHPMailer failed: " . $emailResult['message']);
+                        $emailResult = sendOTPEmail($email, $fullName, $otp);
+                        
+                        if ($emailResult['success']) {
+                            $success = "OTP generated: <strong>$otp</strong> (Check server logs)";
+                            $showOTP = true;
+                        } else {
+                            $err = 'Failed to generate OTP. Please try again.';
+                        }
+                    } else {
+                        $success = "OTP has been sent to $email";
+                        $showOTP = true;
+                    }
+                }
+            }
+        }
     }
-} else {
-    $success = "OTP has been sent to $email";
-    $showOTP = true;
-}
-}
-}
-}
 }
 
 // Calculate OTP time left
 if (isset($_SESSION['otp_time'])) {
-$otpTime = $_SESSION['otp_time'];
-$currentTime = time();
-$timeElapsed = $currentTime - $otpTime;
-$timeLeft = 600 - $timeElapsed; // 10 minutes
-if ($timeLeft < 0) $timeLeft = 0;
+    $otpTime = $_SESSION['otp_time'];
+    $currentTime = time();
+    $timeElapsed = $currentTime - $otpTime;
+    $timeLeft = 600 - $timeElapsed; // 10 minutes
+    if ($timeLeft < 0) $timeLeft = 0;
 } else {
-$timeLeft = 600;
+    $timeLeft = 600;
 }
 ?>
 <!DOCTYPE html>
@@ -163,7 +203,7 @@ $timeLeft = 600;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARMMC LMS · Register</title>
     <link href="<?= BASE_URL ?>/assets/css/register.css" rel="stylesheet">
-     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
@@ -315,7 +355,33 @@ $timeLeft = 600;
                             </div>
                         </div>
 
-                        <!-- Password -->
+                        <!-- Division & Department Row - SIMPLIFIED -->
+                        <div class="division-department-row">
+                            <div class="register-form-group">
+                                <label class="register-form-label">Division</label>
+                                <div class="register-input-container">
+                                    <i class="fas fa-sitemap register-input-icon"></i>
+                                    <select class="register-select-input" id="divisionSelect">
+                                        <option value="">Select Division</option>
+                                        <?php foreach($divisions as $division): ?>
+                                            <option value="<?= $division['id'] ?>"><?= htmlspecialchars($division['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="register-form-group">
+                                <label class="register-form-label">Department</label>
+                                <div class="register-input-container">
+                                    <i class="fas fa-building register-input-icon"></i>
+                                    <select class="register-select-input" id="departmentSelect" name="department_id" disabled>
+                                        <option value="">Select Department</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Password Row -->
                         <div class="register-name-row">    
                             <div class="register-form-group">
                                 <label for="password" class="register-form-label">Password</label>
@@ -471,29 +537,36 @@ $timeLeft = 600;
             }
         }
 
-        // Password toggle for main password field
-        const togglePassword = document.getElementById('togglePassword');
-        if (togglePassword) {
-            togglePassword.addEventListener('click', function() {
-                const passwordInput = document.getElementById('password');
-                const icon = this.querySelector('i');
+        // Division change handler
+        const divisionSelect = document.getElementById('divisionSelect');
+        const departmentSelect = document.getElementById('departmentSelect');
+        
+        if (divisionSelect && departmentSelect) {
+            divisionSelect.addEventListener('change', function() {
+                const divisionId = this.value;
                 
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
+                if (divisionId) {
+                    departmentSelect.disabled = false;
+                    departmentSelect.innerHTML = '<option value="">Loading...</option>';
+                    
+                    fetch(`get_departments.php?division_id=${divisionId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            departmentSelect.innerHTML = '<option value="">Select Department</option>';
+                            data.forEach(dept => {
+                                departmentSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            departmentSelect.innerHTML = '<option value="">Error loading departments</option>';
+                        });
                 } else {
-                    passwordInput.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
+                    departmentSelect.disabled = true;
+                    departmentSelect.innerHTML = '<option value="">Select Department</option>';
                 }
             });
         }
-
-
-
-        // Initialize count on page load
-        updateSelectedCount();
 
         // Check password strength
         function checkPasswordStrength() {
@@ -653,7 +726,18 @@ $timeLeft = 600;
                 const username = document.getElementById('username')?.value.trim();
                 const password = document.getElementById('password')?.value;
                 const email = document.getElementById('email')?.value.trim();
+                const fname = document.getElementById('fname')?.value.trim();
+                const lname = document.getElementById('lname')?.value.trim();
+                const departmentSelect = document.getElementById('departmentSelect');
+                
+                // Check if department is selected and not disabled
+                const department = departmentSelect ? departmentSelect.value : '';
 
+                if (!fname || !lname) {
+                    e.preventDefault();
+                    showError('First name and last name are required');
+                    return false;
+                }
                 if (!username) {
                     e.preventDefault();
                     showError('Username is required');
@@ -675,6 +759,20 @@ $timeLeft = 600;
                     showError('Email is required');
                     return false;
                 }
+                
+                // Check if department is selected
+                if (!department || department === '') {
+                    e.preventDefault();
+                    showError('Please select a department');
+                    return false;
+                }
+
+                // Also check if department select is disabled (meaning no division selected)
+                if (departmentSelect.disabled) {
+                    e.preventDefault();
+                    showError('Please select a division first');
+                    return false;
+                }
 
                 <?php else: ?>
                 const otp = document.getElementById('security_code')?.value.trim();
@@ -693,6 +791,7 @@ $timeLeft = 600;
                 errorDiv = document.createElement('div');
                 errorDiv.className = 'alert alert-danger';
                 errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${message}</span>`;
+                const form = document.getElementById('registerForm');
                 form.insertBefore(errorDiv, form.firstChild);
             } else {
                 errorDiv.querySelector('span').textContent = message;

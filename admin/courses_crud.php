@@ -25,32 +25,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST)) {
 $act = $_GET['act'] ?? '';
 $id  = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
-// First, check if course_departments table exists and create it if not
-try {
-    $pdo->query("SELECT 1 FROM course_departments LIMIT 1");
-} catch (Exception $e) {
-    // Table doesn't exist, create it with proper structure
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `course_departments` (
-            `course_id` int(11) NOT NULL,
-            `department_id` int(11) NOT NULL,
-            PRIMARY KEY (`course_id`, `department_id`),
-            KEY `department_id` (`department_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-    ");
-    
-    // Add foreign key constraints if the tables exist
-    try {
-        $pdo->exec("
-            ALTER TABLE `course_departments`
-            ADD CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE,
-            ADD CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
-        ");
-    } catch (Exception $e) {
-        // Foreign keys might already exist or tables don't exist yet - ignore
-    }
-}
-
 // Check if updated_at column exists and add it if not
 try {
     $pdo->query("SELECT updated_at FROM courses LIMIT 1");
@@ -63,35 +37,34 @@ try {
     }
 }
 
-// Get user's departments based on their role
+// Get user's committees based on their role
 if (is_superadmin() || is_admin()) {
-    // Superadmin and admin see all departments
-    $dept_stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
-    $user_departments = $dept_stmt->fetchAll();
+    // Superadmin and admin see all committees
+    $committee_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+    $user_committees = $committee_stmt->fetchAll();
 } else {
-    // Get departments assigned to the current user
-    // First check if user_departments table exists
+    // Get committees assigned to the current user
     try {
         $pdo->query("SELECT 1 FROM user_departments LIMIT 1");
-        $dept_stmt = $pdo->prepare("
-            SELECT d.id, d.name 
-            FROM departments d
-            JOIN user_departments ud ON ud.department_id = d.id
-            WHERE ud.user_id = ?
-            ORDER BY d.name
+        $committee_stmt = $pdo->prepare("
+            SELECT c.id, c.name 
+            FROM committees c
+            JOIN user_departments ud ON ud.committee_id = c.id
+            WHERE ud.user_id = ? AND ud.committee_id IS NOT NULL
+            ORDER BY c.name
         ");
-        $dept_stmt->execute([$_SESSION['user']['id']]);
-        $user_departments = $dept_stmt->fetchAll();
+        $committee_stmt->execute([$_SESSION['user']['id']]);
+        $user_committees = $committee_stmt->fetchAll();
     } catch (Exception $e) {
-        // If user_departments table doesn't exist, show all departments
-        $dept_stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
-        $user_departments = $dept_stmt->fetchAll();
+        // If user_departments table doesn't exist, show all committees
+        $committee_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+        $user_committees = $committee_stmt->fetchAll();
     }
 }
 
-// Fetch all departments for dropdown (if needed for admins)
-$all_dept_stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
-$all_departments = $all_dept_stmt->fetchAll();
+// Fetch all committees for dropdown (if needed for admins)
+$all_committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+$all_committees = $all_committees_stmt->fetchAll();
 
 /**
  * Calculate expiration date
@@ -160,27 +133,27 @@ function canModifyCourse($course_id, $pdo) {
 }
 
 /**
- * Save course departments
+ * Save course committees
  */
-function saveCourseDepartments($course_id, $department_ids, $pdo) {
-    // Delete existing department associations
+function saveCourseCommittees($course_id, $committee_ids, $pdo) {
+    // Delete existing committee associations
     $stmt = $pdo->prepare("DELETE FROM course_departments WHERE course_id = :course_id");
     $stmt->execute([':course_id' => $course_id]);
 
-    // Insert new department associations
-    if (!empty($department_ids) && is_array($department_ids)) {
+    // Insert new committee associations
+    if (!empty($committee_ids) && is_array($committee_ids)) {
         $insert_stmt = $pdo->prepare("
-            INSERT INTO course_departments (course_id, department_id) 
-            VALUES (:course_id, :department_id)
+            INSERT INTO course_departments (course_id, committee_id) 
+            VALUES (:course_id, :committee_id)
         ");
 
-        foreach ($department_ids as $dept_id) {
+        foreach ($committee_ids as $comm_id) {
             // Skip empty values
-            if (empty($dept_id)) continue;
+            if (empty($comm_id)) continue;
             
             $insert_stmt->execute([
                 ':course_id' => $course_id,
-                ':department_id' => $dept_id
+                ':committee_id' => $comm_id
             ]);
         }
     }
@@ -217,7 +190,6 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $_POST['valid_days'] ?? null
     );
 
-    // Check if courses table has auto-increment id
     try {
         $stmt = $pdo->prepare("
             INSERT INTO courses (
@@ -246,9 +218,9 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $course_id = $pdo->lastInsertId();
 
-        // Save department associations
-        if (isset($_POST['departments']) && is_array($_POST['departments'])) {
-            saveCourseDepartments($course_id, $_POST['departments'], $pdo);
+        // Save committee associations
+        if (isset($_POST['committees']) && is_array($_POST['committees'])) {
+            saveCourseCommittees($course_id, $_POST['committees'], $pdo);
         }
 
         $_SESSION['success_message'] = 'Course added successfully!';
@@ -341,12 +313,12 @@ if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ':id'          => $id
     ]);
 
-    // Save department associations
-    if (isset($_POST['departments']) && is_array($_POST['departments'])) {
-        saveCourseDepartments($id, $_POST['departments'], $pdo);
+    // Save committee associations
+    if (isset($_POST['committees']) && is_array($_POST['committees'])) {
+        saveCourseCommittees($id, $_POST['committees'], $pdo);
     } else {
-        // If no departments selected, remove all associations
-        saveCourseDepartments($id, [], $pdo);
+        // If no committees selected, remove all associations
+        saveCourseCommittees($id, [], $pdo);
     }
 
     $_SESSION['success_message'] = 'Course updated successfully!';
@@ -417,26 +389,26 @@ if (is_proponent() && !is_admin() && !is_superadmin()) {
 }
 $courses_list = $stmt->fetchAll();
 
-// Fetch departments for each course
+// Fetch committees for each course
 foreach ($courses_list as &$course_item) {
     try {
-        $dept_stmt = $pdo->prepare("
-            SELECT d.id, d.name 
-            FROM departments d
-            JOIN course_departments cd ON cd.department_id = d.id
+        $comm_stmt = $pdo->prepare("
+            SELECT c.id, c.name 
+            FROM committees c
+            JOIN course_departments cd ON cd.committee_id = c.id
             WHERE cd.course_id = ?
-            ORDER BY d.name
+            ORDER BY c.name
         ");
-        $dept_stmt->execute([$course_item['id']]);
-        $course_item['departments'] = $dept_stmt->fetchAll();
+        $comm_stmt->execute([$course_item['id']]);
+        $course_item['committees'] = $comm_stmt->fetchAll();
     } catch (Exception $e) {
-        $course_item['departments'] = [];
+        $course_item['committees'] = [];
     }
 }
 
 // If editing, get the specific course data
 $edit_course = null;
-$course_departments = [];
+$course_committees = [];
 
 if ($act === 'edit' && $id) {
     // Fetch the specific course for editing
@@ -456,17 +428,17 @@ if ($act === 'edit' && $id) {
         exit('Access denied: You can only edit your own courses');
     }
 
-    // Fetch course departments
+    // Fetch course committees
     try {
-        $dept_course_stmt = $pdo->prepare("
-            SELECT department_id 
+        $comm_course_stmt = $pdo->prepare("
+            SELECT committee_id 
             FROM course_departments 
             WHERE course_id = :course_id
         ");
-        $dept_course_stmt->execute([':course_id' => $id]);
-        $course_departments = $dept_course_stmt->fetchAll(PDO::FETCH_COLUMN);
+        $comm_course_stmt->execute([':course_id' => $id]);
+        $course_committees = $comm_course_stmt->fetchAll(PDO::FETCH_COLUMN);
     } catch (Exception $e) {
-        $course_departments = [];
+        $course_committees = [];
     }
 }
 
@@ -492,7 +464,7 @@ $max_post_size = ini_get('post_max_size');
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
-     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
@@ -539,7 +511,7 @@ $max_post_size = ini_get('post_max_size');
             $summary_value = $form_data['summary'] ?? '';
             $expires_value = $form_data['expires_at'] ?? '';
             $valid_days_value = $form_data['valid_days'] ?? '';
-            $selected_depts = $form_data['departments'] ?? [];
+            $selected_committees = $form_data['committees'] ?? [];
         ?>
 
         <div class="card p-4 mb-4 shadow-sm bg-white rounded">
@@ -563,28 +535,28 @@ $max_post_size = ini_get('post_max_size');
                         placeholder="Course Summary"><?= htmlspecialchars($summary_value) ?></textarea>
                 </div>
 
-                <!-- Department Selection - Dropdown (Single Select) -->
+                <!-- Committee Selection - Dropdown (Single Select) -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Course Department</label>
-                    <select name="departments[]" class="form-control">
-                        <option value="">-- Select Department --</option>
+                    <label class="form-label fw-bold">Program Committee</label>
+                    <select name="committees[]" class="form-control">
+                        <option value="">-- Select Committee --</option>
                         <?php 
-                        $display_departments = (is_superadmin() || is_admin()) ? $all_departments : $user_departments;
+                        $display_committees = (is_superadmin() || is_admin()) ? $all_committees : $user_committees;
                         
-                        if (!empty($display_departments)): 
-                            foreach ($display_departments as $dept): 
+                        if (!empty($display_committees)): 
+                            foreach ($display_committees as $comm): 
                         ?>
-                            <option value="<?= $dept['id'] ?>" <?= in_array($dept['id'], $selected_depts) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($dept['name']) ?>
+                            <option value="<?= $comm['id'] ?>" <?= in_array($comm['id'], $selected_committees) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($comm['name']) ?>
                             </option>
                         <?php 
                             endforeach; 
                         else: 
                         ?>
-                            <option value="" disabled>No departments available</option>
+                            <option value="" disabled>No committees available</option>
                         <?php endif; ?>
                     </select>
-                    <small class="text-muted">Select the department this course belongs to</small>
+                    <small class="text-muted">Select the committee this course belongs to</small>
                 </div>
 
                 <!-- Date -->
@@ -643,8 +615,8 @@ $max_post_size = ini_get('post_max_size');
                 $valid_days_value = $form_data['valid_days'] ?? '';
             }
             
-            // Get selected departments
-            $selected_depts = isset($form_data['departments']) ? $form_data['departments'] : $course_departments;
+            // Get selected committees
+            $selected_committees = isset($form_data['committees']) ? $form_data['committees'] : $course_committees;
         ?>
 
         <!-- Course Edit Form -->
@@ -673,28 +645,28 @@ $max_post_size = ini_get('post_max_size');
                         placeholder="Course Summary"><?= htmlspecialchars($summary_value) ?></textarea>
                 </div>
 
-                <!-- Department Selection - Dropdown (Single Select) -->
+                <!-- Committee Selection - Dropdown (Single Select) -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Course Department</label>
-                    <select name="departments[]" class="form-control">
-                        <option value="">-- Select Department --</option>
+                    <label class="form-label fw-bold">Program Committee</label>
+                    <select name="committees[]" class="form-control">
+                        <option value="">-- Select Committee --</option>
                         <?php 
-                        $display_departments = (is_superadmin() || is_admin()) ? $all_departments : $user_departments;
+                        $display_committees = (is_superadmin() || is_admin()) ? $all_committees : $user_committees;
                         
-                        if (!empty($display_departments)): 
-                            foreach ($display_departments as $dept): 
+                        if (!empty($display_committees)): 
+                            foreach ($display_committees as $comm): 
                         ?>
-                            <option value="<?= $dept['id'] ?>" <?= in_array($dept['id'], $selected_depts) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($dept['name']) ?>
+                            <option value="<?= $comm['id'] ?>" <?= in_array($comm['id'], $selected_committees) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($comm['name']) ?>
                             </option>
                         <?php 
                             endforeach; 
                         else: 
                         ?>
-                            <option value="" disabled>No departments available</option>
+                            <option value="" disabled>No committees available</option>
                         <?php endif; ?>
                     </select>
-                    <small class="text-muted">Select the department this course belongs to</small>
+                    <small class="text-muted">Select the committee this course belongs to</small>
                 </div>
 
                 <!-- Date -->
@@ -791,12 +763,14 @@ $max_post_size = ini_get('post_max_size');
                     </div>
                     <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>
 
-                    <!-- Display departments -->
-                    <?php if (!empty($c['departments'])): ?>
-                        <div class="department-container">
-                            <strong>Departments:</strong><br>
-                            <?php foreach ($c['departments'] as $dept): ?>
-                                <span class="department-badge"><?= htmlspecialchars($dept['name']) ?></span>
+                    <!-- Display committees -->
+                    <?php if (!empty($c['committees'])): ?>
+                        <div class="committee-container">
+                            <strong>Program Committee:</strong><br>
+                            <?php foreach ($c['committees'] as $comm): ?>
+                                <span class="committee-badge" style="background-color: #8227a9; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; margin: 2px; display: inline-block;">
+                                    <?= htmlspecialchars($comm['name']) ?>
+                                </span>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
@@ -919,7 +893,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     summary: document.querySelector('textarea[name="summary"]')?.value || '',
                     expires_at: document.querySelector('input[name="expires_at"]')?.value || '',
                     valid_days: document.querySelector('input[name="valid_days"]')?.value || '',
-                    departments: Array.from(document.querySelector('select[name="departments[]"]')?.selectedOptions || []).map(opt => opt.value)
+                    committees: Array.from(document.querySelector('select[name="committees[]"]')?.selectedOptions || []).map(opt => opt.value)
                 };
                 
                 sessionStorage.setItem('pending_course_data', JSON.stringify(formData));
@@ -956,11 +930,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 const daysInput = document.querySelector('input[name="valid_days"]');
                 if (daysInput) daysInput.value = restoredData.valid_days || '';
                 
-                // Restore department selection
-                const deptSelect = document.querySelector('select[name="departments[]"]');
-                if (deptSelect && restoredData.departments && Array.isArray(restoredData.departments)) {
-                    Array.from(deptSelect.options).forEach(opt => {
-                        opt.selected = restoredData.departments.includes(opt.value);
+                // Restore committee selection
+                const commSelect = document.querySelector('select[name="committees[]"]');
+                if (commSelect && restoredData.committees && Array.isArray(restoredData.committees)) {
+                    Array.from(commSelect.options).forEach(opt => {
+                        opt.selected = restoredData.committees.includes(opt.value);
                     });
                 }
                 
@@ -972,6 +946,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Insert at the top of the wrapper
                 const wrapper = document.querySelector('.modern-courses-wrapper');
                 if (wrapper) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-info alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        <i class="fas fa-info-circle"></i> Your unsaved changes have been restored.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
                     wrapper.insertBefore(alertDiv, wrapper.querySelector('.card'));
                     
                     // Auto-dismiss after 5 seconds
@@ -1010,97 +990,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 5000);
         }
     }
-
-    // Optional: Auto-save functionality (uncomment if desired)
-    /*
-    let autoSaveTimer;
-    
-    function startAutoSave() {
-        if (autoSaveTimer) clearInterval(autoSaveTimer);
-        
-        autoSaveTimer = setInterval(function() {
-            const form = document.querySelector('form[enctype="multipart/form-data"]');
-            if (form) {
-                const formData = {
-                    title: document.querySelector('input[name="title"]')?.value || '',
-                    description: document.querySelector('input[name="description"]')?.value || '',
-                    summary: document.querySelector('textarea[name="summary"]')?.value || '',
-                    expires_at: document.querySelector('input[name="expires_at"]')?.value || '',
-                    valid_days: document.querySelector('input[name="valid_days"]')?.value || '',
-                    departments: Array.from(document.querySelector('select[name="departments[]"]')?.selectedOptions || []).map(opt => opt.value)
-                };
-                
-                sessionStorage.setItem('auto_save_course', JSON.stringify(formData));
-                sessionStorage.setItem('auto_save_time', new Date().toLocaleTimeString());
-                
-                // Show auto-save indicator
-                let indicator = document.getElementById('autoSaveIndicator');
-                if (!indicator) {
-                    indicator = document.createElement('div');
-                    indicator.id = 'autoSaveIndicator';
-                    indicator.style.cssText = `
-                        position: fixed;
-                        bottom: 20px;
-                        right: 20px;
-                        background: #28a745;
-                        color: white;
-                        padding: 10px 20px;
-                        border-radius: 5px;
-                        display: none;
-                        z-index: 9999;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    `;
-                    document.body.appendChild(indicator);
-                }
-                
-                indicator.textContent = `Auto-saved at ${new Date().toLocaleTimeString()}`;
-                indicator.style.display = 'block';
-                
-                setTimeout(() => {
-                    indicator.style.display = 'none';
-                }, 3000);
-            }
-        }, 30000); // 30 seconds
-    }
-    
-    // Start auto-save when on edit/add page
-    if (document.querySelector('form[enctype="multipart/form-data"]')) {
-        startAutoSave();
-        
-        // Check for auto-saved data
-        const autoSavedData = sessionStorage.getItem('auto_save_course');
-        const autoSaveTime = sessionStorage.getItem('auto_save_time');
-        
-        if (autoSavedData && autoSaveTime) {
-            if (confirm(`Found auto-saved data from ${autoSaveTime}. Would you like to restore it?`)) {
-                try {
-                    const restoredData = JSON.parse(autoSavedData);
-                    
-                    // Restore form fields
-                    document.querySelector('input[name="title"]').value = restoredData.title || '';
-                    document.querySelector('input[name="description"]').value = restoredData.description || '';
-                    document.querySelector('textarea[name="summary"]').value = restoredData.summary || '';
-                    document.querySelector('input[name="expires_at"]').value = restoredData.expires_at || '';
-                    document.querySelector('input[name="valid_days"]').value = restoredData.valid_days || '';
-                    
-                    // Restore department selection
-                    const deptSelect = document.querySelector('select[name="departments[]"]');
-                    if (deptSelect && restoredData.departments) {
-                        Array.from(deptSelect.options).forEach(opt => {
-                            opt.selected = restoredData.departments.includes(opt.value);
-                        });
-                    }
-                    
-                    // Clear auto-save data after restore
-                    sessionStorage.removeItem('auto_save_course');
-                    sessionStorage.removeItem('auto_save_time');
-                } catch (e) {
-                    console.error('Error restoring auto-saved data:', e);
-                }
-            }
-        }
-    }
-    */
 });
 </script>
 

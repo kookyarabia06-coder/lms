@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 18, 2026 at 07:51 AM
+-- Generation Time: Mar 22, 2026 at 08:33 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -265,7 +265,8 @@ INSERT INTO `audit_log` (`id`, `table_name`, `record_id`, `action`, `old_data`, 
 (49, 'courses', 44, 'UPDATE', '{\"title\": \"MS Powerpoint\", \"description\": \"MS PowerpointMS Powerpoint\", \"summary\": \"MS PowerpointMS PowerpointMS Powerpoint\", \"thumbnail\": \"787649e329f7066e.png\", \"file_pdf\": \"2511cc375026c19b.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"MS Powerpoint\", \"description\": \"MS PowerpointMS Powerpoint\", \"summary\": \"MS PowerpointMS PowerpointMS Powerpoint\", \"thumbnail\": \"787649e329f7066e.png\", \"file_pdf\": \"2511cc375026c19b.pdf\", \"file_video\": \"3734cd9963722805.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-13 01:04:28'),
 (50, 'courses', 47, 'UPDATE', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": \"e8483caa3dd5f146.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-13 01:05:44'),
 (51, 'courses', 48, 'INSERT', NULL, '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, '2026-03-13 08:01:14'),
-(52, 'courses', 49, 'INSERT', NULL, '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-13 08:13:17');
+(52, 'courses', 49, 'INSERT', NULL, '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-13 08:13:17'),
+(53, 'courses', 50, 'INSERT', NULL, '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-18 07:48:04');
 
 -- --------------------------------------------------------
 
@@ -286,9 +287,62 @@ CREATE TABLE `committees` (
 --
 
 INSERT INTO `committees` (`id`, `name`, `description`, `created_at`, `updated_at`) VALUES
-(1, 'inventory_sys', 'sadasdasd', '2026-03-17 03:52:45', '2026-03-18 00:25:51'),
-(2, 'sadasdasdasdas', 'dasdasdasdasd', '2026-03-18 00:23:28', NULL),
-(3, 'maluiptuu', 'asodhasjkldhsad', '2026-03-18 00:25:36', NULL);
+(1, 'SMOKE-FREE TASKFORCE', 'SMOKE-FREE TASKFORCE\r\n', '2026-03-16 19:52:45', '2026-03-18 21:34:24'),
+(2, 'COMMITTEE ON ANTI-RED TAPE (CART)', 'COMMITTEE ON ANTI-RED TAPE (CART)', '2026-03-17 16:23:28', '2026-03-18 21:34:14'),
+(3, 'ANTIMICROBIAL STEWARDSHIP COMMITTEE', 'ANTIMICROBIAL STEWARDSHIP COMMITTEE', '2026-03-17 16:25:36', '2026-03-18 21:33:59'),
+(4, 'BASIC EMERGENCY OBSTETRICS AND NEWBORN CARE (BEMONC) COMMITTEE', 'BASIC EMERGENCY OBSTETRICS AND NEWBORN CARE (BEMONC) COMMITTEE\r\n', '2026-03-18 21:34:30', NULL),
+(5, 'BIDS AND AWARDS COMMITTEE', 'BIDS AND AWARDS COMMITTEE\r\n', '2026-03-18 21:34:37', NULL),
+(6, 'BREASTFEEDING COMMITTEE', 'BREASTFEEDING COMMITTEE\r\n', '2026-03-18 21:34:43', NULL),
+(7, 'CONSIGNMENT PROGRAM COMMITTEE', 'CONSIGNMENT PROGRAM COMMITTEE\r\n', '2026-03-18 21:37:04', NULL),
+(8, 'CONTINUING PROFESSIONAL DEVELOPMENT (CPD) COMMITTEE', 'CONTINUING PROFESSIONAL DEVELOPMENT (CPD) COMMITTEE\r\n', '2026-03-18 21:37:09', NULL),
+(9, 'COMMITTEE ON EMERGING AND RE-EMERGING INFECTIOUS DISEASES', 'COMMITTEE ON EMERGING AND RE-EMERGING INFECTIOUS DISEASES\r\n', '2026-03-18 21:37:14', NULL),
+(10, 'COMMITTEE ON DECORUM AND INVESTIGATION OF SEXUAL HARASSMENT', 'COMMITTEE ON DECORUM AND INVESTIGATION OF SEXUAL HARASSMENT\r\n', '2026-03-18 21:37:20', NULL),
+(11, 'CREDENTIAL COMMITTEE', 'CREDENTIAL COMMITTEE\r\n', '2026-03-18 21:37:29', NULL),
+(12, 'CULTURAL AND SPORTS COMMITTEE', 'CULTURAL AND SPORTS COMMITTEE\r\n', '2026-03-18 21:37:35', NULL),
+(13, 'DATA PRIVACY COMMITTEE', 'DATA PRIVACY COMMITTEE\r\n', '2026-03-18 21:37:40', NULL),
+(14, 'DESIGN AND BUILD COMMITTEE', 'DESIGN AND BUILD COMMITTEE\r\n', '2026-03-18 21:37:45', NULL),
+(15, 'DISPOSAL COMMITTEE', 'DISPOSAL COMMITTEE\r\n', '2026-03-18 21:37:49', NULL),
+(16, 'APPRAISAL COMMITTEE', 'APPRAISAL COMMITTEE\r\n', '2026-03-18 21:37:54', NULL),
+(17, 'GENDER AND DEVELOPMENT COMMITTEE', 'GENDER AND DEVELOPMENT COMMITTEE\r\n', '2026-03-18 21:37:58', NULL),
+(18, 'GREEN AND HEALTHY HOSPITAL COMMITTEE', 'GREEN AND HEALTHY HOSPITAL COMMITTEE\r\n', '2026-03-18 21:38:04', NULL),
+(19, 'HEALTH TECHNOLOGY ASSESSMENT COMMITTEE', 'HEALTH TECHNOLOGY ASSESSMENT COMMITTEE\r\n', '2026-03-18 21:38:08', NULL),
+(20, 'HIV-AIDS CORE TEAM (HACT)', 'HIV-AIDS CORE TEAM (HACT)\r\n', '2026-03-18 21:38:14', NULL),
+(21, 'HOSPITAL BLOOD TRANSFUSION COMMITTEE', 'HOSPITAL BLOOD TRANSFUSION COMMITTEE\r\n', '2026-03-18 21:39:31', NULL),
+(22, 'HOSPITAL COMMITTEE ON AFFILIATION AND TRAINING OF STUDENTS (HCATS)', 'HOSPITAL COMMITTEE ON AFFILIATION AND TRAINING OF STUDENTS (HCATS)\r\n', '2026-03-18 21:39:36', NULL),
+(23, 'HOSPITAL COSTING AND RATE SETTING COMMITTEE', 'HOSPITAL COSTING AND RATE SETTING COMMITTEE\r\n', '2026-03-18 21:39:41', NULL),
+(24, 'INTERNAL GRIEVANCE/ ETHICS COMMITTEE', 'INTERNAL GRIEVANCE/ ETHICS COMMITTEE\r\n', '2026-03-18 21:39:45', NULL),
+(25, 'HOSPITAL POISON CONTROL COMMITTEE', 'HOSPITAL POISON CONTROL COMMITTEE\r\n', '2026-03-18 21:39:49', NULL),
+(26, 'HOSPITAL TB COMMITTEE', 'HOSPITAL TB COMMITTEE\r\n', '2026-03-18 21:39:54', NULL),
+(27, 'HOSPITAL WASTE MANAGEMENT COMMITTEE', 'HOSPITAL WASTE MANAGEMENT COMMITTEE\r\n', '2026-03-18 21:39:58', NULL),
+(28, 'HUMAN RESOURCE DEVELOPMENT COMMITTEE (HRDC)', 'HUMAN RESOURCE DEVELOPMENT COMMITTEE (HRDC)\r\n', '2026-03-18 21:40:03', NULL),
+(29, 'HUMAN RESOURCE MERIT, PROMOTION AND SELECTION BOARD (HRMPSB)', 'HUMAN RESOURCE MERIT, PROMOTION AND SELECTION BOARD (HRMPSB)\r\n', '2026-03-18 21:40:08', NULL),
+(30, 'INFECTIONPREVENTIONAND CONTROLCOMMITTEE', 'INFECTIONPREVENTIONAND CONTROLCOMMITTEE\r\n', '2026-03-18 21:40:13', NULL),
+(31, 'INSPECTION COMMITTEE', 'INSPECTION COMMITTEE\r\n', '2026-03-18 21:40:17', NULL),
+(32, 'INTEGRITY MANAGEMENT COMMITTEE', 'INTEGRITY MANAGEMENT COMMITTEE\r\n', '2026-03-18 21:40:21', NULL),
+(33, 'INTENSIVE CARE COMMITTEE', 'INTENSIVE CARE COMMITTEE\r\n', '2026-03-18 21:40:25', NULL),
+(34, 'INVENTORY COMMITTEE', 'INVENTORY COMMITTEE\r\n', '2026-03-18 21:48:08', NULL),
+(35, 'LUPON NG KORESPONDENSYA OPISYAL', 'LUPON NG KORESPONDENSYA OPISYAL\r\n', '2026-03-18 21:48:12', NULL),
+(36, 'MEDICAL OUTREACH COMMITTEE', 'MEDICAL OUTREACH COMMITTEE\r\n', '2026-03-18 21:48:16', NULL),
+(37, 'MULTI DISCIPLINARY TEAM FOR ONCOLOGY', 'MULTI DISCIPLINARY TEAM FOR ONCOLOGY\r\n', '2026-03-18 21:48:21', NULL),
+(38, 'MULTI-SPECIALTY CENTER COMMITTEE', 'MULTI-SPECIALTY CENTER COMMITTEE\r\n', '2026-03-18 21:48:25', NULL),
+(39, 'MULTIMEDIA COMMITTEE', 'MULTIMEDIA COMMITTEE\r\n', '2026-03-18 21:48:29', NULL),
+(40, 'NUTRITION COMMITTEE', 'NUTRITION COMMITTEE\r\n', '2026-03-18 21:48:34', NULL),
+(41, 'OCCUPATIONAL SAFETY AND HEALTH COMMITTEE', 'OCCUPATIONAL SAFETY AND HEALTH COMMITTEE\r\n', '2026-03-18 21:48:38', NULL),
+(42, 'OPERATING ROOM MANAGEMENT COMMITTEE (ORMAC)', 'OPERATING ROOM MANAGEMENT COMMITTEE (ORMAC)\r\n', '2026-03-18 21:48:43', NULL),
+(43, 'ORGAN DONATION COMMITTEE', 'ORGAN DONATION COMMITTEE\r\n', '2026-03-18 21:48:47', NULL),
+(44, 'PATIENT HEALTH RECORDS COMMITTEE', 'PATIENT HEALTH RECORDS COMMITTEE\r\n', '2026-03-18 21:48:51', NULL),
+(45, 'PATIENT SAFETY COMMITTEE', 'PATIENT SAFETY COMMITTEE\r\n', '2026-03-18 21:48:55', NULL),
+(46, 'PERFORMANCE MANAGEMENT TEAM COMMITTEE', 'PERFORMANCE MANAGEMENT TEAM COMMITTEE\r\n', '2026-03-18 21:48:59', NULL),
+(47, 'PHILHEALTH COMPLIANCE COMMITTEE', 'PHILHEALTH COMPLIANCE COMMITTEE\r\n', '2026-03-18 21:49:03', NULL),
+(48, 'PLANNING COMMITTEE', 'PLANNING COMMITTEE\r\n', '2026-03-18 21:49:07', NULL),
+(49, 'POLLUTION CONTROL COMMITTEE', 'POLLUTION CONTROL COMMITTEE\r\n', '2026-03-18 21:49:13', NULL),
+(50, 'PROGRAM ON AWARDSAND INCENTIVES FOR SERVICE EXCELLENCE (PRAISE) COMMITTEE', 'PROGRAM ON AWARDSAND INCENTIVES FOR SERVICE EXCELLENCE (PRAISE) COMMITTEE\r\n', '2026-03-18 21:49:17', NULL),
+(51, 'PUBLIC-PRIVATE PARTNERSHIP COMMITTEE', 'PUBLIC-PRIVATE PARTNERSHIP COMMITTEE\r\n', '2026-03-18 21:49:21', NULL),
+(52, 'QUALITY MANAGEMENT SYSTEM (QMS) WORKING COMMITTEE', 'QUALITY MANAGEMENT SYSTEM (QMS) WORKING COMMITTEE\r\n', '2026-03-18 21:49:25', NULL),
+(53, 'SALN REVIEW AND COMPLIANCE COMMITTEE', 'SALN REVIEW AND COMPLIANCE COMMITTEE\r\n', '2026-03-18 21:49:34', NULL),
+(54, 'THERAPEUTICS COMMITTEE', 'THERAPEUTICS COMMITTEE\r\n', '2026-03-18 21:49:46', NULL),
+(55, 'UNIFORM COMMITTEE', 'UNIFORM COMMITTEE\r\n', '2026-03-18 21:49:51', NULL),
+(56, 'WOMEN AND CHILDREN PROTECTION COMMITTEE', 'WOMEN AND CHILDREN PROTECTION COMMITTEE\r\n', '2026-03-18 21:49:57', NULL);
 
 -- --------------------------------------------------------
 
@@ -358,11 +412,12 @@ CREATE TABLE `courses` (
 --
 
 INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`) VALUES
-(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-13 01:04:28', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL),
+(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-19 07:02:50', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL),
 (46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', NULL, NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL),
 (47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-13 07:49:30', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL),
 (48, 'Tester', 'TesterTester', NULL, 22, '60457b0ca7bb3a8c.pdf', NULL, '2026-03-13 08:01:14', NULL, '2026-03-28', 1, 'TesterTesterTesterTesterTesterTester', NULL),
-(49, 'adsasdasd', 'adsasdasd', NULL, 5, NULL, NULL, '2026-03-13 08:13:17', NULL, NULL, 1, 'adsasdasdadsasdasdadsasdasdadsasdasd', NULL);
+(49, 'adsasdasd', 'adsasdasd', NULL, 5, NULL, NULL, '2026-03-13 08:13:17', NULL, NULL, 1, 'adsasdasdadsasdasdadsasdasdadsasdasd', NULL),
+(50, 'Module', 'module description', 'bb8dae1ebab304a6.png', 72, '87f0387375dbeacd.pdf', NULL, '2026-03-18 07:48:04', NULL, NULL, 1, 'Module summary', NULL);
 
 --
 -- Triggers `courses`
@@ -496,15 +551,15 @@ DELIMITER ;
 
 CREATE TABLE `course_departments` (
   `course_id` int(11) NOT NULL,
-  `department_id` int(11) NOT NULL
+  `committee_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `course_departments`
 --
 
-INSERT INTO `course_departments` (`course_id`, `department_id`) VALUES
-(46, 3);
+INSERT INTO `course_departments` (`course_id`, `committee_id`) VALUES
+(44, 4);
 
 -- --------------------------------------------------------
 
@@ -526,10 +581,9 @@ CREATE TABLE `departments` (
 INSERT INTO `departments` (`id`, `name`, `created_at`, `description`) VALUES
 (1, 'NURSING SERVICE', '2026-02-19 03:06:57', NULL),
 (2, 'MEDICAL SERVICE', '2026-02-19 03:06:57', NULL),
-(3, 'HOSPITAL OPERATIONS AND PATIENT SUPPORT SERVICE', '2026-02-19 03:06:57', NULL),
+(3, 'HOPSS (HOSPITAL OPERATIONS AND PATIENT SUPPORT SERVICE)', '2026-02-19 03:06:57', NULL),
 (4, 'ALLIED HEALTH PROFESSIONAL SERVICE', '2026-02-19 03:06:57', NULL),
-(5, 'FINANCES', '2026-02-19 03:06:57', 'Division finance descriptopn'),
-(15, 'nancy binay', '2026-03-18 06:06:19', 'binaynancy');
+(5, 'FINANCES', '2026-02-19 03:06:57', 'Division finance descriptopn');
 
 -- --------------------------------------------------------
 
@@ -551,9 +605,67 @@ CREATE TABLE `depts` (
 --
 
 INSERT INTO `depts` (`department_id`, `id`, `name`, `description`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Example committee', 'Example committee description', '2026-03-18 01:03:43', NULL),
-(5, 3, 'fdsfsdfsdfsdf', 'sdfsdfsdfsdf', '2026-03-18 01:05:30', NULL),
-(15, 4, 'jojomarbnay', 'nognogpandak', '2026-03-18 06:15:21', NULL);
+(3, 5, 'iMISS', 'it here', '2026-03-19 01:44:20', NULL),
+(3, 6, 'Human Resource Management', '', '2026-03-19 05:23:04', NULL),
+(2, 7, 'Internal Medicine', '', '2026-03-19 05:32:32', NULL),
+(2, 8, 'Surgery', '', '2026-03-19 05:33:18', NULL),
+(2, 9, 'OB-Gynecology', '', '2026-03-19 05:33:50', NULL),
+(2, 10, 'Pediatrics', '', '2026-03-19 05:34:18', NULL),
+(2, 11, 'Anesthesia', '', '2026-03-19 05:34:48', NULL),
+(2, 12, 'ENT-HNS', '', '2026-03-19 05:35:23', NULL),
+(2, 13, 'Opthalmology', '', '2026-03-19 05:35:42', NULL),
+(2, 14, 'Psychiatry', '', '2026-03-19 05:36:01', NULL),
+(2, 15, 'Radiology', '', '2026-03-19 05:36:10', NULL),
+(2, 16, 'Pathology', '', '2026-03-19 05:36:24', NULL),
+(2, 17, 'Rehabilitation Medicine', '', '2026-03-19 05:36:40', NULL),
+(2, 18, 'Out-Patient', '', '2026-03-19 05:36:57', NULL),
+(2, 19, 'Emergency Medicine', '', '2026-03-19 05:37:09', NULL),
+(2, 20, 'Family and Community Medicine', '', '2026-03-19 05:37:31', NULL),
+(2, 21, 'Dental Services', '', '2026-03-19 05:37:42', NULL),
+(2, 22, 'Operating Room Complex', '', '2026-03-19 05:42:01', NULL),
+(2, 23, 'Obstretics Complex - Medical', '', '2026-03-19 05:42:31', '2026-03-19 05:59:10'),
+(2, 24, 'Post Anesthesia Care Unit - Medical', '', '2026-03-19 05:42:52', '2026-03-19 05:58:55'),
+(2, 25, 'Dialysis Unit', '', '2026-03-19 05:43:54', NULL),
+(2, 26, 'Diagnostic Unit', '', '2026-03-19 05:44:11', NULL),
+(2, 27, 'Pulmonary', '', '2026-03-19 05:44:22', NULL),
+(2, 28, 'Gastroenterology', '', '2026-03-19 05:44:36', NULL),
+(2, 29, 'Cardiology', '', '2026-03-19 05:44:51', NULL),
+(2, 30, 'ICU', '', '2026-03-19 05:45:03', NULL),
+(2, 31, 'SICU - Medical', '', '2026-03-19 05:45:13', '2026-03-19 05:58:09'),
+(2, 32, 'MICU - Medical', '', '2026-03-19 05:45:21', '2026-03-19 05:58:24'),
+(2, 33, 'ACTU', '', '2026-03-19 05:45:40', NULL),
+(2, 34, 'NTP DOTS', '', '2026-03-19 05:45:50', NULL),
+(1, 35, 'Medicine', '', '2026-03-19 05:46:30', NULL),
+(1, 36, 'Surgery', '', '2026-03-19 05:46:40', NULL),
+(1, 37, 'OB-Gynecology', '', '2026-03-19 05:46:57', NULL),
+(1, 38, 'Pediatrics', '', '2026-03-19 05:47:18', NULL),
+(1, 39, 'Out-Patient', '', '2026-03-19 05:47:40', NULL),
+(1, 40, 'Emergency Medicine', '', '2026-03-19 05:47:57', NULL),
+(1, 41, 'Operating Room Complex - Nursing', '', '2026-03-19 05:48:10', '2026-03-19 05:56:45'),
+(1, 42, 'Obstretics Complex  - Nursing', '', '2026-03-19 05:48:23', '2026-03-19 05:56:56'),
+(1, 43, 'Post Anesthesia Care Unit  - Nursing', '', '2026-03-19 05:48:44', '2026-03-19 05:57:07'),
+(1, 44, 'PICU', '', '2026-03-19 05:48:52', NULL),
+(1, 45, 'SICU - Nursing', '', '2026-03-19 05:49:01', '2026-03-19 05:55:56'),
+(1, 46, 'MICU  - Nursing', '', '2026-03-19 05:49:16', '2026-03-19 05:57:22'),
+(1, 47, 'Central Supply and Sterilization', '', '2026-03-19 05:49:44', NULL),
+(3, 48, 'Procurement', '', '2026-03-19 05:50:18', NULL),
+(3, 49, 'Materials Management', '', '2026-03-19 05:50:34', NULL),
+(3, 50, 'EFM - Housekeeping', '', '2026-03-19 05:51:19', NULL),
+(3, 51, 'EFM - Linen/Laundry', '', '2026-03-19 05:51:41', NULL),
+(3, 52, 'EFM - Security', '', '2026-03-19 05:51:59', NULL),
+(3, 53, 'EFM - Design and Construction', '', '2026-03-19 05:52:17', NULL),
+(3, 54, 'EFM - Motorpol', '', '2026-03-19 05:52:41', NULL),
+(3, 55, 'EFM - Bio-Medical', '', '2026-03-19 05:52:59', NULL),
+(3, 56, 'EFM - Electro Mechanical', '', '2026-03-19 05:53:16', NULL),
+(4, 57, 'Admiting and Information', '', '2026-03-19 05:53:42', NULL),
+(4, 58, 'Medical Social Work', '', '2026-03-19 05:53:55', NULL),
+(4, 59, 'Nutrition and Dietetics', '', '2026-03-19 05:54:18', NULL),
+(4, 60, 'Pharmacy', '', '2026-03-19 05:54:30', NULL),
+(4, 61, 'OPD Records', '', '2026-03-19 05:54:47', NULL),
+(5, 62, 'Accounting', '', '2026-03-19 05:55:00', NULL),
+(5, 63, 'Budget', '', '2026-03-19 05:55:06', NULL),
+(5, 64, 'Cash Operations', '', '2026-03-19 05:55:16', NULL),
+(5, 65, 'Billing and Claims', '', '2026-03-19 05:55:28', NULL);
 
 -- --------------------------------------------------------
 
@@ -607,36 +719,8 @@ INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `complet
 (68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0),
 (69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0),
 (70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0),
-(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0);
-
--- --------------------------------------------------------
-
---
--- Table structure for table `lessons`
---
-
-CREATE TABLE `lessons` (
-  `id` int(11) NOT NULL,
-  `course_id` int(11) NOT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  `content` text DEFAULT NULL,
-  `file_pdf` varchar(255) DEFAULT NULL,
-  `file_video` varchar(255) DEFAULT NULL,
-  `ord` int(11) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `lesson_progress`
---
-
-CREATE TABLE `lesson_progress` (
-  `id` int(11) NOT NULL,
-  `enrollment_id` int(11) NOT NULL,
-  `lesson_id` int(11) NOT NULL,
-  `completed_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0),
+(72, 76, 50, '2026-03-18 07:48:12', NULL, NULL, 0.00, 0, 0, 0, 0, 13, 26, 'ongoing', 0);
 
 -- --------------------------------------------------------
 
@@ -671,6 +755,108 @@ CREATE TABLE `message_attachments` (
   `filepath` varchar(500) NOT NULL,
   `filesize` int(11) NOT NULL,
   `filetype` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `modules`
+--
+
+CREATE TABLE `modules` (
+  `id` int(11) NOT NULL,
+  `course_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `content` longtext DEFAULT NULL,
+  `order_number` int(11) DEFAULT 0,
+  `file_pdf` varchar(255) DEFAULT NULL,
+  `file_video` varchar(255) DEFAULT NULL,
+  `duration_minutes` int(11) DEFAULT NULL,
+  `is_required` tinyint(1) DEFAULT 1,
+  `status` enum('draft','published','archived') DEFAULT 'draft',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
+  `published_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `modules`
+--
+
+INSERT INTO `modules` (`id`, `course_id`, `title`, `description`, `content`, `order_number`, `file_pdf`, `file_video`, `duration_minutes`, `is_required`, `status`, `created_at`, `updated_at`, `published_at`) VALUES
+(9, 50, 'moduletitle', 'moduledesctrip', 'contect', 1, '66ba7d8e18649fb5.pdf', NULL, NULL, 1, 'draft', '2026-03-18 07:56:08', '2026-03-18 07:56:14', NULL),
+(10, 50, '3erfqwerqwerqsed', 'fasdasdasdasdasdasd1212312', '3123123123123', 2, 'a4a17f1fabaa73e2.pdf', NULL, NULL, 1, 'draft', '2026-03-18 08:05:04', NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_attachments`
+--
+
+CREATE TABLE `module_attachments` (
+  `id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `original_filename` varchar(255) NOT NULL,
+  `filepath` varchar(500) NOT NULL,
+  `filesize` int(11) NOT NULL,
+  `filetype` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_comments`
+--
+
+CREATE TABLE `module_comments` (
+  `id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `comment` text NOT NULL,
+  `parent_id` int(11) DEFAULT NULL,
+  `is_approved` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_progress`
+--
+
+CREATE TABLE `module_progress` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `enrollment_id` int(11) NOT NULL,
+  `status` enum('not_started','in_progress','completed') DEFAULT 'not_started',
+  `progress_percentage` decimal(5,2) DEFAULT 0.00,
+  `time_spent_seconds` int(11) DEFAULT 0,
+  `pdf_progress` int(11) DEFAULT 0,
+  `video_position` int(11) DEFAULT 0,
+  `started_at` timestamp NULL DEFAULT NULL,
+  `completed_at` timestamp NULL DEFAULT NULL,
+  `last_accessed_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_resources`
+--
+
+CREATE TABLE `module_resources` (
+  `id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `url` varchar(500) NOT NULL,
+  `description` text DEFAULT NULL,
+  `type` enum('link','video','document','other') DEFAULT 'link',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -1437,7 +1623,20 @@ INSERT INTO `pdf_progress` (`id`, `enrollment_id`, `page_number`, `viewed_at`) V
 (0, 71, 63, '2026-03-17 06:07:57'),
 (0, 71, 64, '2026-03-17 06:07:57'),
 (0, 71, 65, '2026-03-17 06:07:59'),
-(0, 71, 66, '2026-03-17 06:07:59');
+(0, 71, 66, '2026-03-17 06:07:59'),
+(0, 72, 1, '2026-03-18 07:48:13'),
+(0, 72, 2, '2026-03-18 07:49:14'),
+(0, 72, 3, '2026-03-18 07:49:16'),
+(0, 72, 4, '2026-03-18 07:49:16'),
+(0, 72, 5, '2026-03-18 07:49:17'),
+(0, 72, 6, '2026-03-18 07:49:17'),
+(0, 72, 7, '2026-03-18 07:49:18'),
+(0, 72, 8, '2026-03-18 07:49:18'),
+(0, 72, 9, '2026-03-18 07:49:18'),
+(0, 72, 10, '2026-03-18 07:49:19'),
+(0, 72, 11, '2026-03-18 07:49:19'),
+(0, 72, 12, '2026-03-18 07:49:20'),
+(0, 72, 13, '2026-03-18 07:49:21');
 
 -- --------------------------------------------------------
 
@@ -1502,7 +1701,12 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 (89, 'exampleuser', '$2y$10$5MR1AJsZvsCUIxYHfFiHquxH7BaZj7FpDTVjmI.FlH7omtQ.g9MHy', 'exampleuser', 'exampleuser', 'exampleuse@gmail.com', 'user', '2026-03-18 03:52:48', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (94, 'bbbbbbbbbbbbbbbb', '$2y$10$OI8ivIehU1f7nLxRFNv1FeHkJb1knarWVvQs4TrNhNzsboRk9kwGC', 'bbbbbbbbbbbbbbbbbbbbb', 'bbbbbbbbbbb', 'bbbbbbbbbbb@gmail.com', 'proponent', '2026-03-18 05:22:26', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (95, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', '$2y$10$x1T8MnpAVkOUiGNffYUtpeMv0G4LjZtZJKnAnUwOAKenldLQqPNcO', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxx@gmail.com', 'proponent', '2026-03-18 05:22:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(96, 'asdasdasdasdasdasda', '$2y$10$N4QD0RZiWcqELYfJgMLDH.0EtfY72GQC0.Uwrw1XKWnjs4ezUMyUy', 'asdasdasdsa', 'dasdasdasdasd', 'asdasdasdassd@gmail.com', 'user', '2026-03-18 05:23:15', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
+(96, 'asdasdasdasdasdasda', '$2y$10$N4QD0RZiWcqELYfJgMLDH.0EtfY72GQC0.Uwrw1XKWnjs4ezUMyUy', 'asdasdasdsa', 'dasdasdasdasd', 'asdasdasdassd@gmail.com', 'user', '2026-03-18 05:23:15', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(97, 'admin', '$2y$10$NCSfBuMOdDJF7qNc/uAufeWhvEUBmSKZEm41.F7ahR4NJgj/KbMbO', 'Johnemmanulle', 'DL', 'gfaith209@gmail.com', 'user', '2026-03-18 08:31:32', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(98, 'asdasd', '$2y$10$544HNO.Fq0MC1dDz94QbfuSJCHspZpj/RcdD3kwfYJ7g2izNM0OFW', 'asdasdasdasd', 'asdasdasda', 'sdadasda@gm.com', 'proponent', '2026-03-19 00:53:28', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(99, 'ssssssssssssssssss', '$2y$10$wiSbAzOHstws/tgCcI3vbej3E4ULql9jeCjfvuarZyJJh5UJ1IVKO', 'ssssssssssssssssss', 'ssssssssssssssssss', 'ssssssssssssssssss@gm.com', 'proponent', '2026-03-19 00:53:47', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(101, 'imman', '$2y$10$QV8OYKGPAauLwB/b4tXEPedtMbWNAnl7jR8pwXS0cFqhJOKiQkkd6', 'imman', 'imman', 'imman@pogidawsya.com', 'user', '2026-03-19 01:44:53', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(102, 'testdepartments', '$2y$10$koNC7D8un48YIl0hV9eaGOneqNTwNBjv4jmKne/f7c7OfvcHmbUiS', 'test', 'departments', 'gplankton1@gmail.com', 'user', '2026-03-19 03:56:36', NULL, 0, NULL, NULL, 'pending', 1, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -1513,7 +1717,7 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 CREATE TABLE `user_departments` (
   `id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `department_id` int(11) DEFAULT NULL,
+  `dept_id` int(11) DEFAULT NULL,
   `committee_id` int(11) DEFAULT NULL,
   `assigned_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1522,11 +1726,16 @@ CREATE TABLE `user_departments` (
 -- Dumping data for table `user_departments`
 --
 
-INSERT INTO `user_departments` (`id`, `user_id`, `department_id`, `committee_id`, `assigned_at`) VALUES
-(1, 94, NULL, 1, '2026-03-18 05:22:26'),
-(2, 95, NULL, 2, '2026-03-18 05:22:51'),
-(3, 95, NULL, 3, '2026-03-18 05:22:51'),
-(4, 96, 4, NULL, '2026-03-18 05:23:15');
+INSERT INTO `user_departments` (`id`, `user_id`, `dept_id`, `committee_id`, `assigned_at`) VALUES
+(2, 101, 5, NULL, '2026-03-19 02:31:41'),
+(7, 76, 5, NULL, '2026-03-19 03:26:31'),
+(8, 102, 5, NULL, '2026-03-19 03:56:36'),
+(9, 5, NULL, 13, '2026-03-19 06:06:07'),
+(10, 1, NULL, 10, '2026-03-19 06:07:29'),
+(11, 1, NULL, 18, '2026-03-19 06:07:29'),
+(12, 22, NULL, 3, '2026-03-19 07:02:07'),
+(13, 22, NULL, 4, '2026-03-19 07:02:07'),
+(14, 22, NULL, 16, '2026-03-19 07:02:07');
 
 -- --------------------------------------------------------
 
@@ -1635,8 +1844,7 @@ ALTER TABLE `courses`
 -- Indexes for table `course_departments`
 --
 ALTER TABLE `course_departments`
-  ADD PRIMARY KEY (`course_id`,`department_id`),
-  ADD KEY `department_id` (`department_id`);
+  ADD PRIMARY KEY (`course_id`,`committee_id`);
 
 --
 -- Indexes for table `departments`
@@ -1668,21 +1876,6 @@ ALTER TABLE `enrollments`
   ADD KEY `course_id` (`course_id`);
 
 --
--- Indexes for table `lessons`
---
-ALTER TABLE `lessons`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `course_id` (`course_id`);
-
---
--- Indexes for table `lesson_progress`
---
-ALTER TABLE `lesson_progress`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `ux_enroll_lesson` (`enrollment_id`,`lesson_id`),
-  ADD KEY `lesson_id` (`lesson_id`);
-
---
 -- Indexes for table `messages`
 --
 ALTER TABLE `messages`
@@ -1698,6 +1891,47 @@ ALTER TABLE `messages`
 ALTER TABLE `message_attachments`
   ADD PRIMARY KEY (`id`),
   ADD KEY `message_id` (`message_id`);
+
+--
+-- Indexes for table `modules`
+--
+ALTER TABLE `modules`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_course_id` (`course_id`),
+  ADD KEY `idx_order` (`order_number`);
+
+--
+-- Indexes for table `module_attachments`
+--
+ALTER TABLE `module_attachments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_module_id` (`module_id`);
+
+--
+-- Indexes for table `module_comments`
+--
+ALTER TABLE `module_comments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_module_id` (`module_id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_parent_id` (`parent_id`);
+
+--
+-- Indexes for table `module_progress`
+--
+ALTER TABLE `module_progress`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_user_module` (`user_id`,`module_id`),
+  ADD KEY `idx_enrollment_id` (`enrollment_id`),
+  ADD KEY `idx_module_id` (`module_id`),
+  ADD KEY `idx_status` (`status`);
+
+--
+-- Indexes for table `module_resources`
+--
+ALTER TABLE `module_resources`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_module_id` (`module_id`);
 
 --
 -- Indexes for table `news`
@@ -1738,10 +1972,9 @@ ALTER TABLE `users`
 --
 ALTER TABLE `user_departments`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_user_dept` (`user_id`,`department_id`),
-  ADD UNIQUE KEY `unique_user_comm` (`user_id`,`committee_id`),
-  ADD KEY `idx_department_id` (`department_id`),
-  ADD KEY `idx_committee_id` (`committee_id`);
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `dept_id` (`dept_id`),
+  ADD KEY `committee_id` (`committee_id`);
 
 --
 -- Indexes for table `video_progress`
@@ -1788,13 +2021,13 @@ ALTER TABLE `assessment_questions`
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `committees`
 --
 ALTER TABLE `committees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
 
 --
 -- AUTO_INCREMENT for table `contact_messages`
@@ -1812,7 +2045,7 @@ ALTER TABLE `conversations`
 -- AUTO_INCREMENT for table `courses`
 --
 ALTER TABLE `courses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=51;
 
 --
 -- AUTO_INCREMENT for table `departments`
@@ -1824,7 +2057,7 @@ ALTER TABLE `departments`
 -- AUTO_INCREMENT for table `depts`
 --
 ALTER TABLE `depts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=66;
 
 --
 -- AUTO_INCREMENT for table `edit`
@@ -1836,19 +2069,7 @@ ALTER TABLE `edit`
 -- AUTO_INCREMENT for table `enrollments`
 --
 ALTER TABLE `enrollments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
-
---
--- AUTO_INCREMENT for table `lessons`
---
-ALTER TABLE `lessons`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `lesson_progress`
---
-ALTER TABLE `lesson_progress`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
 
 --
 -- AUTO_INCREMENT for table `messages`
@@ -1860,6 +2081,36 @@ ALTER TABLE `messages`
 -- AUTO_INCREMENT for table `message_attachments`
 --
 ALTER TABLE `message_attachments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `modules`
+--
+ALTER TABLE `modules`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT for table `module_attachments`
+--
+ALTER TABLE `module_attachments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `module_comments`
+--
+ALTER TABLE `module_comments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `module_progress`
+--
+ALTER TABLE `module_progress`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `module_resources`
+--
+ALTER TABLE `module_resources`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1884,13 +2135,13 @@ ALTER TABLE `time_logs`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=103;
 
 --
 -- AUTO_INCREMENT for table `user_departments`
 --
 ALTER TABLE `user_departments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `video_progress`
@@ -1946,8 +2197,8 @@ ALTER TABLE `courses`
 -- Constraints for table `course_departments`
 --
 ALTER TABLE `course_departments`
-  ADD CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `course_departments_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `course_departments_committee_fk` FOREIGN KEY (`committee_id`) REFERENCES `committees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `course_departments_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `depts`
@@ -1969,19 +2220,6 @@ ALTER TABLE `enrollments`
   ADD CONSTRAINT `enrollments_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `lessons`
---
-ALTER TABLE `lessons`
-  ADD CONSTRAINT `lessons_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE;
-
---
--- Constraints for table `lesson_progress`
---
-ALTER TABLE `lesson_progress`
-  ADD CONSTRAINT `lesson_progress_ibfk_1` FOREIGN KEY (`enrollment_id`) REFERENCES `enrollments` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `lesson_progress_ibfk_2` FOREIGN KEY (`lesson_id`) REFERENCES `lessons` (`id`) ON DELETE CASCADE;
-
---
 -- Constraints for table `messages`
 --
 ALTER TABLE `messages`
@@ -1996,6 +2234,40 @@ ALTER TABLE `message_attachments`
   ADD CONSTRAINT `message_attachments_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `modules`
+--
+ALTER TABLE `modules`
+  ADD CONSTRAINT `fk_modules_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `module_attachments`
+--
+ALTER TABLE `module_attachments`
+  ADD CONSTRAINT `fk_attachments_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `module_comments`
+--
+ALTER TABLE `module_comments`
+  ADD CONSTRAINT `fk_comments_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_comments_parent` FOREIGN KEY (`parent_id`) REFERENCES `module_comments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_comments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `module_progress`
+--
+ALTER TABLE `module_progress`
+  ADD CONSTRAINT `fk_progress_enrollment` FOREIGN KEY (`enrollment_id`) REFERENCES `enrollments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_progress_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `module_resources`
+--
+ALTER TABLE `module_resources`
+  ADD CONSTRAINT `fk_resources_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `time_logs`
 --
 ALTER TABLE `time_logs`
@@ -2005,9 +2277,9 @@ ALTER TABLE `time_logs`
 -- Constraints for table `user_departments`
 --
 ALTER TABLE `user_departments`
-  ADD CONSTRAINT `fk_user_departments_comm` FOREIGN KEY (`committee_id`) REFERENCES `committees` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_user_departments_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_user_departments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `user_departments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `user_departments_ibfk_2` FOREIGN KEY (`dept_id`) REFERENCES `depts` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `user_departments_ibfk_3` FOREIGN KEY (`committee_id`) REFERENCES `committees` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `video_progress`

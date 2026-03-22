@@ -92,415 +92,466 @@ if (isset($_GET['delete_division_id'])) {
 
 <html>
 <head>
-    <title>Departments Management</title>
+    <title>Division and Department Management</title>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/bootstrap.min.css">
     <script src="<?= BASE_URL ?>/assets/js/bootstrap.bundle.min.js"></script>
     <style>
-        /* Main Layout - Fixed for sidebar */
+        /* Modern CSS Reset and Variables - Minimalist Design */
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --success: #16a34a;
+            --warning: #ca8a04;
+            --danger: #dc2626;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --radius: 0.375rem;
+            --radius-lg: 0.5rem;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #ffffff;
+            color: var(--gray-900);
+            line-height: 1.5;
+        }
+
+        /* Main Layout */
         .lms-sidebar-container {
             float: left;
             width: 250px;
+            position: fixed;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            z-index: 10;
         }
 
         .container.mt-4 {
-            margin-left: 250px; /* Match sidebar width */
+            margin-left: 250px;
             padding: 2rem;
             max-width: calc(100% - 250px);
+            min-height: 100vh;
         }
 
-        /* Clear float */
-        .container.mt-4::after {
-            content: "";
-            display: table;
-            clear: both;
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--gray-200);
         }
 
-        /* Page Title */
-        .container.mt-4 h2 {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        .page-header h2 {
             font-size: 1.5rem;
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 1.5rem;
-        }
-
-        /* Add Main Department Button */
-        .btn-primary.mb-3 {
-            background-color: #0d6efd;
-            border: none;
-            padding: 0.375rem 0.75rem;
-            font-size: 1rem;
-            font-weight: 400;
-            border-radius: 4px;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.15s ease;
-            margin-bottom: 1rem !important;
-            border: 1px solid #0d6efd;
-        }
-
-        .btn-primary.mb-3:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
-        }
-
-        /* Table Styling */
-        .table-bordered {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border: 1px solid #dee2e6;
-        }
-
-        /* Resized table columns */
-        .table-bordered thead th:first-child {
-            width: 50%; /* Main Department Name column */
-        }
-
-        .table-bordered thead th:nth-child(2) {
-            width: 30%; /* Description column */
-        }
-
-        .table-bordered thead th:last-child {
-            width: 20%; /* Actions column */
-        }
-
-        .table-bordered thead {
-            background-color: #f8f9fa;
-            border-bottom: 2px solid #dee2e6;
-        }
-
-        .table-bordered thead th {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #000000;
-            padding: 0.75rem;
-            text-align: left;
-            border-right: 1px solid #dee2e6;
-            vertical-align: bottom;
-        }
-
-        .table-bordered thead th:last-child {
-            border-right: none;
-        }
-
-        .table-bordered tbody tr {
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .table-bordered tbody tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-
-        .table-bordered tbody td {
-            padding: 0.75rem;
-            color: #212529;
-            font-size: 1rem;
-            border-right: 1px solid #dee2e6;
-            vertical-align: middle;
-        }
-
-        .table-bordered tbody td:last-child {
-            border-right: none;
-        }
-
-        /* Main Department Name */
-        .table-bordered tbody td:first-child {
             font-weight: 500;
-            color: #212529;
+            color: var(--gray-900);
+            margin: 0;
         }
 
-        /* Description */
-        .table-bordered tbody td:nth-child(2) {
-            color: #6c757d;
-            font-size: 0.95rem;
-        }
-
-        /* Action Buttons */
-        .btn-view {
-            background-color: #17a2b8;
-            color: white;
-            border: 1px solid #17a2b8;
-            padding: 0.25rem 0.5rem;
+        /* Buttons - Minimalist */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
             font-size: 0.875rem;
-            font-weight: 400;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            text-decoration: none;
-            display: inline-block;
-            line-height: 1.5;
-            margin-right: 0.25rem;
-        }
-
-        .btn-view:hover {
-            background-color: #138496;
-            border-color: #117a8b;
-        }
-
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-            font-weight: 400;
-            border-radius: 3px;
+            font-weight: 500;
+            border-radius: var(--radius);
             border: 1px solid transparent;
             cursor: pointer;
             transition: all 0.15s ease;
             text-decoration: none;
-            display: inline-block;
-            margin-right: 0.25rem;
-            line-height: 1.5;
+            gap: 0.375rem;
+            background: white;
+            color: var(--gray-700);
+            border-color: var(--gray-200);
         }
 
-        .btn-sm:last-child {
-            margin-right: 0;
+        .btn:hover {
+            background-color: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-light);
+            border-color: var(--primary-light);
+        }
+
+        .btn-success {
+            background-color: white;
+            color: var(--success);
+            border-color: var(--gray-200);
+        }
+
+        .btn-success:hover {
+            background-color: var(--gray-50);
+            border-color: var(--success);
         }
 
         .btn-warning {
-            background-color: #ffc107;
-            color: #000000;
-            border-color: #ffc107;
+            background-color: white;
+            color: var(--warning);
+            border-color: var(--gray-200);
         }
 
         .btn-warning:hover {
-            background-color: #ffca2c;
-            border-color: #ffc720;
-            color: #000000;
+            background-color: var(--gray-50);
+            border-color: var(--warning);
         }
 
         .btn-danger {
-            background-color: #dc3545;
-            color: white;
-            border-color: #dc3545;
+            background-color: white;
+            color: var(--danger);
+            border-color: var(--gray-200);
         }
 
         .btn-danger:hover {
-            background-color: #bb2d3b;
-            border-color: #b02a37;
+            background-color: var(--gray-50);
+            border-color: var(--danger);
         }
 
-        /* Divisions table inside modal */
-        .division-table {
-            width: 100%;
-            border-collapse: collapse;
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        /* Departments Grid */
+        .departments-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
             margin-top: 1rem;
         }
 
-        .division-table thead th {
-            background-color: #f8f9fa;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border-bottom: 2px solid #dee2e6;
+        /* Left Panel - Departments List */
+        .departments-panel {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
         }
 
-        .division-table tbody td {
-            padding: 0.5rem;
-            border-bottom: 1px solid #dee2e6;
-            vertical-align: middle;
-        }
-
-        .division-table tbody tr:hover {
-            background-color: #f8f9fa;
-        }
-
-        .division-actions {
-            white-space: nowrap;
-        }
-
-        .btn-sm-division {
-            padding: 0.2rem 0.4rem;
-            font-size: 0.8rem;
-            border-radius: 3px;
-            margin-right: 0.25rem;
-        }
-
-        .btn-add-division {
-            background-color: #28a745;
-            color: white;
-            border: 1px solid #28a745;
-            margin-bottom: 1rem;
-        }
-
-        .btn-add-division:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-
-        .dept-info {
-            background-color: #e9ecef;
+        .panel-header {
             padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1rem;
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
         }
 
-        .dept-info h6 {
-            margin-bottom: 0.5rem;
+        .panel-header h3 {
+            font-size: 0.875rem;
             font-weight: 600;
-            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            color: var(--gray-500);
+            margin: 0;
         }
 
-        .dept-info p {
-            margin-bottom: 0;
-            color: #6c757d;
-        }
-
-        /* Modal Styling */
-        .modal-content {
-            border: 1px solid rgba(0,0,0,.2);
-            border-radius: 6px;
-            box-shadow: 0 5px 15px rgba(0,0,0,.5);
-        }
-
-        .modal-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            padding: 1rem 1rem;
-        }
-
-        .modal-header .modal-title {
-            font-size: 1.25rem;
-            font-weight: 500;
-            color: #000000;
-        }
-
-        .modal-header .btn-close {
-            background: transparent;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #000000;
-            opacity: 0.5;
-        }
-
-        .modal-header .btn-close:hover {
-            opacity: 0.75;
-        }
-
-        .modal-body {
-            padding: 1rem;
-            background-color: #ffffff;
-            max-height: 70vh;
+        .departments-list {
+            max-height: 600px;
             overflow-y: auto;
         }
 
-        .modal-body .form-label {
+        /* Department items - only showing name */
+        .department-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--gray-100);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .department-item:hover {
+            background-color: var(--gray-50);
+        }
+
+        .department-item.active {
+            background-color: var(--gray-100);
+            border-left: 3px solid var(--primary);
+        }
+
+        .department-name {
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--gray-900);
+        }
+
+        /* Right Panel - Divisions Panel */
+        .divisions-panel {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .divisions-header {
+            padding: 1rem;
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .divisions-header h3 {
             font-size: 1rem;
             font-weight: 500;
-            color: #212529;
-            margin-bottom: 0.5rem;
+            color: var(--gray-900);
+            margin: 0;
+        }
+
+        .divisions-header h3 span {
+            color: var(--gray-500);
+            font-weight: 400;
+            margin-left: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .divisions-list {
+            padding: 1rem;
+        }
+
+        .divisions-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .divisions-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .divisions-table td {
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .divisions-table tr {
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .divisions-table tr:hover td {
+            background-color: var(--gray-50);
+        }
+
+        .divisions-table tr.active td {
+            background-color: var(--gray-100);
+        }
+
+        .division-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Division Detail View */
+        .division-detail {
+            padding: 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .detail-header h4 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--gray-800);
+        }
+
+        .detail-content {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            width: 120px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--gray-500);
+        }
+
+        .detail-value {
+            flex: 1;
+            font-size: 0.9375rem;
+            color: var(--gray-800);
+        }
+
+        .detail-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray-500);
+        }
+
+        .empty-state p {
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .empty-state-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Modal Styling - Minimalist */
+        .modal-content {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: white;
+        }
+
+        .modal-header .modal-title {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--gray-900);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-body .form-label {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.375rem;
             display: block;
         }
 
         .modal-body .form-control {
             width: 100%;
-            padding: 0.375rem 0.75rem;
-            font-size: 1rem;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            transition: all 0.15s ease;
             font-family: inherit;
         }
 
         .modal-body .form-control:focus {
             outline: none;
-            border-color: #86b7fe;
-            box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25);
-        }
-
-        .modal-body textarea.form-control {
-            min-height: 80px;
-            resize: vertical;
+            border-color: var(--primary);
         }
 
         .modal-footer {
-            background-color: #f8f9fa;
-            border-top: 1px solid #dee2e6;
-            padding: 1rem;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            background: white;
             display: flex;
             justify-content: flex-end;
-            gap: 0.5rem;
+            gap: 0.75rem;
         }
 
-        .modal-footer .btn {
-            padding: 0.375rem 0.75rem;
-            font-size: 1rem;
-            font-weight: 400;
-            border-radius: 4px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: background-color 0.15s ease;
+        /* Hide original table */
+        .table-bordered {
+            display: none;
         }
 
-        .modal-footer .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-            border-color: #6c757d;
-        }
-
-        .modal-footer .btn-secondary:hover {
-            background-color: #5c636a;
-            border-color: #565e64;
-        }
-
-        .modal-footer .btn-primary {
-            background-color: #0d6efd;
-            color: white;
-            border-color: #0d6efd;
-        }
-
-        .modal-footer .btn-primary:hover {
-            background-color: #0b5ed7;
-            border-color: #0a58ca;
-        }
-
-        /* Empty State */
-        .table-bordered tbody tr td[colspan] {
-            text-align: center;
-            padding: 2rem;
-            color: #6c757d;
-            font-style: normal;
-        }
-
-        .empty-divisions {
-            text-align: center;
-            padding: 2rem;
-            color: #6c757d;
-            font-style: italic;
-        }
-
-        /* Responsive */
+        /* Responsive Design */
         @media (max-width: 768px) {
             .lms-sidebar-container {
-                float: none;
+                position: static;
                 width: 100%;
+                height: auto;
+                float: none;
             }
-           
+
             .container.mt-4 {
                 margin-left: 0;
                 padding: 1rem;
                 max-width: 100%;
             }
-           
-            .table-bordered {
-                display: block;
-                overflow-x: auto;
-                white-space: nowrap;
+
+            .departments-grid {
+                grid-template-columns: 1fr;
             }
-           
-            .table-bordered thead th:first-child,
-            .table-bordered thead th:last-child {
-                width: auto;
-            }
-           
-            .btn-sm {
-                padding: 0.2rem 0.4rem;
-                font-size: 0.875rem;
-            }
-           
-            .container.mt-4 h2 {
-                font-size: 1.5rem;
-            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--gray-100);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-400);
         }
     </style>
 </head>
@@ -511,228 +562,283 @@ if (isset($_GET['delete_division_id'])) {
 </div>
 
 <div class="container mt-4">
-    <h2>DEPARTMENTS / Divisions Management</h2>
-    
-    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">Add Department</button>
+    <div class="page-header">
+        <h2>Divisions & Departments</h2>   
+    </div>
 
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>DEPARTMENT</th>
-                <th>Description</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php
-            // Get all departments from departments table
-            $stmt = $pdo->query("SELECT * FROM departments ORDER BY id DESC");
-            if ($stmt->rowCount() > 0) {
-                while ($row = $stmt->fetch()) {
+    <!-- Departments Grid -->
+    <div class="departments-grid">
+        <!-- Left Panel - Departments List - Shows only department names -->
+        <div class="departments-panel">
+            <div class="panel-header">
+                <h3>All Divisions</h3>
+            </div>
+            <div class="departments-list">
+                <?php
+                $dept_stmt = $pdo->query("SELECT * FROM departments ORDER BY id DESC");
+                if ($dept_stmt->rowCount() > 0) {
+                    $first_dept = true;
+                    while ($dept_row = $dept_stmt->fetch()) {
+                        ?>
+                        <!-- Only showing department name, no description -->
+                        <div class="department-item <?= $first_dept ? 'active' : '' ?>" 
+                             onclick="showDepartment(<?= $dept_row['id'] ?>, this)">
+                            <div class="department-name"><?= htmlspecialchars($dept_row['name']) ?></div>
+                        </div>
+                        <?php
+                        $first_dept = false;
+                    }
+                } else {
                     ?>
-                    <tr>
-                        <td><?= htmlspecialchars($row['name']) ?></td>
-                        <td><?= htmlspecialchars($row['description'] ?? 'No description') ?></td>
-                        <td>
-                            <button class='btn-view' data-bs-toggle='modal' data-bs-target='#viewDivisionsModal<?= $row['id'] ?>'>
-                                View Divisions
-                            </button>
-                            <button class='btn-edit btn-sm' data-bs-toggle='modal' data-bs-target='#editDepartmentModal<?= $row['id'] ?>'>
-                                Edit
-                            </button>
-                            <a href='?delete_id=<?= $row['id'] ?>' class='btn btn-sm btn-danger' onclick='return confirm("Are you sure you want to delete this department and all its divisions?")'>Delete</a>
-                        </td>
-                    </tr>
-
-                    <!-- View Divisions Modal -->
-                    <div class='modal fade' id='viewDivisionsModal<?= $row['id'] ?>' tabindex='-1' aria-labelledby='viewDivisionsModalLabel<?= $row['id'] ?>' aria-hidden='true'>
-                        <div class='modal-dialog modal-lg'>
-                            <div class='modal-content'>
-                                <div class='modal-header'>
-                                    <h5 class='modal-title' id='viewDivisionsModalLabel<?= $row['id'] ?>'>
-                                        Divisions under Department: <?= htmlspecialchars($row['name']) ?>
-                                    </h5>
-                                    <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                                </div>
-                                <div class='modal-body'>
-                                    <!-- Main Department Info -->
-                                    <div class='dept-info'>
-                                        <h6>Department Description:</h6>
-                                        <p><?= htmlspecialchars($row['description'] ?? 'No description provided') ?></p>
-                                    </div>
-                                    
-                                    <!-- Add Division Button -->
-                                    <button class='btn btn-add-division btn-sm' data-bs-toggle='modal' data-bs-target='#addDivisionModal<?= $row['id'] ?>'>
-                                        + Add Division 
-                                    </button>
-                                    
-                                    <!-- Divisions Table -->
-                                    <table class='division-table'>
-                                        <thead>
-                                            <tr>
-                                                <th>Division Name</th>
-                                                <th>Description</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php
-                                            // Get all divisions from depts table where department_id matches
-                                            $division_stmt = $pdo->prepare("SELECT * FROM depts WHERE department_id = ? ORDER BY id DESC");
-                                            $division_stmt->execute([$row['id']]);
-                                            if ($division_stmt->rowCount() > 0) {
-                                                while ($division = $division_stmt->fetch()) {
-                                                    ?>
-                                                    <tr>
-                                                        <td><?= htmlspecialchars($division['name']) ?></td>
-                                                        <td><?= htmlspecialchars($division['description'] ?? 'No description') ?></td>
-                                                        <td class='division-actions'>
-                                                            <button class='btn-edit btn-sm-division' data-bs-toggle='modal' data-bs-target='#editDivisionModal<?= $division['id'] ?>'>Edit</button>
-                                                            <a href='?delete_division_id=<?= $division['id'] ?>' class='btn-delete btn-sm-division' onclick='return confirm("Are you sure?")'>Delete</a>
-                                                        </td>
-                                                    </tr>
-
-                                                    <!-- Edit Division Modal -->
-                                                    <div class='modal fade' id='editDivisionModal<?= $division['id'] ?>' tabindex='-1' aria-hidden='true'>
-                                                        <div class='modal-dialog'>
-                                                            <div class='modal-content'>
-                                                                <form method='POST'>
-                                                                    <div class='modal-header'>
-                                                                        <h5 class='modal-title'>Edit Division</h5>
-                                                                        <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                                                                    </div>
-                                                                    <div class='modal-body'>
-                                                                        <input type='hidden' name='id' value='<?= $division['id'] ?>'>
-                                                                        <div class='mb-3'>
-                                                                            <label class='form-label'>Division Name</label>
-                                                                            <input type='text' class='form-control' name='name' value='<?= htmlspecialchars($division['name']) ?>' required>
-                                                                        </div>
-                                                                        <div class='mb-3'>
-                                                                            <label class='form-label'>Description</label>
-                                                                            <textarea class='form-control' name='description' rows='3'><?= htmlspecialchars($division['description'] ?? '') ?></textarea>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class='modal-footer'>
-                                                                        <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancel</button>
-                                                                        <button type='submit' class='btn btn-primary' name='edit_division'>Save Changes</button>
-                                                                    </div>
-                                                                </form>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <?php
-                                                }
-                                            } else {
-                                                echo "<tr><td colspan='3' class='empty-divisions'>No divisions found under this department.</td></tr>";
-                                            }
-                                            ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class='modal-footer'>
-                                    <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Close</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Add Division Modal -->
-                    <div class='modal fade' id='addDivisionModal<?= $row['id'] ?>' tabindex='-1' aria-hidden='true'>
-                        <div class='modal-dialog'>
-                            <div class='modal-content'>
-                                <form method='POST'>
-                                    <div class='modal-header'>
-                                        <h5 class='modal-title'>Add Division to <?= htmlspecialchars($row['name']) ?></h5>
-                                        <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                                    </div>
-                                    <div class='modal-body'>
-                                        <input type='hidden' name='department_id' value='<?= $row['id'] ?>'>
-                                        <div class='mb-3'>
-                                            <label class='form-label'>Division Name</label>
-                                            <input type='text' class='form-control' name='division_name' required>
-                                        </div>
-                                        <div class='mb-3'>
-                                            <label class='form-label'>Description</label>
-                                            <textarea class='form-control' name='division_description' rows='3'></textarea>
-                                        </div>
-                                    </div>
-                                    <div class='modal-footer'>
-                                        <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancel</button>
-                                        <button type='submit' class='btn btn-primary' name='add_division'>Add Division</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Edit Department Modal -->
-                    <div class='modal fade' id='editDepartmentModal<?= $row['id'] ?>' tabindex='-1' aria-hidden='true'>
-                        <div class='modal-dialog'>
-                            <div class='modal-content'>
-                                <form method='POST'>
-                                    <div class='modal-header'>
-                                        <h5 class='modal-title'>Edit Department</h5>
-                                        <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                                    </div>
-                                    <div class='modal-body'>
-                                        <input type='hidden' name='id' value='<?= $row['id'] ?>'>
-                                        <div class='mb-3'>
-                                            <label class='form-label'>Department Name</label>
-                                            <input type='text' class='form-control' name='name' value='<?= htmlspecialchars($row['name']) ?>' required>
-                                        </div>
-                                        <div class='mb-3'>
-                                            <label class='form-label'>Description</label>
-                                            <textarea class='form-control' name='description' rows='3'><?= htmlspecialchars($row['description'] ?? '') ?></textarea>
-                                        </div>
-                                    </div>
-                                    <div class='modal-footer'>
-                                        <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancel</button>
-                                        <button type='submit' class='btn btn-primary' name='edit_department'>Save Changes</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📁</div>
+                        <p>No departments found</p>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                            Create your first department
+                        </button>
                     </div>
                     <?php
                 }
-            } else {
-                echo "<tr><td colspan='3' class='text-center'>No departments found. Add your first department.</td></tr>";
+                ?>
+            </div>
+        </div>
+
+        <!-- Right Panel - Divisions Panel -->
+        <div class="divisions-panel">
+            <?php
+            $dept_stmt2 = $pdo->query("SELECT * FROM departments ORDER BY id DESC");
+            if ($dept_stmt2->rowCount() > 0) {
+                $first_panel = true;
+                while ($dept_row = $dept_stmt2->fetch()) {
+                    ?>
+                    <div id="dept-<?= $dept_row['id'] ?>" class="department-divisions" 
+                         style="<?= $first_panel ? 'display: block;' : 'display: none;' ?>">
+                        
+                        <!-- Original divisions header - no description -->
+                        <div class="divisions-header">
+                            <h3>Department</h3>
+                            <button class="btn btn-success btn-sm" onclick="openAddDivisionModal(<?= $dept_row['id'] ?>)">
+                                + Add Department
+                            </button>
+                        </div>
+
+                        <?php
+                        $division_stmt = $pdo->prepare("SELECT * FROM depts WHERE department_id = ? ORDER BY id DESC");
+                        $division_stmt->execute([$dept_row['id']]);
+                        
+                        if ($division_stmt->rowCount() > 0) {
+                            $divisions = $division_stmt->fetchAll();
+                            ?>
+                            <div class="divisions-list">
+                                <table class="divisions-table">
+                                    <thead>
+                                        <tr>
+                                            <th >Department Name</th>
+                                            <th width="50%">Description</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($divisions as $index => $division): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($division['name']) ?></td>
+                                            <td><?= !empty($division['description']) ? htmlspecialchars($division['description']) : '<span style="color: var(--gray-400);">No description</span>' ?></td>
+                                            <td>
+                                                <div class="division-actions">
+                                                    <button class="btn btn-warning btn-sm" onclick="openEditDivisionModal(<?= $division['id'] ?>)">Edit</button>
+                                                    <a href="?delete_division_id=<?= $division['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this division?')">Delete</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <?php
+                        } else {
+                            ?>
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📄</div>
+                                <p>No divisions found for this department</p>
+                                <button class="btn btn-success btn-sm" onclick="openAddDivisionModal(<?= $dept_row['id'] ?>)">
+                                    Add your first Department
+                                </button>
+                            </div>
+                            <?php
+                        }
+                        ?>
+                    </div>
+                    <?php
+                    $first_panel = false;
+                }
             }
             ?>
-        </tbody>
-    </table>
-</div>
-
-<!-- Add Department Modal -->
-<div class='modal fade' id='addDepartmentModal' tabindex='-1' aria-labelledby='addDepartmentModalLabel' aria-hidden='true'>
-    <div class='modal-dialog'>
-        <div class='modal-content'>
-            <form method='POST'>
-                <div class='modal-header'>
-                    <h5 class='modal-title' id='addDepartmentModalLabel'>Add New Department</h5>
-                    <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
-                </div>
-                <div class='modal-body'>
-                    <div class='mb-3'>
-                        <label for='name' class='form-label'>Department Name</label>
-                        <input type='text' class='form-control' name='name' required>
-                    </div>
-                    <div class='mb-3'>
-                        <label for='description' class='form-label'>Description</label>
-                        <textarea class='form-control' name='description' rows='3'></textarea>
-                    </div>
-                </div>
-                <div class='modal-footer'>
-                    <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Close</button>
-                    <button type='submit' class='btn btn-primary' name='add_department'>Add Department</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
 
+<?php
+// Generate modals for each department
+$dept_modal_stmt = $pdo->query("SELECT * FROM departments ORDER BY id DESC");
+while ($row = $dept_modal_stmt->fetch()) {
+    ?>
+    <!-- Add Division Modal for <?= htmlspecialchars($row['name']) ?> -->
+    <div class="modal fade" id="addDivisionModal<?= $row['id'] ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Department to <?= htmlspecialchars($row['name']) ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="department_id" value="<?= $row['id'] ?>">
+                        <div class="mb-3">
+                            <label class="form-label">Department Name</label>
+                            <input type="text" class="form-control" name="division_name" placeholder="e.g., Software Development" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="division_description" rows="4" placeholder="Describe the division's focus..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success" name="add_division">Add Department</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Department Modal for <?= htmlspecialchars($row['name']) ?> -->
+    <div class="modal fade" id="editDepartmentModal<?= $row['id'] ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Department</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                        <div class="mb-3">
+                            <label class="form-label">Department Name</label>
+                            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($row['name']) ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($row['description'] ?? '') ?></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning" name="edit_department">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
+// Generate edit division modals for all divisions
+$div_modal_stmt = $pdo->query("SELECT * FROM depts ORDER BY id DESC");
+while ($division = $div_modal_stmt->fetch()) {
+    ?>
+    <!-- Edit Division Modal for <?= htmlspecialchars($division['name']) ?> -->
+    <div class="modal fade" id="editDivisionModal<?= $division['id'] ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Department</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="id" value="<?= $division['id'] ?>">
+                        <div class="mb-3">
+                            <label class="form-label">Department Name</label>
+                            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($division['name']) ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($division['description'] ?? '') ?></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning" name="edit_division">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+?>
+
 <script>
-console.log("Department management initialized with correct hierarchy");
+function showDepartment(deptId, element) {
+    // Hide all departments
+    document.querySelectorAll('.department-divisions').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Show selected department
+    document.getElementById('dept-' + deptId).style.display = 'block';
+    
+    // Update active state in departments list
+    document.querySelectorAll('.department-item').forEach(el => {
+        el.classList.remove('active');
+    });
+    element.classList.add('active');
+}
+
+function showDivisionDetail(deptId, divisionId, element) {
+    // Remove active class from all rows in this department
+    document.querySelectorAll('#dept-' + deptId + ' .divisions-table tr').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    // Add active class to clicked row
+    element.classList.add('active');
+    
+    // Hide all division details in this department
+    document.querySelectorAll('#dept-' + deptId + ' .division-detail').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Show selected division detail
+    document.getElementById('division-detail-' + divisionId).style.display = 'block';
+}
+
+function hideDivisionDetail(deptId) {
+    // Hide all division details in this department
+    document.querySelectorAll('#dept-' + deptId + ' .division-detail').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Remove active class from all rows
+    document.querySelectorAll('#dept-' + deptId + ' .divisions-table tr').forEach(el => {
+        el.classList.remove('active');
+    });
+}
+
+function openEditDepartmentModal(deptId) {
+    var modal = new bootstrap.Modal(document.getElementById('editDepartmentModal' + deptId));
+    modal.show();
+}
+
+function openAddDivisionModal(deptId) {
+    var modal = new bootstrap.Modal(document.getElementById('addDivisionModal' + deptId));
+    modal.show();
+}
+
+function openEditDivisionModal(divisionId) {
+    var modal = new bootstrap.Modal(document.getElementById('editDivisionModal' + divisionId));
+    modal.show();
+}
 </script>
 </body>
 </html>

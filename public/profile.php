@@ -7,7 +7,6 @@ require_login();
 $userId = $_SESSION['user']['id'];
 $u = current_user();
 
-
 // Get fresh user data from database to ensure we have latest
 $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
 $stmt->execute([$u['id'] ?? 0]);
@@ -32,7 +31,7 @@ $stmt = $pdo->prepare("
 ");
 
 $stmt->execute([$userId]);
- $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate counters
 $counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
@@ -40,7 +39,6 @@ foreach ($courses as $c) {
     if (!$c['enroll_status']) $counter['not_enrolled']++;
     elseif ($c['enroll_status'] === 'ongoing') $counter['ongoing']++;
     elseif ($c['enroll_status'] === 'completed') $counter['completed']++;
-
 }
 
 // Function to get role display name
@@ -54,9 +52,41 @@ function get_role_display_name($role) {
     return $roles[$role] ?? ucfirst($role);
 }
 
-$stmt=$pdo->prepare("SELECT d.name FROM departments d
-    JOIN user_departments ud ON ud.department_id = d.id
-    WHERE ud.user_id = ?");
+// Get user's assignments based on role
+$divisions = [];
+$departments = [];
+$committees = [];
+
+if ($u['role'] === 'user') {
+    // Student: Get divisions and departments
+    $stmt = $pdo->prepare("
+        SELECT dept.id as division_id, dept.name as division_name,
+               d.id as department_id, d.name as department_name
+        FROM user_departments ud
+        JOIN depts d ON ud.dept_id = d.id
+        JOIN departments dept ON d.department_id = dept.id
+        WHERE ud.user_id = ?
+    ");
+    $stmt->execute([$u['id']]);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($results as $row) {
+        if (!in_array(['id' => $row['division_id'], 'name' => $row['division_name']], $divisions)) {
+            $divisions[] = ['id' => $row['division_id'], 'name' => $row['division_name']];
+        }
+        $departments[] = ['id' => $row['department_id'], 'name' => $row['department_name']];
+    }
+} else {
+    // Proponent/Admin: Get committees
+    $stmt = $pdo->prepare("
+        SELECT c.id, c.name
+        FROM user_departments ud
+        JOIN committees c ON ud.committee_id = c.id
+        WHERE ud.user_id = ? AND ud.committee_id IS NOT NULL
+    ");
+    $stmt->execute([$u['id']]);
+    $committees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -67,11 +97,53 @@ $stmt=$pdo->prepare("SELECT d.name FROM departments d
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
-     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
-
+    <style>
+        .department-badge {
+            display: inline-block;
+            background-color: #6610f2;
+            color: white;
+            padding: 5px 10px;
+            margin: 3px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .committee-badge {
+            display: inline-block;
+            background-color: #1a5644;
+            color: white;
+            padding: 5px 10px;
+            margin: 3px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .division-badge {
+            display: inline-block;
+            background-color: #9c3098;
+            color: white;
+            padding: 5px 10px;
+            margin: 3px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .assignments-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .assignments-title {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
 
@@ -136,23 +208,64 @@ $stmt=$pdo->prepare("SELECT d.name FROM departments d
                     echo 'Unknown';
                 }
                 ?>
-
-               
-                <ul>
-                   <?php
-                    $stmt->execute([$u['id']]);
-                    $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                if ($departments) {
-             foreach ($departments as $dept) {
-              echo '<span class="department-badge">' . htmlspecialchars($dept['name']) . '</span>';
-             }
-        } else {
-       echo '';
-        }
-        ?>
-
-
             </p>
+
+            <!-- Assignments Section -->
+            <div class="assignments-section">
+                <?php if ($u['role'] === 'user'): ?>
+                    <!-- Student: Show Divisions and Departments -->
+                    <?php if (!empty($divisions)): ?>
+                        <div class="assignments-title">
+                            <i class="fas fa-building me-2"></i>Division:
+                        </div>
+                        <div class="mb-3">
+                            <?php foreach ($divisions as $division): ?>
+                                <span class="division-badge">
+                                    <i class="fas fa-building me-1"></i>
+                                    <?= htmlspecialchars($division['name']) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($departments)): ?>
+                        <div class="assignments-title">
+                            <i class="fas fa-sitemap me-2"></i>Department:
+                        </div>
+                        <div>
+                            <?php foreach ($departments as $department): ?>
+                                <span class="department-badge">
+                                    <i class="fas fa-sitemap me-1"></i>
+                                    <?= htmlspecialchars($department['name']) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                <?php else: ?>
+                    <!-- Proponent/Admin: Show Committees -->
+                    <?php if (!empty($committees)): ?>
+                        <div class="assignments-title">
+                            <i class="fas fa-users me-2"></i>Committees:
+                        </div>
+                        <div>
+                            <?php foreach ($committees as $committee): ?>
+                                <span class="committee-badge">
+                                    <i class="fas fa-users me-1"></i>
+                                    <?= htmlspecialchars($committee['name']) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <?php if (empty($divisions) && empty($departments) && empty($committees)): ?>
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        No assignments yet.
+                    </p>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Stats Grid -->

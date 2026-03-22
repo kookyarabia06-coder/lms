@@ -14,11 +14,11 @@ $stmt = $pdo->prepare("
                ELSE e.status
            END AS enroll_status,
            (
-               SELECT GROUP_CONCAT(d.name SEPARATOR '||')
-               FROM departments d
-               INNER JOIN course_departments cd ON d.id = cd.department_id
+               SELECT GROUP_CONCAT(comm.name SEPARATOR '||')
+               FROM committees comm
+               INNER JOIN course_departments cd ON comm.id = cd.committee_id
                WHERE cd.course_id = c.id
-           ) AS department_names
+           ) AS committee_names
     FROM courses c
     JOIN enrollments e ON e.course_id = c.id
     WHERE e.user_id = ?
@@ -27,12 +27,12 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $myCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// NAKA SHOW NA MGA DEPARTMENTS :>
+// Process committee names into arrays
 foreach ($myCourses as &$course) {
-    if (!empty($course['department_names'])) {
-        $course['departments'] = explode('||', $course['department_names']);
+    if (!empty($course['committee_names'])) {
+        $course['committees'] = explode('||', $course['committee_names']);
     } else {
-        $course['departments'] = [];
+        $course['committees'] = [];
     }
 }
 ?>
@@ -50,31 +50,37 @@ foreach ($myCourses as &$course) {
 .main { margin-left: 240px; padding: 20px; }
 .card-img-top { height: 150px; object-fit: cover; }
 
-/* Department badge styles */
-.department-badge {
+/* Committee badge styles */
+.committee-badge {
     display: inline-block;
-    background-color: #e9ecef;
-    color: #495057;
+    background-color: #8227a9;
+    color: white;
     padding: 0.25rem 0.5rem;
     margin: 0.125rem;
     border-radius: 0.25rem;
     font-size: 0.75rem;
     font-weight: 500;
-    border: 1px solid #dee2e6;
+    border: 1px solid rgba(255,255,255,0.2);
 }
 
-.department-container {
+.committee-container {
     margin: 10px 0;
     padding: 5px 0;
     border-top: 1px solid #f0f0f0;
     border-bottom: 1px solid #f0f0f0;
 }
 
-.department-label {
+.committee-label {
     font-size: 0.8rem;
     color: #6c757d;
     margin-bottom: 5px;
     font-weight: 600;
+}
+
+.committee-label i {
+    color: #8227a9;
+    margin-right: 4px;
+    font-size: 0.7rem;
 }
 </style>
 </head>
@@ -99,9 +105,6 @@ foreach ($myCourses as &$course) {
                     
                     <div class="modern-card-body">
                         <div class="modern-card-title">
-
-
-
                             <h6><?= htmlspecialchars($c['title']) ?></h6>
                             <?php if ($c['enroll_status']): ?>
                                 <?php if ($c['enroll_status'] === 'ongoing'): ?>
@@ -118,16 +121,16 @@ foreach ($myCourses as &$course) {
                         
                         <p><?= htmlspecialchars(substr($c['description'], 0, 120)) ?>...</p>
 
-                        <!-- Department Display -->
-                        <?php if (!empty($c['departments'])): ?>
-                        <div class="department-container">
-                            <div class="department-label">
-                                Departments:
+                        <!-- Program Committee Display -->
+                        <?php if (!empty($c['committees'])): ?>
+                        <div class="committee-container">
+                            <div class="committee-label">
+                                <i class="fas fa-users"></i> Program Committee:
                             </div>
                             <div>
-                                <?php foreach ($c['departments'] as $dept): ?>
-                                    <span class="department-badge">
-                                        <?= htmlspecialchars($dept) ?>
+                                <?php foreach ($c['committees'] as $committee): ?>
+                                    <span class="committee-badge">
+                                        <?= htmlspecialchars($committee) ?>
                                     </span>
                                 <?php endforeach; ?>
                             </div>
@@ -184,31 +187,26 @@ foreach ($myCourses as &$course) {
                         </div>
 
                         <div class="modern-card-actions">
-
-<a href="<?= BASE_URL ?>/public/course_preview.php?id=<?= $c['id'] ?>"
-class="modern-btn-warning modern-btn-sm"
-title="Preview course content">
-<i class="fas fa-eye"></i> Preview
-</a>            
-<?php if ($c['enroll_status'] === 'expired'): ?>
-<a href="#"
-class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
-onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">Expired</a>
-<?php else: ?>
-<a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">Start / Continue</a>
-<?php endif; ?>
-</div>
-</div>
-</div>
-<?php endforeach; ?>
+                            <a href="<?= BASE_URL ?>/public/course_preview.php?id=<?= $c['id'] ?>"
+                               class="modern-btn-warning modern-btn-sm"
+                               title="Preview course content">
+                                <i class="fas fa-eye"></i> Preview
+                            </a>            
+                            <?php if ($c['enroll_status'] === 'expired'): ?>
+                                <a href="#"
+                                   class="modern-btn-sm modern-btn-secondary" style="cursor: not-allowed;"
+                                   onclick="return confirm('This course is already expired. You can no longer enroll or continue.');">Expired</a>
+                            <?php else: ?>
+                                <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>" class="modern-btn-primary modern-btn-sm">Start / Continue</a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
             </div>
         <?php else: ?>
             <p>You are not enrolled in any courses yet.</p>
         <?php endif; ?>
     </div>
 </body>
-
-<script>
-//expried    
-</script>
 </html>

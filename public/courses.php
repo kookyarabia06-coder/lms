@@ -28,13 +28,6 @@ $ongoingCount = $stmt->fetch(PDO::FETCH_ASSOC)['ongoing_count'];
 $hasReachedCourseLimit = $ongoingCount >= MAX_CONCURRENT_COURSES;
 $availableSlots = MAX_CONCURRENT_COURSES - $ongoingCount;
 
-// First, check if course_departments table exists
-try {
-    $pdo->query("SELECT 1 FROM course_departments LIMIT 1");
-} catch (Exception $e) {
-    // Table doesn't exist, we'll just show no departments
-}
-
 // Build the WHERE clause based on filter
 $whereConditions = ["c.is_active = 1"];
 $params = [$userId];
@@ -75,7 +68,7 @@ if ($filter !== 'all') {
 // Build the complete WHERE clause
 $whereClause = !empty($whereConditions) ? "WHERE " . implode(" AND ", $whereConditions) : "";
 
-// enroll info with departments
+// enroll info with committees
 $query = "
     SELECT 
         c.id, 
@@ -92,17 +85,17 @@ $query = "
         e.completed_at,
         c.proponent_id,
         (
-            SELECT GROUP_CONCAT(d.name SEPARATOR '||') 
-            FROM departments d
-            INNER JOIN course_departments cd ON d.id = cd.department_id
+            SELECT GROUP_CONCAT(comm.name SEPARATOR '||') 
+            FROM committees comm
+            INNER JOIN course_departments cd ON comm.id = cd.committee_id
             WHERE cd.course_id = c.id
-        ) AS department_names,
+        ) AS committee_names,
         (
-            SELECT GROUP_CONCAT(d.id SEPARATOR ',') 
-            FROM departments d
-            INNER JOIN course_departments cd ON d.id = cd.department_id
+            SELECT GROUP_CONCAT(comm.id SEPARATOR ',') 
+            FROM committees comm
+            INNER JOIN course_departments cd ON comm.id = cd.committee_id
             WHERE cd.course_id = c.id
-        ) AS department_ids,
+        ) AS committee_ids,
         -- Determine display status
         CASE 
             WHEN e.id IS NULL THEN 'notenrolled'
@@ -126,21 +119,14 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Process department names into arrays
+// Process committee names into arrays
 foreach ($courses as &$course) {
-    if (!empty($course['department_names'])) {
-        $course['departments'] = explode('||', $course['department_names']);
+    if (!empty($course['committee_names'])) {
+        $course['committees'] = explode('||', $course['committee_names']);
     } else {
-        $course['departments'] = [];
+        $course['committees'] = [];
     }
 }
-
-$stmt = $pdo->prepare('SELECT u.id, u.fname, u.lname 
-FROM enrollments e
-JOIN users u ON e.user_id = u.id 
-WHERE e.course_id = ?');
-$stmt->execute(['']);
-$enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!doctype html>
@@ -155,7 +141,41 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <link href="<?= BASE_URL ?>/assets/css/profile.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-    /* company report staff sheet  */
+    .custom-date-range {
+        display: <?= $filter === 'custom' ? 'flex' : 'none' ?>;
+        gap: 15px;
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #dee2e6;
+        align-items: flex-end;
+    }
+    
+    /* Committee badge styles */
+    .committee-badge {
+        display: inline-block;
+        background-color: #8227a9;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        margin: 0.125rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .committee-container {
+        margin: 10px 0;
+        padding: 5px 0;
+        border-top: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .committee-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+    
     .enrollment-restriction {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -275,33 +295,6 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         border-radius: 8px 8px 0 0;
     }
     
-    /* Department badge styles - DONT TOUCH */
-    .department-badge {
-        display: inline-block;
-        background-color: #e9ecef;
-        color: #495057;
-        padding: 0.25rem 0.5rem;
-        margin: 0.125rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
-        font-weight: 500;
-        border: 1px solid #dee2e6;
-    }
-    
-    .department-container {
-        margin: 10px 0;
-        padding: 5px 0;
-        border-top: 1px solid #f0f0f0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    
-    .department-label {
-        font-size: 0.8rem;
-        color: #6c757d;
-        margin-bottom: 5px;
-        font-weight: 600;
-    }
-    
     /* Filter styles */
     .filter-container {
         background: white;
@@ -359,15 +352,6 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         background: #ffc107;
         color: #212529;
         border-color: #ffc107;
-    }
-    
-    .custom-date-range {
-        display: <?= $filter === 'custom' ? 'flex' : 'none' ?>;
-        gap: 15px;
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px solid #dee2e6;
-        align-items: flex-end;
     }
     
     .date-input-group {
@@ -625,11 +609,11 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
             // enroll stats
             $enroll_status = $c['enroll_status'] ?? $c['display_status'];
             
-            // Check if user can enroll in course (NEW LOGIC: allow up to 5 concurrent courses)
+            // Check if user can enroll in course
             $canEnroll = (
                 $enroll_status === 'notenrolled' && 
                 !$isExpired && 
-                (!$hasReachedCourseLimit || $isAdmin || $isProponent) // Allow enrollment if under limit OR if admin/proponent
+                (!$hasReachedCourseLimit || $isAdmin || $isProponent)
             );
             
             // check condition if student or user can continue course
@@ -691,16 +675,16 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php if (strlen($c['description'] ?? '') > 120): ?>...<?php endif; ?>
                 </p>
                 
-                <!-- Department Display DONT TOUCH THIS FUCKING THING  -->
-                <?php if (!empty($c['departments'])): ?>
-                <div class="department-container">
-                    <div class="department-label">
-                        Departments:
+                <!-- Committee Display -->
+                <?php if (!empty($c['committees'])): ?>
+                <div class="committee-container">
+                    <div class="committee-label">
+                        Program Committee:
                     </div>
                     <div>
-                        <?php foreach ($c['departments'] as $dept): ?>
-                            <span class="department-badge">
-                                <?= htmlspecialchars($dept) ?>
+                        <?php foreach ($c['committees'] as $committee): ?>
+                            <span class="committee-badge">
+                                <?= htmlspecialchars($committee) ?>
                             </span>
                         <?php endforeach; ?>
                     </div>
@@ -723,44 +707,44 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <p><strong><i class="fas fa-hourglass-half"></i> Expires:</strong> <span><?= $expiryDate ?></span></p>
                 </div>
 
-<!-- progress bar -->
-<?php if (isset($c['progress']) && $c['display_status'] !== 'notenrolled' && !$isExpired): ?>
-<div class="modern-progress-container mt-3">
-    <div class="d-flex justify-content-between align-items-center mb-1">
-        <small><i class="fas fa-tasks"></i> Progress:</small>
-        <?php if ($c['display_status'] === 'completed' && !empty($c['completed_at'])): ?>
-        <small class="text-success">
-            <i class="fas fa-check-circle"></i> 
-            Completed: <?= date('M d, Y', strtotime($c['completed_at'])) ?>
-        </small>
-        <?php endif; ?>
-    </div>
-    <?php
-    // If course is completed, force progress to 100%
-    if ($c['display_status'] === 'completed') {
-        $progressPercent = 100;
-    } else {
-        $progressPercent = intval($c['progress'] ?? 0);
-    }
-    
-    // Ensure progress doesn't exceed 100%
-    if ($progressPercent > 100) $progressPercent = 100;
-    ?>
-    <div class="modern-progress">
-        <div class="modern-progress-bar 
-            <?= $c['display_status'] === 'completed' ? 'bg-success' : 'bg-info' ?>"
-            style="width: <?= $progressPercent ?>%;">
-        </div>
-    </div>
-    <small class="text-end d-block mt-1 fw-bold">
-        <?php if ($c['display_status'] === 'completed'): ?>
-            <span class="text-success">✓ Completed</span>
-        <?php else: ?>
-            <?= $progressPercent ?>% completed
-        <?php endif; ?>
-    </small>
-</div>
-<?php endif; ?>
+                <!-- progress bar -->
+                <?php if (isset($c['progress']) && $c['display_status'] !== 'notenrolled' && !$isExpired): ?>
+                <div class="modern-progress-container mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small><i class="fas fa-tasks"></i> Progress:</small>
+                        <?php if ($c['display_status'] === 'completed' && !empty($c['completed_at'])): ?>
+                        <small class="text-success">
+                            <i class="fas fa-check-circle"></i> 
+                            Completed: <?= date('M d, Y', strtotime($c['completed_at'])) ?>
+                        </small>
+                        <?php endif; ?>
+                    </div>
+                    <?php
+                    // If course is completed, force progress to 100%
+                    if ($c['display_status'] === 'completed') {
+                        $progressPercent = 100;
+                    } else {
+                        $progressPercent = intval($c['progress'] ?? 0);
+                    }
+                    
+                    // Ensure progress doesn't exceed 100%
+                    if ($progressPercent > 100) $progressPercent = 100;
+                    ?>
+                    <div class="modern-progress">
+                        <div class="modern-progress-bar 
+                            <?= $c['display_status'] === 'completed' ? 'bg-success' : 'bg-info' ?>"
+                            style="width: <?= $progressPercent ?>%;">
+                        </div>
+                    </div>
+                    <small class="text-end d-block mt-1 fw-bold">
+                        <?php if ($c['display_status'] === 'completed'): ?>
+                            <span class="text-success">✓ Completed</span>
+                        <?php else: ?>
+                            <?= $progressPercent ?>% completed
+                        <?php endif; ?>
+                    </small>
+                </div>
+                <?php endif; ?>
 
                 <div class="modern-card-actions mt-3">
                     <!-- PREVIEW BUTTON - Always visible -->
@@ -778,7 +762,7 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </span>
                         
                     <?php elseif ($canContinue): ?>
-                        <!-- change ko ung continue  -->
+                        <!-- Continue/Review button -->
                         <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $c['id'] ?>"
                            class="modern-btn-primary modern-btn-sm">
                             <?php if ($c['display_status'] === 'completed'): ?>
@@ -789,16 +773,15 @@ $enrolledUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </a>
                         
                     <?php elseif ($enroll_status === 'notenrolled'): ?>
-                        <!-- testing enrolment button -->
+                        <!-- Enroll button -->
                         <?php if ($canEnroll || $isAdmin || $isProponent): ?>
-                            <!-- testing pero second part -->
                             <a href="<?= BASE_URL ?>/public/enroll.php?course_id=<?= $c['id'] ?>"
                                class="modern-btn-primary modern-btn-sm"
                                onclick="return confirm('Enroll in this course?');">
                                 <i class="fas fa-sign-in-alt"></i> Enroll Now
                             </a>
                         <?php else: ?>
-                            <!-- disab btn  -->
+                            <!-- disabled button -->
                             <span class=""
                                   title="<?= htmlspecialchars($enrollDisabledReason) ?>"
                                   data-bs-toggle="tooltip"

@@ -205,7 +205,7 @@ if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Insert only valid department IDs
             if (!empty($validDeptIds)) {
-                $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, department_id) VALUES (?, ?)");
+                $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, dept_id) VALUES (?, ?)");
                 foreach ($validDeptIds as $deptId) {
                     $deptStmt->execute([$newUserId, $deptId]);
                 }
@@ -342,7 +342,7 @@ if ($act === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $validDeptIds = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
             
             if (!empty($validDeptIds)) {
-                $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, department_id) VALUES (?, ?)");
+                $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, dept_id) VALUES (?, ?)");
                 foreach ($validDeptIds as $deptId) {
                     $deptStmt->execute([$id, $deptId]);
                 }
@@ -409,7 +409,7 @@ if ($act === 'edit' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] !== 'POS
     }
 
     // Get user's department IDs (from depts table)
-    $deptStmt = $pdo->prepare("SELECT department_id FROM user_departments WHERE user_id = ? AND department_id IS NOT NULL");
+    $deptStmt = $pdo->prepare("SELECT dept_id FROM user_departments WHERE user_id = ? AND dept_id IS NOT NULL");
     $deptStmt->execute([$id]);
     $userDepts = $deptStmt->fetchAll(PDO::FETCH_COLUMN);
     $user['department_ids'] = $userDepts ?: [];
@@ -476,7 +476,7 @@ $confirmedUsers = $pdo->query("
            GROUP_CONCAT(DISTINCT c.name SEPARATOR '||') as committee_names
     FROM users u
     LEFT JOIN user_departments ud ON u.id = ud.user_id
-    LEFT JOIN depts d ON ud.department_id = d.id
+    LEFT JOIN depts d ON ud.dept_id = d.id
     LEFT JOIN departments dept ON d.department_id = dept.id
     LEFT JOIN committees c ON ud.committee_id = c.id
     WHERE u.status = 'confirmed'
@@ -484,8 +484,23 @@ $confirmedUsers = $pdo->query("
     ORDER BY u.created_at DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch pending users
-$pendingUsers = $pdo->query("SELECT * FROM users WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+// Fetch pending users with their department and division information
+$pendingUsers = $pdo->query("
+    SELECT u.*, 
+           d.id as dept_id,
+           d.name as department_name,
+           dept.id as division_id,
+           dept.name as division_name,
+           c.id as committee_id,
+           c.name as committee_name
+    FROM users u
+    LEFT JOIN user_departments ud ON u.id = ud.user_id
+    LEFT JOIN depts d ON ud.dept_id = d.id
+    LEFT JOIN departments dept ON d.department_id = dept.id
+    LEFT JOIN committees c ON ud.committee_id = c.id
+    WHERE u.status = 'pending'
+    ORDER BY u.created_at DESC
+")->fetchAll(PDO::FETCH_ASSOC);
 
 // Count stats
 $totalUsers = count($allUsers);
@@ -916,47 +931,107 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
 <table class="table table-hover mb-0 fixed-table-pending" id="pendingTable">
 <thead class="table-light">
 <tr>
-<th>ID</th>
-<th>Username</th>
-<th>Full Name</th>
-<th>Email</th>
-<th>Registered</th>
-<th>Status</th>
-<th>Actions</th>
+    <th>ID</th>
+    <th>Username</th>
+    <th>Full Name</th>
+    <th>Division</th>
+    <th>Department/Committee</th>
+    <th>Email</th>
+    <th>Registered</th>
+    <th>Status</th>
+    <th>Actions</th>
 </tr>
 </thead>
 <tbody>
 <?php if (empty($pendingUsers)): ?>
 <tr>
-<td colspan="7" class="text-center py-4 text-muted">
-<i class="fas fa-check-circle"></i> No pending users found
-</td>
+    <td colspan="9" class="text-center py-4 text-muted">
+        <i class="fas fa-check-circle"></i> No pending users found
+    </td>
 </tr>
 <?php else: ?>
-<?php foreach ($pendingUsers as $u): ?>
+<?php foreach ($pendingUsers as $u): 
+    // Determine if this is a student (has department) or proponent/admin (has committee)
+    $isStudent = !empty($u['dept_id']);
+    $division = $u['division_name'] ?? '—';
+    $department = $u['department_name'] ?? '—';
+    $committee = $u['committee_name'] ?? '—';
+    
+    // Combine department and committee for the Dept./Committee column
+    $combinedItems = [];
+    if ($isStudent && $department !== '—') {
+        $combinedItems[] = $department;
+    } elseif (!$isStudent && $committee !== '—') {
+        $combinedItems[] = $committee;
+    }
+?>
 <tr>
-<td><span class="fw-bold">#<?= $u['id'] ?></span></td>
-<td><?= htmlspecialchars($u['username']) ?></td>
-<td><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></td>
-<td><?= htmlspecialchars($u['email']) ?></td>
-<td><?= date('M d, Y H:i', strtotime($u['created_at'])) ?></td>
-<td>
-<span class="badge-pending">
-<i class="fas fa-clock"></i> Pending
-</span>
-</td>
-<td class="table-actions">
-<a href="?act=confirm&id=<?= $u['id'] ?>" 
-onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
-class="btn btn-success btn-sm">
-<i class="fas fa-check"></i> Approve
-</a>
-<a href="?act=reject&id=<?= $u['id'] ?>" 
-onclick="return confirm('Reject and delete <?= htmlspecialchars($u['username']) ?>?')" 
-class="btn btn-danger btn-sm">
-<i class="fas fa-times"></i> Reject
-</a>
-</td>
+    <td><span class="fw-bold">#<?= $u['id'] ?></span></td>
+    <td class="text-truncate" title="<?= htmlspecialchars($u['username']) ?>"><?= htmlspecialchars($u['username']) ?></td>
+    <td class="text-truncate" title="<?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?>"><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></td>
+    <td>
+        <?php if ($isStudent && $division !== '—'): ?>
+            <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden;">
+                <?php 
+                $displayDivisions = [$division];
+                $remainingDivisions = 0;
+                foreach ($displayDivisions as $div): 
+                ?>
+                    <span class="badge-item" style="background-color: #6610f2; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <?= htmlspecialchars($div) ?>
+                    </span>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <span class="text-muted">—</span>
+        <?php endif; ?>
+    </td>
+    <td class="dept-committee-cell" data-items="<?= htmlspecialchars(implode(', ', $combinedItems)) ?>">
+        <?php if (!empty($combinedItems)): ?>
+            <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden; max-width: 100%;">
+                <?php 
+                // Show only the first item
+                $firstItem = $combinedItems[0];
+                $badgeClass = $isStudent ? 'badge-department' : 'badge-committee';
+                $remainingCount = count($combinedItems) - 1;
+                ?>
+                
+                <!-- First item badge -->
+                <span class="badge-item <?= $badgeClass ?>" 
+                    style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 4px; font-size: 11px;">
+                    <?= htmlspecialchars($firstItem) ?>
+                </span>
+                
+                <!-- Counter badge for remaining items -->
+                <?php if ($remainingCount > 0): ?>
+                    <span class="badge-count" style="background-color: #6c757d; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">
+                        +<?= $remainingCount ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <span class="text-muted">—</span>
+        <?php endif; ?>
+    </td>
+    <td class="text-truncate" title="<?= htmlspecialchars($u['email']) ?>"><?= htmlspecialchars($u['email']) ?></td>
+    <td><?= date('M d, Y H:i', strtotime($u['created_at'])) ?></td>
+    <td>
+        <span class="badge-pending">
+            <i class="fas fa-clock"></i> Pending
+        </span>
+    </td>
+    <td class="table-actions">
+        <a href="?act=confirm&id=<?= $u['id'] ?>" 
+           onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
+           class="btn btn-success btn-sm">
+            <i class="fas fa-check"></i> Approve
+        </a>
+        <a href="?act=reject&id=<?= $u['id'] ?>" 
+           onclick="return confirm('Reject and delete <?= htmlspecialchars($u['username']) ?>?')" 
+           class="btn btn-danger btn-sm">
+            <i class="fas fa-times"></i> Reject
+        </a>
+    </td>
 </tr>
 <?php endforeach; ?>
 <?php endif; ?>
@@ -969,124 +1044,133 @@ class="btn btn-danger btn-sm">
 <!-- Confirmed Users Table -->
 <div class="card shadow-sm">
 <div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="m-0">
-<span class="status-indicator status-confirmed"></span> 
-Confirmed Users (<?= count($confirmedUsers) ?>)
-</h5>
-<!-- Search Bar for Confirmed Table -->
-<div style="width: 300px;">
-<input type="text" id="confirmedSearch" class="form-control form-control-sm" placeholder="Search confirmed users...">
-</div>
+    <h5 class="m-0">
+        <span class="status-indicator status-confirmed"></span> 
+        Confirmed Users (<?= count($confirmedUsers) ?>)
+    </h5>
+    <!-- Search Bar for Confirmed Table -->
+    <div style="width: 250px;">
+        <input type="text" id="confirmedSearch" class="form-control form-control-sm" placeholder="Search users...">
+    </div>
 </div>
 <div class="card-body p-0">
 <div class="table-responsive">
 <table class="table table-hover mb-0 fixed-table" id="confirmedTable">
 <thead class="table-light">
-<tr>
-<th>ID</th>
-<th>Username</th>
-<th>Full Name</th>
-<th>Division</th>
-<th>Department</th>
-<th>Committee</th>
-<th>Email</th>
-<th>Role</th>
-<th>Joined</th>
-<th>Status</th>
-<th>Actions</th>
-</tr>
+    <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Full Name</th>
+        <th>Division</th>
+        <th>Dept./Committee</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Joined</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
 </thead>
 <tbody>
-<?php if (empty($confirmedUsers)): ?>
-<tr>
-<td colspan="11" class="text-center py-4 text-muted">
-<i class="fas fa-users"></i> No confirmed users yet
-</td>
-</tr>
-<?php else: ?>
-<?php foreach ($confirmedUsers as $u): 
-$divisionNames = !empty($u['division_names']) ? explode('||', $u['division_names']) : [];
-$deptNames = !empty($u['department_names']) ? explode('||', $u['department_names']) : []; 
-$committeeNames = !empty($u['committee_names']) ? explode('||', $u['committee_names']) : [];
-?>
-<tr>
-<td><span class="fw-bold">#<?= $u['id'] ?></span></td>
-<td><?= htmlspecialchars($u['username']) ?></td>
-<td><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></td>
-<td>
-    <?php if (!empty($divisionNames)): ?>
-        <?php foreach(array_slice($divisionNames, 0, 2) as $division): ?>
-            <span class="badge" style="background-color: #6610f2; color: white; margin: 2px; padding: 5px 8px; display: inline-block;">
-                <?= htmlspecialchars($division) ?>
-            </span>
-        <?php endforeach; ?>
-        <?php if (count($divisionNames) > 2): ?>
-            <span class="badge bg-secondary">+<?= count($divisionNames) - 2 ?> more</span>
-        <?php endif; ?>
+    <?php if (empty($confirmedUsers)): ?>
+    <tr>
+        <td colspan="10" class="text-center py-4 text-muted">
+            <i class="fas fa-users"></i> No confirmed users yet
+        </td>
+    </tr>
     <?php else: ?>
-        <span class="text-muted">—</span>
-    <?php endif; ?>
-</td>
-<td>
-    <?php if (!empty($deptNames)): ?>
-        <?php foreach(array_slice($deptNames, 0, 2) as $dept): ?>
-            <span class="badge" style="background-color: #20c997; color: white; margin: 2px; padding: 5px 8px; display: inline-block;">
-                <?= htmlspecialchars($dept) ?>
+    <?php foreach ($confirmedUsers as $u): 
+    $divisionNames = !empty($u['division_names']) ? explode('||', $u['division_names']) : [];
+    $deptNames = !empty($u['department_names']) ? explode('||', $u['department_names']) : []; 
+    $committeeNames = !empty($u['committee_names']) ? explode('||', $u['committee_names']) : [];
+    
+    // Combine department and committee for the new column
+    $combinedItems = array_merge($deptNames, $committeeNames);
+    ?>
+    <tr>
+        <td><span class="fw-bold">#<?= $u['id'] ?></span></td>
+        <td class="text-truncate" title="<?= htmlspecialchars($u['username']) ?>"><?= htmlspecialchars($u['username']) ?></td>
+        <td class="text-truncate" title="<?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?>"><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></td>
+        <td>
+            <?php if (!empty($divisionNames)): ?>
+                <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden;">
+                    <?php 
+                    $displayDivisions = array_slice($divisionNames, 0, 2);
+                    $remainingDivisions = count($divisionNames) - 2;
+                    foreach ($displayDivisions as $division): 
+                    ?>
+                        <span class="badge-item" style="background-color: #6610f2; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <?= htmlspecialchars($division) ?>
+                        </span>
+                    <?php endforeach; ?>
+                    <?php if ($remainingDivisions > 0): ?>
+                        <span class="badge-count" style="background-color: #6c757d; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">
+                            +<?= $remainingDivisions ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <span class="text-muted">—</span>
+            <?php endif; ?>
+        </td>
+        <td class="dept-committee-cell" data-items="<?= htmlspecialchars(implode(', ', $combinedItems)) ?>">
+            <?php if (!empty($combinedItems)): ?>
+                <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden; max-width: 100%;">
+                    <?php 
+                    // Show only the first item
+                    $firstItem = $combinedItems[0];
+                    $isDepartment = in_array($firstItem, $deptNames);
+                    $badgeClass = $isDepartment ? 'badge-department' : 'badge-committee';
+                    $remainingCount = count($combinedItems) - 1;
+                    ?>
+                    
+                    <!-- First item badge -->
+                    <span class="badge-item <?= $badgeClass ?>" 
+                        style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 4px; font-size: 11px;">
+                        <?= htmlspecialchars($firstItem) ?>
+                    </span>
+                    
+                    <!-- Counter badge for remaining items -->
+                    <?php if ($remainingCount > 0): ?>
+                        <span class="badge-count" style="background-color: #6c757d; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">
+                            +<?= $remainingCount ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <span class="text-muted">—</span>
+            <?php endif; ?>
+        </td>
+        <td class="text-truncate" title="<?= htmlspecialchars($u['email']) ?>"><?= htmlspecialchars($u['email']) ?></td>
+        <td>
+            <?php if ($u['role'] === 'admin'): ?>
+                <span class="badge bg-danger">Admin</span>
+            <?php elseif ($u['role'] === 'proponent'): ?>
+                <span class="badge bg-info">Proponent</span>
+            <?php elseif ($u['role'] === 'superadmin'): ?>
+                <span class="badge bg-secondary">SuperAdmin</span>
+            <?php else: ?>
+                <span class="badge bg-success">Student</span>
+            <?php endif; ?>
+        </td>
+        <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+        <td>
+            <span class="badge-confirmed">
+                <i class="fas fa-check-circle"></i> Confirmed
             </span>
-        <?php endforeach; ?>
-        <?php if (count($deptNames) > 2): ?>
-            <span class="badge bg-secondary">+<?= count($deptNames) - 2 ?> more</span>
-        <?php endif; ?>
-    <?php else: ?>
-        <span class="text-muted">—</span>
+        </td>
+        <td class="table-actions">
+            <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm" title="Edit user">
+                <i class="fas fa-edit"></i>
+            </a>
+            <a href="?act=delete&id=<?= $u['id'] ?>" 
+               onclick="return confirm('Are you sure you want to delete user <?= htmlspecialchars($u['username']) ?>? This action cannot be undone.')" 
+               class="btn btn-danger btn-sm" title="Delete user">
+                <i class="fas fa-trash"></i>
+            </a>
+        </td>
+    </tr>
+    <?php endforeach; ?>
     <?php endif; ?>
-</td>
-<td>
-    <?php if (!empty($committeeNames)): ?>
-        <?php foreach(array_slice($committeeNames, 0, 2) as $committee): ?>
-            <span class="badge" style="background-color: #ff6b6b; color: white; margin: 2px; padding: 5px 8px; display: inline-block;">
-                <?= htmlspecialchars($committee) ?>
-            </span>
-        <?php endforeach; ?>
-        <?php if (count($committeeNames) > 2): ?>
-            <span class="badge bg-secondary">+<?= count($committeeNames) - 2 ?> more</span>
-        <?php endif; ?>
-    <?php else: ?>
-        <span class="text-muted">—</span>
-    <?php endif; ?>
-</td>
-<td><?= htmlspecialchars($u['email']) ?></td>
-<td>
-<?php if ($u['role'] === 'admin'): ?>
-<span class="badge bg-danger">Admin</span>
-<?php elseif ($u['role'] === 'proponent'): ?>
-<span class="badge bg-info">Proponent</span>
-<?php elseif ($u['role'] === 'superadmin'): ?>
-<span class="badge bg-secondary">SuperAdmin</span>
-<?php else: ?>
-<span class="badge bg-success">Student</span>
-<?php endif; ?>
-</td>
-
-<td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
-<td>
-<span class="badge-confirmed">
-<i class="fas fa-check-circle"></i> Confirmed
-</span>
-</td>
-<td class="table-actions">
-<a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm">
-<i class="fas fa-edit"></i> Edit
-</a>
-<a href="?act=delete&id=<?= $u['id'] ?>" 
-onclick="return confirm('Are you sure you want to delete user <?= htmlspecialchars($u['username']) ?>? This action cannot be undone.')" 
-class="btn btn-danger btn-sm">
-<i class="fas fa-trash"></i> Delete
-</a>
-</td>
-</tr>
-<?php endforeach; ?>
-<?php endif; ?>
 </tbody>
 </table>
 </div>
@@ -1297,18 +1381,54 @@ document.addEventListener('DOMContentLoaded', function() {
                 const username = row.cells[1]?.textContent.toLowerCase() || '';
                 const fullName = row.cells[2]?.textContent.toLowerCase() || '';
                 const division = row.cells[3]?.textContent.toLowerCase() || '';
-                const department = row.cells[4]?.textContent.toLowerCase() || '';
-                const committee = row.cells[5]?.textContent.toLowerCase() || '';
-                const email = row.cells[6]?.textContent.toLowerCase() || '';
-                const role = row.cells[7]?.textContent.toLowerCase() || '';
+                const deptCommittee = row.cells[4]?.textContent.toLowerCase() || '';
+                const email = row.cells[5]?.textContent.toLowerCase() || '';
+                const role = row.cells[6]?.textContent.toLowerCase() || '';
                 
                 row.style.display = (searchTerm === '' || username.includes(searchTerm) || 
                                     fullName.includes(searchTerm) || division.includes(searchTerm) ||
-                                    department.includes(searchTerm) || committee.includes(searchTerm) || 
-                                    email.includes(searchTerm) || role.includes(searchTerm)) ? '' : 'none';
+                                    deptCommittee.includes(searchTerm) || email.includes(searchTerm) || 
+                                    role.includes(searchTerm)) ? '' : 'none';
             });
         });
     }
+
+    // Hover tooltip for Dept./Committee column
+    const deptCells = document.querySelectorAll('.dept-committee-cell');
+    deptCells.forEach(cell => {
+        cell.addEventListener('mouseenter', function(e) {
+            const items = this.getAttribute('data-items');
+            if (!items || items === '') return;
+            
+            // Create tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'custom-tooltip';
+            
+            // Format items nicely with line breaks for better readability
+            const itemList = items.split(', ');
+            let formattedItems = '';
+            itemList.forEach(item => {
+                formattedItems += item + '<br>';
+            });
+            
+            tooltip.innerHTML = formattedItems;
+            document.body.appendChild(tooltip);
+            this._tooltip = tooltip;
+            
+            // Position tooltip
+            const rect = this.getBoundingClientRect();
+            tooltip.style.top = (rect.top - 10) + 'px';
+            tooltip.style.left = (rect.left + (rect.width / 2)) + 'px';
+            tooltip.style.transform = 'translateX(-50%) translateY(-100%)';
+        });
+        
+        cell.addEventListener('mouseleave', function() {
+            if (this._tooltip) {
+                this._tooltip.remove();
+                this._tooltip = null;
+            }
+        });
+    });
 });
 
 function removeDepartment(btn, deptId) {

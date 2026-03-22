@@ -85,6 +85,11 @@ function get_role_icon($role = '') {
                             <i class="fa fa-sliders"></i> Manage Courses
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/module_crud.php">
+                            <i class="fa fa-sliders"></i> Manage Modules
+                        </a>
+                    </li>
                 <?php else: ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
