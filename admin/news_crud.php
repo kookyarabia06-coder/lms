@@ -84,6 +84,20 @@ if ($act === 'editform' && isset($_GET['id'])) {
   <title>News</title>
 <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+   <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    
+<style>
+/* Optional: Add some styling for the content column */
+.news-content-preview {
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+</style>
 </head>
 
 <body class="bg-light">
@@ -133,7 +147,8 @@ if ($act === 'editform' && isset($_GET['id'])) {
     <thead class="table-light">
       <tr>
         <th>Title</th>
-        <th style="width:200x;" class="text-center">By</th>
+        <th>Content</th> <!-- New column added here -->
+        <th style="width:200px;" class="text-center">By</th>
         <th style="width:150px;" class="text-center">Actions</th>
       </tr>
     </thead>
@@ -141,6 +156,15 @@ if ($act === 'editform' && isset($_GET['id'])) {
     <?php foreach ($news as $n): ?>
       <tr>
         <td><?= htmlspecialchars($n['title']) ?></td>
+        <td>
+          <div class="news-content-preview" title="<?= htmlspecialchars($n['body']) ?>">
+            <?php 
+            // Show first 100 characters of content with ellipsis
+            $preview = strlen($n['body']) > 100 ? substr($n['body'], 0, 100) . '...' : $n['body'];
+            echo htmlspecialchars($preview);
+            ?>
+          </div>
+        </td>
         <td class="text-center"><?= htmlspecialchars($n['username']) ?></td>
         <td class="text-nowrap text-center">
           <a href="?act=editform&id=<?= $n['id'] ?>"

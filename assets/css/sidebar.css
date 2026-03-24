@@ -8,7 +8,11 @@
   --sidebar-active: rgba(255, 255, 255, 0.25);
   --sidebar-width: 260px;
   --sidebar-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-  --sidebar-border: 1px solid rgba(255, 255, 255, 0.3);
+  --sidebar-border: none;
+  --logo-max-width: 140px;
+  --font-size-nav: 14px;
+  --font-size-small: 12px;
+  --font-size-xs: 11px;
 }
 
 /* Sidebar container */
@@ -37,48 +41,23 @@
 .lms-sidebar {
   background: var(--home-dashboard-bg);
   height: 100%;
-  padding: 1.5rem 1rem;
+  padding: 1.2rem 0.8rem;
   color: var(--sidebar-text);
-  border-right: var(--sidebar-border);
+  border-right: none;
   transition: all 0.3s;
   overflow-y: auto;
   box-shadow: var(--sidebar-shadow);
 }
 
-/* Sidebar logo/header */
-.lms-sidebar strong {
-  color: var(--sidebar-text);
-  font-size: 1.25rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-  margin-top: 1rem;
-  line-height: 1.3;
-  padding: 0.75rem;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
+/* ===================================== */
+/* LOGO SECTION                          */
+/* ===================================== */
 
-.lms-sidebar strong i {
-  flex-shrink: 0;
-  font-size: 1.5rem;
-  color: var(--sidebar-text);
-}
-
-/* Sidebar text color = header color */
-.lms-sidebar,
-.lms-sidebar .nav-link,
-.lms-sidebar .nav-link i {
-   color: #ffffff !important; 
-}
-
-/* Logo styling */
 .sidebar-logo {
-    padding: 8px 8px;
+    padding: 5px 5px;
     text-align: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: 50px;
+    border-bottom: none;
+    margin-bottom: 30px;
 }
 
 .sidebar-logo a {
@@ -86,460 +65,339 @@
 }
 
 .sidebar-logo .logo-img {
-    max-width: 160px;  /* Adjust based on your logo size */
+    max-width: var(--logo-max-width);
+    width: 100%;
     height: auto;
     display: block;
     margin: 0 auto;
-    margin-bottom: 35px;
+    margin-bottom: 20px;
 }
 
-/* Navigation items */
-.lms-sidebar .nav {
-  gap: 0.5rem;
-}
-
-.lms-sidebar .nav-item {
-  margin-bottom: 0.25rem;
-}
-
-.lms-sidebar .nav-link {
-  padding: 0.875rem 1rem;
-  border-radius: 8px;
-  transition: all 0.3s;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.lms-sidebar .nav-link:hover {
-  color: var(--sidebar-text) !important;
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.lms-sidebar .nav-link.active {
-  color: var(--sidebar-text) !important;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
-}
-
-.lms-sidebar .nav-link i {
-  font-size: 1.1rem;
-  width: 1.5rem;
-  text-align: center;
-}
-
-/* Dropdown/collapse items */
-.lms-sidebar .collapse .nav-link {
-  padding-left: 3rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.lms-sidebar .collapse .nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.lms-sidebar .fa-caret-down {
-  transition: transform 0.3s;
-  margin-left: auto;
-}
-
-.lms-sidebar .collapse.show .fa-caret-down {
-  transform: rotate(180deg);
-}
-
-/* Submenu styling */
-.lms-sidebar .collapse {
-  margin-left: 0.5rem;
-  margin-right: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.lms-sidebar .collapse .nav {
-  border-left: 2px solid rgba(255, 255, 255, 0.1);
-  padding-left: 0.5rem;
-  margin-left: 0.5rem;
-}
-
-/* Logout button special styling */
-.lms-sidebar .nav-link[href*="logout"] {
-  margin-top: 2rem;
-  background: rgba(231, 76, 60, 0.2);
-  border-color: rgba(231, 76, 60, 0.3);
-}
-
-.lms-sidebar .nav-link[href*="logout"]:hover {
-  background: rgba(231, 76, 60, 0.3);
-  border-color: rgba(231, 76, 60, 0.4);
-}
-
-/* =========================
-   Text Link - Looks like text, acts like link
-============================ */
-
-/* Basic text-link class */
-.text-link {
-    color: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    background: none;
-    border: none;
-    padding: 0;
-    font: inherit;
-    display: inline;
-    transition: all 0.3s;
-}
-
-.text-link:hover,
-.text-link:focus {
-    color: inherit;
-    text-decoration: none;
-    outline: none;
-    opacity: 0.9;
-}
-
-.text-link:active {
-    color: inherit;
-    text-decoration: none;
-}
-
-/* Text link with subtle hover effect */
-.text-link-subtle {
-    color: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-}
-
-.text-link-subtle:hover {
-    color: inherit;
-    text-decoration: none;
-    opacity: 0.8;
-}
-
-/* Text link for dark backgrounds */
-.text-link-light {
-    color: #ffffff;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-.text-link-light:hover {
-    color: #ffffff;
-    text-decoration: none;
-    opacity: 0.9;
-}
-
-/* For buttons that look like text */
-button.text-link {
-    color: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font: inherit;
-    text-align: left;
-}
-
-button.text-link:hover {
-    color: inherit;
-    text-decoration: none;
-}
-
-/* For divs that act like text links */
-div.text-link,
-span.text-link {
-    color: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    display: inline;
-}
-
-div.text-link:hover,
-span.text-link:hover {
-    color: inherit;
-    text-decoration: none;
-}
-
-/* Scrollbar styling */
-.lms-sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.lms-sidebar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.lms-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-}
-
-.lms-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
-}
-
-/* Animation for sidebar items */
-@keyframes fadeInSidebar {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.lms-sidebar .nav-item {
-  animation: fadeInSidebar 0.3s ease-out;
-}
-
-.lms-sidebar .nav-item:nth-child(1) { animation-delay: 0.1s; }
-.lms-sidebar .nav-item:nth-child(2) { animation-delay: 0.2s; }
-.lms-sidebar .nav-item:nth-child(3) { animation-delay: 0.3s; }
-.lms-sidebar .nav-item:nth-child(4) { animation-delay: 0.4s; }
-.lms-sidebar .nav-item:nth-child(5) { animation-delay: 0.5s; }
-.lms-sidebar .nav-item:nth-child(6) { animation-delay: 0.6s; }
-
-/* Responsive design */
-@media (max-width: 768px) {
-  :root {
-    --sidebar-width: 220px;
-  }
-  
-  .lms-sidebar {
-    padding: 1rem 0.75rem;
-  }
-  
-  .lms-sidebar strong {
-    font-size: 1.1rem;
-    padding: 0.5rem;
-  }
-  
-  .lms-sidebar .nav-link {
-    padding: 0.75rem 0.875rem;
-    font-size: 0.95rem;
-  }
-}
- 
-/* Compact profile header for sidebar */
-
-.profile-icon-mini {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
+.sidebar-logo .logo-text {
     font-size: 18px;
-    flex-shrink: 0;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.profile-details-mini {
-    flex: 1;
-    min-width: 0;
-}
-
-.profile-details-mini h6 {
-    margin: 0;
-    font-size: 15px;
     font-weight: 600;
     color: white;
-    line-height: 1.3;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 0 5px;
 }
 
-.profile-details-mini small {
-    display: flex;
-    align-items: left;
-    gap: 5px;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 12px;
-    margin-top: 2px;
-}/* sidebar.css - Sidebar styles matching login page design */
-
-/* Sidebar Variables */
-:root {
-  --home-dashboard-bg: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3498db 100%);
-  --sidebar-text: #ffffff;
-  --sidebar-hover: rgba(255, 255, 255, 0.15);
-  --sidebar-active: rgba(255, 255, 255, 0.25);
-  --sidebar-width: 260px;
-  --sidebar-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-  --sidebar-border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* Sidebar container */
-.lms-sidebar-container {
-  width: var(--sidebar-width);
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100vh;
-  z-index: 1000;
-  overflow-y: auto;
-  backdrop-filter: blur(10px);
-}
-
-.sidebar-container {
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100vh;
-  width: var(--sidebar-width);
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-/* Sidebar styling */
-.lms-sidebar {
-  background: var(--home-dashboard-bg);
-  height: 100%;
-  padding: 1.5rem 1rem;
-  color: var(--sidebar-text);
-  border-right: var(--sidebar-border);
-  transition: all 0.3s;
-  overflow-y: auto;
-  box-shadow: var(--sidebar-shadow);
-}
-
-/* Sidebar logo/header */
 .lms-sidebar strong {
   color: var(--sidebar-text);
-  font-size: 1.25rem;
+  font-size: 1rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-  margin-top: 1rem;
-  line-height: 1.3;
-  padding: 0.75rem;
-  border-radius: 8px;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  margin-top: 0.5rem;
+  line-height: 1.2;
+  padding: 0.5rem;
+  border-radius: 6px;
   transition: all 0.3s;
+  border: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lms-sidebar strong i {
   flex-shrink: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   color: var(--sidebar-text);
 }
 
-/* Sidebar text color = header color */
 .lms-sidebar,
 .lms-sidebar .nav-link,
 .lms-sidebar .nav-link i {
    color: #ffffff !important; 
 }
 
-/* Navigation items */
+/* ===================================== */
+/* DIVIDER STYLES - SOLID WHITE LINE     */
+/* ===================================== */
+
+.lms-sidebar .nav-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3); /* Solid white with opacity */
+  margin: 0.75rem 0.75rem;
+  list-style: none;
+  border: 0;
+  width: auto;
+}
+
+/* Remove any pseudo-elements that might add effects */
+.lms-sidebar .nav-divider::before,
+.lms-sidebar .nav-divider::after {
+  display: none;
+}
+
+/* ===================================== */
+/* NAVIGATION ITEMS                      */
+/* ===================================== */
+
 .lms-sidebar .nav {
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .lms-sidebar .nav-item {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
+  list-style: none;
+  width: 100%;
 }
 
 .lms-sidebar .nav-link {
-  padding: 0.875rem 1rem;
-  border-radius: 8px;
-  transition: all 0.3s;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  transition: all 0.2s;
   font-weight: 500;
+  font-size: var(--font-size-nav);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.6rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  width: 100%;
+}
+
+.lms-sidebar .nav-link span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    text-align: left;
 }
 
 .lms-sidebar .nav-link:hover {
   color: var(--sidebar-text) !important;
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .lms-sidebar .nav-link.active {
   color: var(--sidebar-text) !important;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
 }
 
 .lms-sidebar .nav-link i {
-  font-size: 1.1rem;
-  width: 1.5rem;
+  font-size: 1rem;
+  width: 1.3rem;
   text-align: center;
+  flex-shrink: 0;
 }
 
-/* Dropdown/collapse items */
 .lms-sidebar .collapse .nav-link {
-  padding-left: 3rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding-left: 2.5rem;
+  background: transparent;
+  border: none;
+  font-size: calc(var(--font-size-nav) - 1px);
 }
 
 .lms-sidebar .collapse .nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
 }
 
 .lms-sidebar .fa-caret-down {
   transition: transform 0.3s;
   margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.9rem;
 }
 
 .lms-sidebar .collapse.show .fa-caret-down {
   transform: rotate(180deg);
 }
 
-/* Submenu styling */
 .lms-sidebar .collapse {
-  margin-left: 0.5rem;
-  margin-right: 0.5rem;
-  margin-top: 0.25rem;
+  margin-left: 0.25rem;
+  margin-right: 0.25rem;
+  margin-top: 0.15rem;
 }
 
 .lms-sidebar .collapse .nav {
-  border-left: 2px solid rgba(255, 255, 255, 0.1);
-  padding-left: 0.5rem;
-  margin-left: 0.5rem;
+  border-left: none;
+  padding-left: 0.25rem;
+  margin-left: 0.25rem;
 }
 
-/* Logout button special styling */
 .lms-sidebar .nav-link[href*="logout"] {
-  margin-top: 2rem;
-  background: rgba(231, 76, 60, 0.2);
-  border-color: rgba(231, 76, 60, 0.3);
+  margin-top: 1.5rem;
+  background: rgba(231, 76, 60, 0.1);
+  border: none;
+  font-size: var(--font-size-nav);
 }
 
 .lms-sidebar .nav-link[href*="logout"]:hover {
-  background: rgba(231, 76, 60, 0.3);
-  border-color: rgba(231, 76, 60, 0.4);
+  background: rgba(231, 76, 60, 0.2);
+  border: none;
 }
 
-/* =========================
-   Text Link - Looks like text, acts like link
-============================ */
+/* ===================================== */
+/* NOTIFICATION BADGE STYLES             */
+/* ===================================== */
 
-/* Basic text-link class */
+/* Notification badge for menu items */
+.lms-sidebar .nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.notification-badge {
+  background-color: #dc3545;
+  color: white;
+  border-radius: 50px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+  display: inline-block;
+  line-height: 1.2;
+  flex-shrink: 0;
+  animation: pulse 1s ease-in-out;
+}
+
+/* Badge container for text + badge */
+.nav-link .badge-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Pulse animation for new notifications */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ===================================== */
+/* PROFILE SECTION                       */
+/* ===================================== */
+
+.lms-sidebar .nav-link[href*="profile.php"] {
+    min-width: 0;
+    overflow: hidden;
+    border: none !important;
+    background: transparent;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.5rem;
+    width: 100%;
+}
+
+.lms-sidebar .nav-link[href*="profile.php"]:hover,
+.lms-sidebar .nav-link[href*="profile.php"]:active,
+.lms-sidebar .nav-link[href*="profile.php"]:focus {
+    border: none !important;
+    background: rgba(255, 255, 255, 0.05);
+    transform: none;
+    box-shadow: none;
+}
+
+.profile-icon-mini {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.profile-details-mini {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.profile-details-mini h6 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    max-width: 100%;
+}
+
+.profile-details-mini small {
+    display: flex;
+    align-items: left;
+    gap: 3px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 10px;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ===================================== */
+/* UTILITY CLASSES                       */
+/* ===================================== */
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.text-wrap-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.compact-mode .nav-link {
+    padding: 0.5rem 0.6rem;
+    font-size: 13px;
+}
+
+.compact-mode .profile-icon-mini {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+}
+
+.compact-mode .profile-details-mini h6 {
+    font-size: 12px;
+}
+
+.compact-mode .profile-details-mini small {
+    font-size: 9px;
+}
+
+/* ===================================== */
+/* TEXT LINK STYLES                       */
+/* ===================================== */
+
 .text-link {
     color: inherit;
     text-decoration: none;
@@ -565,7 +423,6 @@ span.text-link:hover {
     text-decoration: none;
 }
 
-/* Text link with subtle hover effect */
 .text-link-subtle {
     color: inherit;
     text-decoration: none;
@@ -579,7 +436,6 @@ span.text-link:hover {
     opacity: 0.8;
 }
 
-/* Text link for dark backgrounds */
 .text-link-light {
     color: #ffffff;
     text-decoration: none;
@@ -592,7 +448,6 @@ span.text-link:hover {
     opacity: 0.9;
 }
 
-/* For buttons that look like text */
 button.text-link {
     color: inherit;
     text-decoration: none;
@@ -610,7 +465,6 @@ button.text-link:hover {
     text-decoration: none;
 }
 
-/* For divs that act like text links */
 div.text-link,
 span.text-link {
     color: inherit;
@@ -625,9 +479,12 @@ span.text-link:hover {
     text-decoration: none;
 }
 
-/* Scrollbar styling */
+/* ===================================== */
+/* SCROLLBAR STYLING                     */
+/* ===================================== */
+
 .lms-sidebar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .lms-sidebar::-webkit-scrollbar-track {
@@ -643,11 +500,14 @@ span.text-link:hover {
   background: rgba(255, 255, 255, 0.4);
 }
 
-/* Animation for sidebar items */
+/* ===================================== */
+/* ANIMATIONS                            */
+/* ===================================== */
+
 @keyframes fadeInSidebar {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-5px);
   }
   to {
     opacity: 1;
@@ -656,75 +516,103 @@ span.text-link:hover {
 }
 
 .lms-sidebar .nav-item {
-  animation: fadeInSidebar 0.3s ease-out;
+  animation: fadeInSidebar 0.2s ease-out;
 }
 
-.lms-sidebar .nav-item:nth-child(1) { animation-delay: 0.1s; }
-.lms-sidebar .nav-item:nth-child(2) { animation-delay: 0.2s; }
-.lms-sidebar .nav-item:nth-child(3) { animation-delay: 0.3s; }
-.lms-sidebar .nav-item:nth-child(4) { animation-delay: 0.4s; }
-.lms-sidebar .nav-item:nth-child(5) { animation-delay: 0.5s; }
-.lms-sidebar .nav-item:nth-child(6) { animation-delay: 0.6s; }
+/* ===================================== */
+/* RESPONSIVE DESIGN                     */
+/* ===================================== */
 
-/* Responsive design */
 @media (max-width: 768px) {
   :root {
-    --sidebar-width: 220px;
+    --sidebar-width: 200px;
+    --logo-max-width: 120px;
+    --font-size-nav: 13px;
   }
   
   .lms-sidebar {
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.5rem;
   }
   
   .lms-sidebar strong {
-    font-size: 1.1rem;
-    padding: 0.5rem;
+    font-size: 0.95rem;
+    padding: 0.4rem;
   }
   
   .lms-sidebar .nav-link {
-    padding: 0.75rem 0.875rem;
+    padding: 0.5rem 0.6rem;
+    font-size: var(--font-size-nav);
+    gap: 0.5rem;
+  }
+  
+  .lms-sidebar .nav-link i {
     font-size: 0.95rem;
+    width: 1.2rem;
+  }
+  
+  .profile-icon-mini {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  .profile-details-mini h6 {
+    font-size: 12px;
+  }
+  
+  .profile-details-mini small {
+    font-size: 9px;
+  }
+  
+  .sidebar-logo {
+    margin-bottom: 20px;
+  }
+  
+  .sidebar-logo .logo-img {
+    max-width: var(--logo-max-width);
+    margin-bottom: 15px;
+  }
+
+  .lms-sidebar .nav-divider {
+    margin: 0.5rem 0.5rem;
+  }
+  
+  .notification-badge {
+    padding: 1px 6px;
+    font-size: 10px;
   }
 }
- 
-/* Compact profile header for sidebar */
 
-.profile-icon-mini {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 18px;
-    flex-shrink: 0;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-}
+/* Extra small devices */
+@media (max-width: 480px) {
+  :root {
+    --sidebar-width: 180px;
+    --logo-max-width: 100px;
+    --font-size-nav: 12px;
+  }
+  
+  .lms-sidebar .nav-link {
+    padding: 0.4rem 0.5rem;
+  }
+  
+  .lms-sidebar .nav-link i {
+    width: 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .profile-icon-mini {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+    border-width: 1px;
+  }
 
-.profile-details-mini {
-    flex: 1;
-    min-width: 0;
-}
-
-.profile-details-mini h6 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: white;
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: left;
-}
-
-.profile-details-mini small {
-    display: flex;
-    align-items: left;
-    gap: 5px;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 12px;
-    margin-top: 2px;
+  .lms-sidebar .nav-divider {
+    margin: 0.4rem 0.4rem;
+  }
+  
+  .notification-badge {
+    padding: 1px 5px;
+    font-size: 9px;
+  }
 }

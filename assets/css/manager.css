@@ -1,6 +1,58 @@
-/* Card Styles */
+/* ===================================== */
+/* MAIN LAYOUT & WRAPPER                  */
+/* ===================================== */
+
+.main-content-wrapper {
+    margin-left: 280px;
+    padding: 20px 10px; /* Reduced padding to maximize width */
+    max-width: calc(100% - 280px);
+    width: 100%;
+}
+
+.container-fluid {
+    width: 100%;
+    padding-right: 5px;
+    padding-left: 5px;
+    margin-right: auto;
+    margin-left: auto;
+    max-width: 100%;
+}
+
+.container-fluid.px-2 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+/* Container with py-9 class - set to 1500px max-width */
+.container.py-9 {
+    max-width: 1500px !important;
+    margin: 0 auto;
+    width: 100%;
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+/* Row adjustments for full width usage */
+.row {
+    margin-right: -5px;
+    margin-left: -5px;
+    width: calc(100% + 10px);
+}
+
+.row > [class*="col-"] {
+    padding-right: 5px;
+    padding-left: 5px;
+}
+
+/* ===================================== */
+/* CARD STYLES                            */
+/* ===================================== */
+
 .card {
+    width: 100%;
     margin-bottom: 20px;
+    margin-left: 0;
+    margin-right: 0;
     border: none;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
@@ -12,9 +64,24 @@
     padding: 15px 20px;
     font-weight: 600;
     border-radius: 12px 12px 0 0 !important;
+    height: 60px;
+    display: flex;
+    align-items: center;
 }
 
-/* Stats Cards */
+/* ===================================== */
+/* STATS CARDS                            */
+/* ===================================== */
+
+.stats-card {
+    background: #f1ecec;
+    border-radius: 10px;
+    padding: 5px 10px;
+    text-align: left;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    display: inline-block;
+}
+
 .stats-number {
     font-size: 20px;
     font-weight: bold;
@@ -26,44 +93,153 @@
     opacity: 0.9;
 }
 
-.stats-card {
-    background: #f1ecec;
-    border-radius: 10px;
-    padding: 5px 10px;
-    text-align: left;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    display: inline-block;
-}
+/* ===================================== */
+/* TABLE STYLES - BASE                    */
+/* ===================================== */
 
-/* Badges */
-.badge-pending {
-    background: #ffc107;
-    color: #000;
-    padding: 5px 10px;
-    border-radius: 10px;
-    font-size: 10px;
-}
-
-
-.badge-confirmed {
-    background: #28a745;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 10px;
-    font-size: 10px;
-}
-
-/* Table Styles */
 .table th {
     background: #f8f9fa;
     border-top: none;
+    height: 45px;
+    vertical-align: middle;
+    padding: 5px 12px;
+}
+
+.table td {
+    padding: 12px;
+    vertical-align: middle;
 }
 
 .table-actions a {
     margin-right: 5px;
 }
 
-/* Status Indicators */
+/* Fixed Table Layout */
+.fixed-table,
+.fixed-table-pending {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Text overflow handling */
+.fixed-table td,
+.fixed-table-pending td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}
+
+/* ===================================== */
+/* CONFIRMED TABLE COLUMN WIDTHS          */
+/* ===================================== */
+
+.fixed-table th:nth-child(1),
+.fixed-table td:nth-child(1) {
+    width: 5%; /* ID */
+}
+
+.fixed-table th:nth-child(2),
+.fixed-table td:nth-child(2) {
+    width: 10%; /* Username */
+}
+
+.fixed-table th:nth-child(3),
+.fixed-table td:nth-child(3) {
+    width: 20%; /* Full Name */
+}
+
+.fixed-table th:nth-child(4),
+.fixed-table td:nth-child(4) {
+    width: 15%; /* Division - NO HOVER */
+}
+
+.fixed-table th:nth-child(5),
+.fixed-table td:nth-child(5) {
+    width: 15%; /* Dept./Committee - WITH HOVER */
+}
+
+.fixed-table th:nth-child(6),
+.fixed-table td:nth-child(6) {
+    width: 15%; /* Email */
+}
+
+.fixed-table th:nth-child(7),
+.fixed-table td:nth-child(7) {
+    width: 10%; /* Role */
+}
+
+.fixed-table th:nth-child(8),
+.fixed-table td:nth-child(8) {
+    width: 10%; /* Joined */
+}
+
+.fixed-table th:nth-child(9),
+.fixed-table td:nth-child(9) {
+    width: 10%; /* Status */
+}
+
+.fixed-table th:nth-child(10),
+.fixed-table td:nth-child(10) {
+    width: 10%; /* Actions */
+}
+
+/* ===================================== */
+/* PENDING TABLE COLUMN WIDTHS            */
+/* ===================================== */
+
+.fixed-table-pending th:nth-child(1),
+.fixed-table-pending td:nth-child(1) {
+    width: 5%; /* ID */
+}
+
+.fixed-table-pending th:nth-child(2),
+.fixed-table-pending td:nth-child(2) {
+    width: 10%; /* Username */
+}
+
+.fixed-table-pending th:nth-child(3),
+.fixed-table-pending td:nth-child(3) {
+    width: 15%; /* Full Name */
+}
+
+.fixed-table-pending th:nth-child(4),
+.fixed-table-pending td:nth-child(4) {
+    width: 15%; /* Division */
+}
+
+.fixed-table-pending th:nth-child(5),
+.fixed-table-pending td:nth-child(5) {
+    width: 15%; /* Department/Committee - WITH HOVER */
+    overflow: visible;
+    position: relative;
+    cursor: help;
+}
+
+.fixed-table-pending th:nth-child(6),
+.fixed-table-pending td:nth-child(6) {
+    width: 15%; /* Email */
+}
+
+.fixed-table-pending th:nth-child(7),
+.fixed-table-pending td:nth-child(7) {
+    width: 10%; /* Registered */
+}
+
+.fixed-table-pending th:nth-child(8),
+.fixed-table-pending td:nth-child(8) {
+    width: 8%; /* Status */
+}
+
+.fixed-table-pending th:nth-child(9),
+.fixed-table-pending td:nth-child(9) {
+    width: 20%; /* Actions */
+}
+
+/* ===================================== */
+/* STATUS INDICATORS & BADGES             */
+/* ===================================== */
+
 .status-indicator {
     display: inline-block;
     width: 10px;
@@ -80,16 +256,159 @@
     background: #28a745;
 }
 
-/* Fixed Table Layout */
-.fixed-table {
-    table-layout: fixed;
-    width: 100%;
+.badge-pending {
+    background: #ffc107;
+    color: #000;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+.badge-confirmed {
+    background: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+/* Department & Committee Badges */
+.badge-department {
+    background-color: #f54def !important;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.badge-committee {
+    background-color: #8227a9 !important;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+/* ===================================== */
+/* DEPT./COMMITTEE COLUMN SPECIFIC        */
+/* ===================================== */
+
+/* Column hover behavior */
+.fixed-table td:nth-child(5) {
+    overflow: visible;
+    position: relative;
+    cursor: help;
+}
+
+/* Badge container */
+.fixed-table td:nth-child(5) .badge-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+/* Badge item */
+.fixed-table td:nth-child(5) .badge-item {
+    display: inline-block;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    max-width: 120px; /* Increased from 100px for better visibility */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Counter badge */
+.fixed-table td:nth-child(5) .badge-count {
+    display: inline-block;
+    background-color: #6c757d;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* Custom tooltip */
+.custom-tooltip {
+    position: fixed;
+    background: #333;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    transform: translateX(-50%);
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+}
+
+/* ===================================== */
+/* DIVISION COLUMN (NO HOVER)             */
+/* ===================================== */
+
+.fixed-table td:nth-child(4) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* Set all data text to 16px */
+.fixed-table td:nth-child(4):hover::before,
+.fixed-table td:nth-child(4):hover::after {
+    display: none;
+}
+
+/* ===================================== */
+/* FIXED HEIGHT TABLES WITH SCROLLING     */
+/* ===================================== */
+
+.card-body.p-0 {
+    max-height: 400px;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* Different heights for each table */
+.card:first-of-type .card-body.p-0 {
+    max-height: 300px; /* Pending users table */
+}
+
+.card:last-of-type .card-body.p-0 {
+    max-height: 450px; /* Confirmed users table */
+}
+
+/* Sticky table headers */
+.card-body.p-0 table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 10;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* ===================================== */
+/* HEADERS & TEXT ELEMENTS                */
+/* ===================================== */
+
+h3.mb-4 {
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Global font size */
 .fixed-table td,
 .fixed-table-pending td,
 .table td,
@@ -101,116 +420,4 @@
 .table th,
 .table-actions a {
     font-size: 13px;
-}
-
-/* Department Tooltip */
-.fixed-table td:nth-child(4) {
-    position: relative;
-    cursor: help;
-}
-
-.fixed-table td:nth-child(4):hover::before {
-    content: attr(data-departments);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 10px;
-    white-space: nowrap;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.fixed-table td:nth-child(4):hover::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: #333;
-}
-
-/* Fixed Table Column Widths */
-.fixed-table td:nth-child(1) {
-    width: 30%; /* Title column - adjust as needed */
-}
-
-.fixed-table th:nth-child(1) {
-    width: 5%; /* ID */
-}
-
-.fixed-table th:nth-child(2) {
-    width: 10%; /* Username */
-}
-
-.fixed-table th:nth-child(3) {
-    width: 15%; /* Full name */
-}
-
-.fixed-table th:nth-child(4) {
-    width: 25%; /* Departments */
-}
-
-.fixed-table th:nth-child(5) {
-    width: 15%; /* Email */
-}
-
-.fixed-table th:nth-child(6) {
-    width: 10%; /* Role */
-}
-
-.fixed-table th:nth-child(7) {
-    width: 10%; /* Joined */
-}
-
-.fixed-table th:nth-child(8) {
-    width: 10%; /* Status */
-}
-
-.fixed-table th:nth-child(9) {
-    width: 20%; /* Actions */
-}
-
-/* Pending Table Styles */
-.fixed-table-pending {
-    table-layout: fixed;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Pending Table Column Widths */
-.fixed-table-pending th:nth-child(1),
-.fixed-table-pending td:nth-child(1) {
-    width: 5%; /* ID */
-}
-
-.fixed-table-pending td:nth-child(2) {
-    width: 10%; /* Username */
-}
-
-.fixed-table-pending td:nth-child(3) {
-    width: 15%; /* Full Name */
-}
-
-.fixed-table-pending td:nth-child(4) {
-    width: 20%; /* Email */
-}
-
-.fixed-table-pending td:nth-child(5) {
-    width: 10%; /* Registered */
-}
-
-.fixed-table-pending td:nth-child(6) {
-    width: 8%; /* Status */
-}
-
-.fixed-table-pending td:nth-child(7) {
-    width: 32%; /* Actions */
 }

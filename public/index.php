@@ -9,6 +9,10 @@ require_once __DIR__ . '/../inc/config.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LMS · company logo welcome</title>
     <link href="<?= BASE_URL ?>/assets/css/index.css" rel="stylesheet">
+     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * {
@@ -169,11 +173,11 @@ require_once __DIR__ . '/../inc/config.php';
                     <span>iMISS</span>
                 </div>
 
-                <div class="bottom-note" style="margin-top: 0.5rem; margin-left: 128px;">
-                    <span><a href="#">Privacy Policy |</a>
-                    <span><a href="#"> Terms and Condition |</a>
-                    <span><a href="<?= BASE_URL ?>/public/contact_form.php"> Contact Us</a>
-                </div>
+               <div class="bottom-note" style="margin-top: 0.5rem; margin-left: 128px;">
+             <span onclick="window.location.href='../uploads/pdf/Privacy Policy.pdf'" style="cursor: pointer;">Privacy Policy |</span>
+            <span onclick="window.location.href='../uploads/pdf/TermsConditions.pdf'" style="cursor: pointer;"> Terms and Condition |</span>
+            <span onclick="window.location.href='<?= BASE_URL ?>/public/contact_form.php'" style="cursor: pointer;"> Contact Us</span>
+            </div>
             </div>
         </div>
     </div>

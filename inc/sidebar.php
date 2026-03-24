@@ -19,6 +19,21 @@ function get_role_icon($role = '') {
     return $icons[$role] ?? 'fa-user';
 }
 
+// Get pending courses count for admin/superadmin
+$pendingCoursesCount = 0;
+if (is_admin() || is_superadmin()) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM courses WHERE status = 'pending'");
+    $stmt->execute();
+    $pendingCoursesCount = $stmt->fetchColumn();
+}
+
+// Get pending users count for admin/superadmin
+$pendingUsersCount = 0;
+if (is_admin() || is_superadmin()) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE status = 'pending'");
+    $stmt->execute();
+    $pendingUsersCount = $stmt->fetchColumn();
+}
 ?>
 
 <!doctype html>
@@ -31,16 +46,22 @@ function get_role_icon($role = '') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/sidebar.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </head>
 <body>
     <div class="lms-sidebar-container"> 
         <nav class="sidebar lms-sidebar">
-             <div class="sidebar-logo">
-                    <img src="<?= BASE_URL ?>/uploads/images/armmc-logo.png" 
-                         alt="armmc logo" 
-                         class="logo-img">
+            <div class="sidebar-logo">
+                <img src="<?= BASE_URL ?>/uploads/images/armmc-logo.png" 
+                     alt="armmc logo" 
+                     class="logo-img" style="max-width: 120px; margin-bottom: 10px;">
+            </div>
+
+            <!-- Space after logo (built into CSS) -->
+            
             <ul class="nav flex-column">
-                <li class="nav-item" color>
+                <!-- Profile -->
+                <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/profile.php">
                         <div class="profile-icon-mini">
                             <i class="fas <?= get_role_icon($u['role'] ?? '') ?>"></i>
@@ -57,62 +78,111 @@ function get_role_icon($role = '') {
                     </a>
                 </li>
 
-                <li class="nav-item" color>
+                <!-- Dashboard -->
+                <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">
                         <i class="fa fa-tachometer-alt"></i> Dashboard
                     </a>
                 </li>
 
-                <!-- Courses parent menu -->
-<li class="nav-item">
-    <a class="nav-link" data-bs-toggle="collapse" href="#coursesSubMenu" role="button" aria-expanded="false" aria-controls="coursesSubMenu">
-        <i class="fa fa-book"></i> Courses <i class="fa fa-caret-down float-end"></i>
-    </a>
-    <div class="collapse" id="coursesSubMenu">
-        <ul class="nav flex-column ms-3">
-            <li class="nav-item">
-                <?php if($u && (is_proponent() || is_admin() ||  is_superadmin())): ?>
-                    <!-- Admin users go to courses_crud.php -->
-                    <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
-                        <i class="fa fa-list"></i> All Courses
-                    </a>
+                <!-- DIVIDER 1 -->
+                <li class="nav-divider"></li>
+
+                <!-- ALL COURSES SECTION -->
+                <li class="nav-item" style="margin-top: 10px;">
+                    <div style="color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px;">
+                        <i class="fa fa-book me-1" style="font-size: 10px;"></i> COURSES
+                    </div>
+                </li>
+
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/courses_crud.php">
+                            <i class="fa fa-sliders"></i> Manage Courses
+                        </a>
+                    </li>
+                    <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/pending_courses.php">
+                            <i class="fa fa-book-open-reader"></i> Pending Courses
+                            <?php if ($pendingCoursesCount > 0): ?>
+                                <span class="notification-badge"><?= $pendingCoursesCount ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 <?php else: ?>
-                    <!-- Non-admin users go to courses.php -->
-                    <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
-                        <i class="fa fa-list"></i> All Courses
-                    </a>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
+                            <i class="fa fa-stack-overflow"></i> All Courses
+                        </a>
+                    </li>
                 <?php endif; ?>
-            </li>
-            <?php if($u && is_student()): ?>
-            <li class="nav-item">
-                <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
-                    <i class="fa fa-graduation-cap"></i> My Courses
-                </a>
-            </li>
-            <?php endif; ?>
-            <?php if($u && (is_proponent() || is_admin())): ?>
-               <li class="nav-item">
-                <a class="nav-link" href="<?= BASE_URL ?>/admin/manage_crud.php">
-                    <i class="fa fa-cog"></i> Manage Courses
-                </a>
-              
-        
-               
-            </li>
-            <?php endif; ?>
-        </ul>
-    </div>
+                
+                <?php if($u && is_student()): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/my_courses.php">
+                        <i class="fa fa-book-bookmark"></i> My Courses
+                    </a>
+                </li>
+                <?php endif; ?>
+                
+                <?php if($u && (is_proponent() || is_admin())): ?>
+                   <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/proponent/all_course.php">
+                            <i class="fa-solid fa-folder-tree"></i> All Courses
+                        </a>
+                    </li>
+                <?php endif; ?>
 
-   
+                <!-- MODULE MANAGEMENT SECTION -->
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/admin/module_crud.php">
+                        <i class="fa fa-cubes"></i> Manage Modules
+                    </a>
+                </li>
+                <?php endif; ?>
 
-                <?php if($u && ( is_admin() || is_superadmin())): ?>
+                <!-- USER MANAGEMENT SECTION -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                <li class="nav-item" style="margin-top: 15px;">
+                    <div style="color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px;">
+                        <i class="fa fa-users me-1" style="font-size: 10px;"></i> USER MANAGEMENT
+                    </div>
+                </li>
+                <?php endif; ?>
+
+                <?php if($u && (is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
-                            <i class="fa fa-users"></i> User Management
-                        </a></li>
-                         <li class="nav-item">
-                        
+                            <i class="fa fa-user"></i> User List
+                            <?php if ($pendingUsersCount > 0): ?>
+                                <span class="notification-badge"><?= $pendingUsersCount ?></span>
+                            <?php endif; ?>
+                        </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/deptcommittee_crud.php">
+                            <i class="fa fa-building-user"></i> Departments & Committees
+                        </a>
+                    </li>
+                <?php endif; ?>
+
+                <!-- DIVIDER 2 -->
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                    <li class="nav-divider"></li>
+                <?php endif; ?>
+
+                <!-- TRAINING REQUEST SECTION -->
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
+                        <i class="fa fa-clipboard-list"></i> Training Request
+                    </a>
+                </li>
+
+                <!-- News -->
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/news_crud.php">
                             <i class="fa fa-newspaper"></i> News
@@ -120,43 +190,44 @@ function get_role_icon($role = '') {
                     </li>
                 <?php endif; ?>
 
-<!-- super admin -->
-                   <?php if($u && (is_superadmin() || is_admin())): ?>
-</li><a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
-                           <i class="fa-solid fa-clock-rotate-left"></i> Audit Trail
+                <!-- Audit Trail -->
+                <?php if($u && (is_superadmin() || is_admin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/audit_crud.php">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Audit Trail
                         </a>
-                         <?php endif; ?>
+                    </li>
+                <?php endif; ?>
 
+                <!-- Contact Messages -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/admin_contacts.php">
+                            <i class="fa fa-envelope"></i> Contact Messages
+                            <?php
+                            // Get unread count
+                            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE is_read = 0");
+                            $countStmt->execute();
+                            $unread = $countStmt->fetchColumn();
+                            if ($unread > 0):
+                            ?>
+                                <span class="badge bg-danger float-end"><?= $unread ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                <?php endif; ?>
 
-<?php if($u && (is_admin() || is_superadmin())): ?>
-    <li class="nav-item">
-        <a class="nav-link" href="<?= BASE_URL ?>/admin/admin_contacts.php">
-            <i class="fa fa-envelope"></i> Contact Messages
-            <?php
-            // Get unread count
-            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE is_read = 0");
-            $countStmt->execute();
-            $unread = $countStmt->fetchColumn();
-            if ($unread > 0):
-            ?>
-                <span class="badge bg-danger float-end"><?= $unread ?></span>
-            <?php endif; ?>
-        </a>
-    </li>
-<?php endif; ?>
+                <!-- DIVIDER 3 -->
+                <?php if($u && (is_admin() || is_superadmin())): ?>
+                    <li class="nav-divider"></li>
+                <?php endif; ?>
 
-
-
-
-
-
-
+                <!-- Logout -->
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/logout.php">
                         <i class="fa fa-sign-out-alt"></i> Logout
                     </a>
                 </li>
-
             </ul>
         </nav>
     </div>
