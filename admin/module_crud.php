@@ -21,11 +21,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST)) {
 }
 
 $act = $_GET['act'] ?? '';
-$id = isset($_GET['id']) ? (int)$_GET['id'] : null;
-$module_id = isset($_GET['module_id']) ? (int)$_GET['module_id'] : null;
-$resource_id = isset($_GET['resource_id']) ? (int)$_GET['resource_id'] : null;
-$attachment_id = isset($_GET['attachment_id']) ? (int)$_GET['attachment_id'] : null;
-$course_id = isset($_GET['course_id']) ? (int)$_GET['course_id'] : null;
+$module_id = isset($_GET['id']) ? (int)$_GET['id'] : null;
+
+// Fetch committees assigned to the current user
+if (is_superadmin() || is_admin()) {
+    $committee_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name ASC");
+    $user_committees = $committee_stmt->fetchAll();
+} else {
+    $committee_stmt = $pdo->prepare("
+        SELECT c.id, c.name 
+        FROM committees c
+        JOIN user_departments ud ON ud.committee_id = c.id
+        WHERE ud.user_id = ? AND ud.committee_id IS NOT NULL
+        ORDER BY c.name
+    ");
+    $committee_stmt->execute([$_SESSION['user']['id']]);
+    $user_committees = $committee_stmt->fetchAll();
+}
+
+// Fetch all committees for admins
+$all_committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name ASC");
+$all_committees = $all_committees_stmt->fetchAll();
 
 /**
  * Handle file upload with size validation
@@ -65,41 +81,6 @@ function uploadFile($input, $dir, $allowed = [], $max_size = MAX_FILE_SIZE) {
 }
 
 /**
- * Handle module attachment upload
- */
-function uploadAttachment($file, $module_id, $pdo) {
-    if (!isset($file) || $file['error'] !== UPLOAD_ERR_OK) {
-        return null;
-    }
-
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $filename = bin2hex(random_bytes(8)) . '.' . $ext;
-    $upload_dir = __DIR__ . "/../uploads/attachments/";
-    
-    if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
-    }
-    
-    if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-        $stmt = $pdo->prepare("
-            INSERT INTO module_attachments (module_id, filename, original_filename, filepath, filesize, filetype)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $module_id,
-            $filename,
-            $file['name'],
-            'uploads/attachments/' . $filename,
-            $file['size'],
-            $ext
-        ]);
-        return true;
-    }
-    
-    return false;
-}
-
-/**
  * Check if current user can modify module
  */
 function canModifyModule($module_id, $pdo) {
@@ -107,16 +88,11 @@ function canModifyModule($module_id, $pdo) {
         return true;
     }
     
-    $stmt = $pdo->prepare("
-        SELECT c.proponent_id 
-        FROM modules m
-        JOIN courses c ON m.course_id = c.id
-        WHERE m.id = ?
-    ");
+    $stmt = $pdo->prepare("SELECT created_by FROM modules WHERE id = ?");
     $stmt->execute([$module_id]);
     $result = $stmt->fetch();
     
-    return $result && $result['proponent_id'] == $_SESSION['user']['id'];
+    return $result && $result['created_by'] == $_SESSION['user']['id'];
 }
 
 /* =========================
@@ -124,117 +100,72 @@ MODULE HANDLERS
 ========================= */
 
 // Handle ADD MODULE
-if ($act === 'add' && $course_id && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Check if user can modify this course
-    $course_stmt = $pdo->prepare("SELECT proponent_id FROM courses WHERE id = ?");
-    $course_stmt->execute([$course_id]);
-    $course = $course_stmt->fetch();
-    
-    if (!$course || (!is_admin() && !is_superadmin() && $course['proponent_id'] != $_SESSION['user']['id'])) {
-        http_response_code(403);
-        exit('Access denied');
+if ($act === 'add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $title = trim($_POST['title'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $committee_id = !empty($_POST['committee_id']) ? (int)$_POST['committee_id'] : null;
+
+    if (empty($title)) {
+        $_SESSION['error_message'] = "Title is required";
+        header('Location: module_crud.php?act=add');
+        exit;
     }
 
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $content = $_POST['content'] ?? '';
-    $duration = !empty($_POST['duration']) ? (int)$_POST['duration'] : null;
-    $status = $_POST['status'] ?? 'draft';
-    $is_required = isset($_POST['is_required']) ? 1 : 0;
-
-    // Get the next order number
-    $order_stmt = $pdo->prepare("SELECT MAX(order_number) as max_order FROM modules WHERE course_id = ?");
-    $order_stmt->execute([$course_id]);
-    $max_order = $order_stmt->fetch(PDO::FETCH_ASSOC)['max_order'];
-    $order_number = ($max_order !== null) ? $max_order + 1 : 1;
-
     // Handle file uploads
+    $thumbnail = uploadFile('thumbnail', 'images', ['jpg', 'jpeg', 'png', 'webp']);
     $pdf_file = uploadFile('file_pdf', 'pdf', ['pdf']);
     $video_file = uploadFile('file_video', 'video', ['mp4', 'webm']);
 
     try {
-        $pdo->beginTransaction();
-
         $stmt = $pdo->prepare("
             INSERT INTO modules (
-                course_id, title, description, content, order_number, 
-                file_pdf, file_video, duration_minutes, is_required, status,
-                published_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                title, description, thumbnail, file_pdf, file_video, committee_id, created_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
         ");
         
-        $published_at = ($status === 'published') ? date('Y-m-d H:i:s') : null;
-        
         $stmt->execute([
-            $course_id, $title, $description, $content, $order_number,
-            $pdf_file, $video_file, $duration, $is_required, $status,
-            $published_at
+            $title, $description, $thumbnail, $pdf_file, $video_file, $committee_id, $_SESSION['user']['id']
         ]);
 
-        $new_module_id = $pdo->lastInsertId();
-
-        // Handle attachments if any
-        if (!empty($_FILES['attachments']['name'][0])) {
-            $files = $_FILES['attachments'];
-            $file_count = count($files['name']);
-            
-            for ($i = 0; $i < $file_count; $i++) {
-                if ($files['error'][$i] === UPLOAD_ERR_OK) {
-                    $file = [
-                        'name' => $files['name'][$i],
-                        'type' => $files['type'][$i],
-                        'tmp_name' => $files['tmp_name'][$i],
-                        'error' => $files['error'][$i],
-                        'size' => $files['size'][$i]
-                    ];
-                    uploadAttachment($file, $new_module_id, $pdo);
-                }
-            }
-        }
-
-        $pdo->commit();
-
         $_SESSION['success_message'] = 'Module added successfully!';
-        header('Location: module_crud.php?act=list&course_id=' . $course_id);
+        header('Location: module_crud.php');
         exit;
     } catch (Exception $e) {
-        $pdo->rollBack();
         $_SESSION['error_message'] = 'Failed to add module: ' . $e->getMessage();
-        header('Location: module_crud.php?act=add&course_id=' . $course_id);
+        header('Location: module_crud.php?act=add');
         exit;
     }
 }
 
 // Handle EDIT MODULE
 if ($act === 'edit' && $module_id && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Check if user can modify this module
     if (!canModifyModule($module_id, $pdo)) {
         http_response_code(403);
         exit('Access denied');
     }
 
-    // Get module to get course_id
-    $module_stmt = $pdo->prepare("SELECT course_id FROM modules WHERE id = ?");
-    $module_stmt->execute([$module_id]);
-    $module_data = $module_stmt->fetch();
-    $course_id = $module_data['course_id'];
+    $title = trim($_POST['title'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $committee_id = !empty($_POST['committee_id']) ? (int)$_POST['committee_id'] : null;
 
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $content = $_POST['content'] ?? '';
-    $duration = !empty($_POST['duration']) ? (int)$_POST['duration'] : null;
-    $status = $_POST['status'] ?? 'draft';
-    $is_required = isset($_POST['is_required']) ? 1 : 0;
+    if (empty($title)) {
+        $_SESSION['error_message'] = "Title is required";
+        header('Location: module_crud.php?act=edit&id=' . $module_id);
+        exit;
+    }
 
     // Handle file uploads
+    $thumbnail = uploadFile('thumbnail', 'images', ['jpg', 'jpeg', 'png', 'webp']);
     $pdf_file = uploadFile('file_pdf', 'pdf', ['pdf']);
     $video_file = uploadFile('file_video', 'video', ['mp4', 'webm']);
 
-    $sql = "UPDATE modules SET 
-            title = ?, description = ?, content = ?, 
-            duration_minutes = ?, is_required = ?, status = ?";
-    $params = [$title, $description, $content, $duration, $is_required, $status];
+    $sql = "UPDATE modules SET title = ?, description = ?, committee_id = ?";
+    $params = [$title, $description, $committee_id];
 
+    if ($thumbnail) {
+        $sql .= ", thumbnail = ?";
+        $params[] = $thumbnail;
+    }
     if ($pdf_file) {
         $sql .= ", file_pdf = ?";
         $params[] = $pdf_file;
@@ -244,87 +175,45 @@ if ($act === 'edit' && $module_id && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $params[] = $video_file;
     }
 
-    // Update published_at if status changes to published and it wasn't published before
-    if ($status === 'published') {
-        $sql .= ", published_at = COALESCE(published_at, NOW())";
-    }
-
     $sql .= ", updated_at = NOW() WHERE id = ?";
     $params[] = $module_id;
 
     try {
-        $pdo->beginTransaction();
-
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
-        // Handle new attachments if any
-        if (!empty($_FILES['attachments']['name'][0])) {
-            $files = $_FILES['attachments'];
-            $file_count = count($files['name']);
-            
-            for ($i = 0; $i < $file_count; $i++) {
-                if ($files['error'][$i] === UPLOAD_ERR_OK) {
-                    $file = [
-                        'name' => $files['name'][$i],
-                        'type' => $files['type'][$i],
-                        'tmp_name' => $files['tmp_name'][$i],
-                        'error' => $files['error'][$i],
-                        'size' => $files['size'][$i]
-                    ];
-                    uploadAttachment($file, $module_id, $pdo);
-                }
-            }
-        }
-
-        $pdo->commit();
-
         $_SESSION['success_message'] = 'Module updated successfully!';
-        header('Location: module_crud.php?act=list&course_id=' . $course_id);
+        header('Location: module_crud.php');
         exit;
     } catch (Exception $e) {
-        $pdo->rollBack();
         $_SESSION['error_message'] = 'Failed to update module: ' . $e->getMessage();
-        header('Location: module_crud.php?act=edit&module_id=' . $module_id);
+        header('Location: module_crud.php?act=edit&id=' . $module_id);
         exit;
     }
 }
 
 // Handle DELETE MODULE
 if ($act === 'delete' && $module_id) {
-    // Check if user can delete this module
     if (!canModifyModule($module_id, $pdo)) {
         http_response_code(403);
         exit('Access denied');
     }
 
-    // Get module data to get course_id and file names
-    $module_stmt = $pdo->prepare("SELECT course_id, file_pdf, file_video FROM modules WHERE id = ?");
-    $module_stmt->execute([$module_id]);
-    $module_data = $module_stmt->fetch();
-    
-    if (!$module_data) {
-        $_SESSION['error_message'] = 'Module not found';
-        header('Location: module_crud.php');
-        exit;
-    }
+    // Get file names to delete
+    $stmt = $pdo->prepare("SELECT thumbnail, file_pdf, file_video FROM modules WHERE id = ?");
+    $stmt->execute([$module_id]);
+    $files = $stmt->fetch();
 
-    // Delete files
-    if ($module_data['file_pdf'] && file_exists(__DIR__ . "/../uploads/pdf/" . $module_data['file_pdf'])) {
-        unlink(__DIR__ . "/../uploads/pdf/" . $module_data['file_pdf']);
-    }
-    if ($module_data['file_video'] && file_exists(__DIR__ . "/../uploads/video/" . $module_data['file_video'])) {
-        unlink(__DIR__ . "/../uploads/video/" . $module_data['file_video']);
-    }
-
-    // Get attachments to delete files
-    $att_stmt = $pdo->prepare("SELECT filepath FROM module_attachments WHERE module_id = ?");
-    $att_stmt->execute([$module_id]);
-    $attachments = $att_stmt->fetchAll();
-    
-    foreach ($attachments as $att) {
-        if (file_exists(__DIR__ . "/../" . $att['filepath'])) {
-            unlink(__DIR__ . "/../" . $att['filepath']);
+    // Delete files from server
+    if ($files) {
+        if ($files['thumbnail'] && file_exists(__DIR__ . "/../uploads/images/" . $files['thumbnail'])) {
+            unlink(__DIR__ . "/../uploads/images/" . $files['thumbnail']);
+        }
+        if ($files['file_pdf'] && file_exists(__DIR__ . "/../uploads/pdf/" . $files['file_pdf'])) {
+            unlink(__DIR__ . "/../uploads/pdf/" . $files['file_pdf']);
+        }
+        if ($files['file_video'] && file_exists(__DIR__ . "/../uploads/video/" . $files['file_video'])) {
+            unlink(__DIR__ . "/../uploads/video/" . $files['file_video']);
         }
     }
 
@@ -333,149 +222,45 @@ if ($act === 'delete' && $module_id) {
         $stmt->execute([$module_id]);
 
         $_SESSION['success_message'] = 'Module deleted successfully!';
-        header('Location: module_crud.php?act=list&course_id=' . $module_data['course_id']);
+        header('Location: module_crud.php');
         exit;
     } catch (Exception $e) {
         $_SESSION['error_message'] = 'Failed to delete module: ' . $e->getMessage();
-        header('Location: module_crud.php?act=list&course_id=' . $module_data['course_id']);
+        header('Location: module_crud.php');
         exit;
     }
-}
-
-// Handle ADD RESOURCE
-if ($act === 'add_resource' && $module_id && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!canModifyModule($module_id, $pdo)) {
-        http_response_code(403);
-        exit('Access denied');
-    }
-
-    $title = $_POST['title'] ?? '';
-    $url = $_POST['url'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $type = $_POST['type'] ?? 'link';
-
-    if (empty($title) || empty($url)) {
-        $_SESSION['error_message'] = 'Title and URL are required';
-        header('Location: module_crud.php?act=view&module_id=' . $module_id);
-        exit;
-    }
-
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO module_resources (module_id, title, url, description, type)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$module_id, $title, $url, $description, $type]);
-
-        $_SESSION['success_message'] = 'Resource added successfully!';
-        header('Location: module_crud.php?act=view&module_id=' . $module_id);
-        exit;
-    } catch (Exception $e) {
-        $_SESSION['error_message'] = 'Failed to add resource: ' . $e->getMessage();
-        header('Location: module_crud.php?act=view&module_id=' . $module_id);
-        exit;
-    }
-}
-
-// Handle DELETE RESOURCE
-if ($act === 'delete_resource' && $resource_id) {
-    $stmt = $pdo->prepare("SELECT module_id FROM module_resources WHERE id = ?");
-    $stmt->execute([$resource_id]);
-    $resource = $stmt->fetch();
-    
-    if ($resource && canModifyModule($resource['module_id'], $pdo)) {
-        $pdo->prepare("DELETE FROM module_resources WHERE id = ?")->execute([$resource_id]);
-        $_SESSION['success_message'] = 'Resource deleted successfully!';
-        header('Location: module_crud.php?act=view&module_id=' . $resource['module_id']);
-        exit;
-    }
-    
-    $_SESSION['error_message'] = 'Resource not found or access denied';
-    header('Location: module_crud.php');
-    exit;
-}
-
-// Handle DELETE ATTACHMENT
-if ($act === 'delete_attachment' && $attachment_id) {
-    $stmt = $pdo->prepare("SELECT module_id, filepath FROM module_attachments WHERE id = ?");
-    $stmt->execute([$attachment_id]);
-    $attachment = $stmt->fetch();
-    
-    if ($attachment && canModifyModule($attachment['module_id'], $pdo)) {
-        // Delete file
-        if (file_exists(__DIR__ . "/../" . $attachment['filepath'])) {
-            unlink(__DIR__ . "/../" . $attachment['filepath']);
-        }
-        
-        $pdo->prepare("DELETE FROM module_attachments WHERE id = ?")->execute([$attachment_id]);
-        $_SESSION['success_message'] = 'Attachment deleted successfully!';
-        header('Location: module_crud.php?act=view&module_id=' . $attachment['module_id']);
-        exit;
-    }
-    
-    $_SESSION['error_message'] = 'Attachment not found or access denied';
-    header('Location: module_crud.php');
-    exit;
 }
 
 /* =========================
 GET DATA FOR DISPLAY
 ========================= */
 
-// Get all courses for dropdown (only those user can modify)
-if (is_admin() || is_superadmin()) {
-    $courses_stmt = $pdo->query("SELECT id, title FROM courses ORDER BY title");
-    $courses = $courses_stmt->fetchAll();
-} else {
-    $courses_stmt = $pdo->prepare("SELECT id, title FROM courses WHERE proponent_id = ? ORDER BY title");
-    $courses_stmt->execute([$_SESSION['user']['id']]);
-    $courses = $courses_stmt->fetchAll();
-}
+// Fetch all modules with committee and creator info
+$modules_stmt = $pdo->query("
+    SELECT m.*, u.username as creator_name, c.name as committee_name
+    FROM modules m
+    LEFT JOIN users u ON m.created_by = u.id
+    LEFT JOIN committees c ON m.committee_id = c.id
+    ORDER BY m.created_at DESC
+");
+$modules = $modules_stmt->fetchAll();
 
-// Get modules for a specific course
-$modules = [];
-$current_course = null;
-if ($course_id) {
-    $course_stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
-    $course_stmt->execute([$course_id]);
-    $current_course = $course_stmt->fetch();
-    
-    if ($current_course) {
-        $module_stmt = $pdo->prepare("
-            SELECT * FROM modules 
-            WHERE course_id = ? 
-            ORDER BY order_number ASC
-        ");
-        $module_stmt->execute([$course_id]);
-        $modules = $module_stmt->fetchAll();
-    }
-}
-
-// Get single module for viewing/editing
-$module = null;
-$module_resources = [];
-$module_attachments = [];
-
-if ($module_id) {
+// Get single module for editing
+$edit_module = null;
+if ($act === 'edit' && $module_id) {
     $stmt = $pdo->prepare("SELECT * FROM modules WHERE id = ?");
     $stmt->execute([$module_id]);
-    $module = $stmt->fetch();
+    $edit_module = $stmt->fetch();
     
-    if ($module) {
-        // Get course
-        $course_stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
-        $course_stmt->execute([$module['course_id']]);
-        $current_course = $course_stmt->fetch();
-        
-        // Get resources
-        $res_stmt = $pdo->prepare("SELECT * FROM module_resources WHERE module_id = ? ORDER BY created_at DESC");
-        $res_stmt->execute([$module_id]);
-        $module_resources = $res_stmt->fetchAll();
-        
-        // Get attachments
-        $att_stmt = $pdo->prepare("SELECT * FROM module_attachments WHERE module_id = ? ORDER BY created_at DESC");
-        $att_stmt->execute([$module_id]);
-        $module_attachments = $att_stmt->fetchAll();
+    if (!$edit_module) {
+        $_SESSION['error_message'] = 'Module not found';
+        header('Location: module_crud.php');
+        exit;
+    }
+    
+    if (!canModifyModule($module_id, $pdo)) {
+        http_response_code(403);
+        exit('Access denied');
     }
 }
 
@@ -491,62 +276,141 @@ $max_upload_size = ini_get('upload_max_filesize');
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Module Management - LMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/course.css" rel="stylesheet">
     <style>
-        .module-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            background: white;
-            transition: all 0.3s;
-        }
-        .module-card:hover {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .status-badge {
-            font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 12px;
-        }
-        .status-published {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-draft {
-            background: #fff3cd;
-            color: #856404;
-        }
-        .status-archived {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .required-badge {
-            background: #ffc107;
-            color: #000;
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        .resource-item, .attachment-item {
-            border-bottom: 1px solid #e9ecef;
-            padding: 10px 0;
-        }
-        .resource-item:last-child, .attachment-item:last-child {
-            border-bottom: none;
-        }
-        .module-form {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
+        /* Search bar */
+        .header-with-search {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
         }
+        
+        .search-bar {
+            position: relative;
+            width: 300px;
+        }
+        
+        .search-bar i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        
+        .search-bar input {
+            width: 100%;
+            padding: 8px 12px 8px 35px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .search-bar input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn-add {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 13px;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        
+        .btn-add:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            color: white;
+        }
+        
+        /* Form styling */
+        .module-form {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #cbd5e1;
+        }
+        
+        /* Committee badge */
+        .committee-badge {
+            display: inline-block;
+            background-color: #8227a9;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+
+                /* Committee styling - matching course cards */
+        .committee-container {
+            margin: 10px 0;
+            padding: 5px 0;
+            border-top: 1px solid #f0f0f0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .committee-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .committee-badge {
+            display: inline-block;
+            background-color: #8227a9;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
     </style>
 </head>
 <body>
@@ -555,11 +419,24 @@ $max_upload_size = ini_get('upload_max_filesize');
     <?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
 
-<div class="main-content-wrapper">
+<div class="modern-courses-wrapper">
     <div class="container-fluid py-4">
-        <h3 class="mb-4">Module Management</h3>
+        <div class="header-with-search">
+            <h3 class="m-0">Module Management</h3>
+            <?php if ($act !== 'add' && $act !== 'edit'): ?>
+                <div class="d-flex gap-3">
+                    <div class="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="moduleSearch" placeholder="Search modules...">
+                    </div>
+                    <a href="?act=add" class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Add New Module
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
 
-        <!-- Display messages -->
+        <!-- Session Messages -->
         <?php if ($success_message): ?>
             <div class="alert alert-success alert-dismissible fade show">
                 <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($success_message) ?>
@@ -574,490 +451,195 @@ $max_upload_size = ini_get('upload_max_filesize');
             </div>
         <?php endif; ?>
 
-        <!-- Course Selection -->
-        <?php if (!$course_id && !$module_id && $act !== 'add'): ?>
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Select a Course</h5>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($courses)): ?>
-                        <p class="text-muted">No courses available. <a href="courses_crud.php?act=addform">Create a course first</a>.</p>
-                    <?php else: ?>
-                        <div class="row">
-                            <?php foreach ($courses as $course): ?>
-                                <div class="col-md-4 mb-3">
-                                    <a href="?act=list&course_id=<?= $course['id'] ?>" class="text-decoration-none">
-                                        <div class="card h-100">
-                                            <div class="card-body">
-                                                <h6 class="card-title"><?= htmlspecialchars($course['title']) ?></h6>
-                                                <p class="card-text small text-muted">Click to manage modules</p>
-                                            </div>
-                                        </div>
-                                    </a>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- Module List View -->
-        <?php if ($act === 'list' && $current_course): ?>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <a href="module_crud.php" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-arrow-left"></i> Back to Courses
-                    </a>
-                    <h4 class="d-inline-block ms-3">Modules for: <?= htmlspecialchars($current_course['title']) ?></h4>
-                </div>
-                <a href="?act=add&course_id=<?= $course_id ?>" class="btn btn-success">
-                    <i class="fas fa-plus"></i> Add Module
-                </a>
-            </div>
-
-            <?php if (empty($modules)): ?>
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> No modules yet. Click "Add Module" to create your first module.
-                </div>
-            <?php else: ?>
-                <?php foreach ($modules as $index => $mod): ?>
-                    <div class="module-card">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h5 class="mb-1">
-                                    <?= $index + 1 ?>. <?= htmlspecialchars($mod['title']) ?>
-                                    <?php if (!$mod['is_required']): ?>
-                                        <span class="required-badge ms-2">Optional</span>
-                                    <?php endif; ?>
-                                </h5>
-                                <div class="mb-2">
-                                    <span class="status-badge status-<?= $mod['status'] ?> me-2">
-                                        <?= ucfirst($mod['status']) ?>
-                                    </span>
-                                    <?php if ($mod['duration_minutes']): ?>
-                                        <span class="text-muted me-3">
-                                            <i class="far fa-clock"></i> <?= $mod['duration_minutes'] ?> min
-                                        </span>
-                                    <?php endif; ?>
-                                    <span class="text-muted">
-                                        <i class="far fa-calendar"></i> Updated: <?= date('M d, Y', strtotime($mod['updated_at'] ?? $mod['created_at'])) ?>
-                                    </span>
-                                </div>
-                                <p class="text-muted mb-0"><?= htmlspecialchars(substr($mod['description'] ?? '', 0, 150)) ?>...</p>
-                            </div>
-                            <div class="btn-group">
-                                <a href="?act=view&module_id=<?= $mod['id'] ?>" class="btn btn-sm btn-info" title="View">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="?act=edit&module_id=<?= $mod['id'] ?>" class="btn btn-sm btn-primary" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <a href="?act=delete&module_id=<?= $mod['id'] ?>" class="btn btn-sm btn-danger" 
-                                   onclick="return confirm('Delete this module? This will also delete all associated resources and attachments.')"
-                                   title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-
         <!-- Add Module Form -->
-        <?php elseif ($act === 'add' && $course_id): ?>
-            <?php
-            $course_stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
-            $course_stmt->execute([$course_id]);
-            $course = $course_stmt->fetch();
-            ?>
-            <div class="mb-3">
-                <a href="?act=list&course_id=<?= $course_id ?>" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Modules
-                </a>
-            </div>
-
+        <?php if ($act === 'add'): ?>
             <div class="module-form">
-                <h5 class="mb-3">Add New Module to: <?= htmlspecialchars($course['title']) ?></h5>
+                <h5 class="mb-4">Add New Module</h5>
                 <form method="post" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Module Title <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
                         <input type="text" name="title" class="form-control" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description</label>
-                        <textarea name="description" class="form-control" rows="3"></textarea>
+                        <textarea name="description" class="form-control" rows="4"></textarea>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Content</label>
-                        <textarea name="content" class="form-control" rows="8"></textarea>
-                        <small class="text-muted">You can write detailed lesson content here</small>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Duration (minutes)</label>
-                            <input type="number" name="duration" class="form-control" min="1">
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Status</label>
-                            <select name="status" class="form-control">
-                                <option value="draft">Draft</option>
-                                <option value="published">Published</option>
-                                <option value="archived">Archived</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Required</label>
-                            <div class="form-check mt-2">
-                                <input type="checkbox" name="is_required" class="form-check-input" id="isRequired" checked>
-                                <label class="form-check-label" for="isRequired">This module is required</label>
-                            </div>
-                        </div>
+                        <label class="form-label fw-bold">Program Committee</label>
+                        <select name="committee_id" class="form-select">
+                            <option value="">-- Select Committee --</option>
+                            <?php 
+                            $display_committees = (is_superadmin() || is_admin()) ? $all_committees : $user_committees;
+                            if (!empty($display_committees)):
+                                foreach ($display_committees as $comm):
+                            ?>
+                                <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
+                            <?php endforeach; endif; ?>
+                        </select>
+                        <small class="text-muted">Select the committee this module belongs to</small>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">PDF File (Optional)</label>
+                        <label class="form-label fw-bold">Thumbnail (Max: <?= $max_upload_size ?>)</label>
+                        <input type="file" name="thumbnail" class="form-control" accept="image/jpeg,image/png,image/webp">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">PDF File (Max: <?= $max_upload_size ?>)</label>
                         <input type="file" name="file_pdf" class="form-control" accept=".pdf">
-                        <small class="text-muted">Max size: <?= $max_upload_size ?></small>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Video File (Optional)</label>
+                        <label class="form-label fw-bold">Video File (Max: <?= $max_upload_size ?>)</label>
                         <input type="file" name="file_video" class="form-control" accept="video/mp4,video/webm">
-                        <small class="text-muted">Max size: <?= $max_upload_size ?></small>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Additional Attachments (Optional)</label>
-                        <input type="file" name="attachments[]" class="form-control" multiple>
-                        <small class="text-muted">You can upload multiple files (images, documents, etc.)</small>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Add Module</button>
+                        <a href="module_crud.php" class="btn btn-secondary">Cancel</a>
                     </div>
-
-                    <button type="submit" class="btn btn-primary">Add Module</button>
                 </form>
             </div>
 
         <!-- Edit Module Form -->
-        <?php elseif ($act === 'edit' && $module): ?>
-            <div class="mb-3">
-                <a href="?act=list&course_id=<?= $module['course_id'] ?>" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Modules
-                </a>
-            </div>
-
+        <?php elseif ($act === 'edit' && $edit_module): ?>
             <div class="module-form">
-                <h5 class="mb-3">Edit Module: <?= htmlspecialchars($module['title']) ?></h5>
+                <h5 class="mb-4">Edit Module: <?= htmlspecialchars($edit_module['title']) ?></h5>
                 <form method="post" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Module Title <span class="text-danger">*</span></label>
-                        <input type="text" name="title" class="form-control" required value="<?= htmlspecialchars($module['title']) ?>">
+                        <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($edit_module['title']) ?>" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description</label>
-                        <textarea name="description" class="form-control" rows="3"><?= htmlspecialchars($module['description'] ?? '') ?></textarea>
+                        <textarea name="description" class="form-control" rows="4"><?= htmlspecialchars($edit_module['description'] ?? '') ?></textarea>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Content</label>
-                        <textarea name="content" class="form-control" rows="8"><?= htmlspecialchars($module['content'] ?? '') ?></textarea>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Duration (minutes)</label>
-                            <input type="number" name="duration" class="form-control" min="1" value="<?= htmlspecialchars($module['duration_minutes'] ?? '') ?>">
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Status</label>
-                            <select name="status" class="form-control">
-                                <option value="draft" <?= $module['status'] == 'draft' ? 'selected' : '' ?>>Draft</option>
-                                <option value="published" <?= $module['status'] == 'published' ? 'selected' : '' ?>>Published</option>
-                                <option value="archived" <?= $module['status'] == 'archived' ? 'selected' : '' ?>>Archived</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Required</label>
-                            <div class="form-check mt-2">
-                                <input type="checkbox" name="is_required" class="form-check-input" id="isRequired" 
-                                       <?= $module['is_required'] ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="isRequired">This module is required</label>
-                            </div>
-                        </div>
+                        <label class="form-label fw-bold">Program Committee</label>
+                        <select name="committee_id" class="form-select">
+                            <option value="">-- Select Committee --</option>
+                            <?php 
+                            $display_committees = (is_superadmin() || is_admin()) ? $all_committees : $user_committees;
+                            if (!empty($display_committees)):
+                                foreach ($display_committees as $comm):
+                            ?>
+                                <option value="<?= $comm['id'] ?>" <?= ($edit_module['committee_id'] == $comm['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($comm['name']) ?>
+                                </option>
+                            <?php endforeach; endif; ?>
+                        </select>
+                        <small class="text-muted">Select the committee this module belongs to</small>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">PDF File</label>
+                        <label class="form-label fw-bold">Thumbnail (Max: <?= $max_upload_size ?>)</label>
+                        <input type="file" name="thumbnail" class="form-control" accept="image/jpeg,image/png,image/webm">
+                        <?php if ($edit_module['thumbnail']): ?>
+                            <small class="text-muted d-block mt-1">Current: <?= htmlspecialchars($edit_module['thumbnail']) ?> (leave empty to keep)</small>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">PDF File (Max: <?= $max_upload_size ?>)</label>
                         <input type="file" name="file_pdf" class="form-control" accept=".pdf">
-                        <?php if ($module['file_pdf']): ?>
-                            <small class="text-muted">Current file: <?= htmlspecialchars($module['file_pdf']) ?> (leave empty to keep)</small>
+                        <?php if ($edit_module['file_pdf']): ?>
+                            <small class="text-muted d-block mt-1">Current: <?= htmlspecialchars($edit_module['file_pdf']) ?> (leave empty to keep)</small>
                         <?php endif; ?>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Video File</label>
+                        <label class="form-label fw-bold">Video File (Max: <?= $max_upload_size ?>)</label>
                         <input type="file" name="file_video" class="form-control" accept="video/mp4,video/webm">
-                        <?php if ($module['file_video']): ?>
-                            <small class="text-muted">Current file: <?= htmlspecialchars($module['file_video']) ?> (leave empty to keep)</small>
+                        <?php if ($edit_module['file_video']): ?>
+                            <small class="text-muted d-block mt-1">Current: <?= htmlspecialchars($edit_module['file_video']) ?> (leave empty to keep)</small>
                         <?php endif; ?>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Additional Attachments</label>
-                        <input type="file" name="attachments[]" class="form-control" multiple>
-                        <small class="text-muted">Upload new attachments (existing ones will be kept)</small>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Update Module</button>
+                        <a href="module_crud.php" class="btn btn-secondary">Cancel</a>
                     </div>
-
-                    <button type="submit" class="btn btn-primary">Update Module</button>
-                    <a href="?act=view&module_id=<?= $module_id ?>" class="btn btn-info">View Module</a>
                 </form>
             </div>
 
-            <!-- Existing Attachments -->
-            <?php
-            $att_stmt = $pdo->prepare("SELECT * FROM module_attachments WHERE module_id = ? ORDER BY created_at DESC");
-            $att_stmt->execute([$module_id]);
-            $existing_attachments = $att_stmt->fetchAll();
-            ?>
+        <!-- Module List - Card View -->
+        <?php else: ?>
+            <div class="d-flex justify-content-end mb-3">
+            </div>
             
-            <?php if (!empty($existing_attachments)): ?>
-                <div class="card mt-4">
-                    <div class="card-header bg-secondary text-white">
-                        <h6 class="mb-0"><i class="fas fa-paperclip"></i> Existing Attachments</h6>
-                    </div>
-                    <div class="card-body">
-                        <?php foreach ($existing_attachments as $att): ?>
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                                <div>
-                                    <a href="<?= BASE_URL ?>/<?= $att['filepath'] ?>" target="_blank">
-                                        <?= htmlspecialchars($att['original_filename']) ?>
-                                    </a>
-                                    <br><small class="text-muted"><?= round($att['filesize'] / 1024, 2) ?> KB</small>
-                                </div>
-                                <a href="?act=delete_attachment&attachment_id=<?= $att['id'] ?>" 
-                                   class="btn btn-sm btn-danger"
-                                   onclick="return confirm('Delete this attachment?')">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+            <?php if (empty($modules)): ?>
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <p>No modules found. Click "Add New Module" to create your first module.</p>
                 </div>
-            <?php endif; ?>
-
-        <!-- View Module -->
-        <?php elseif ($act === 'view' && $module && $current_course): ?>
-            <div class="mb-3">
-                <a href="?act=list&course_id=<?= $current_course['id'] ?>" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Modules
-                </a>
-                <a href="?act=edit&module_id=<?= $module_id ?>" class="btn btn-primary ms-2">
-                    <i class="fas fa-edit"></i> Edit Module
-                </a>
-            </div>
-
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><?= htmlspecialchars($module['title']) ?></h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p><strong>Course:</strong> <?= htmlspecialchars($current_course['title']) ?></p>
-                            <p><strong>Status:</strong> 
-                                <span class="status-badge status-<?= $module['status'] ?>">
-                                    <?= ucfirst($module['status']) ?>
-                                </span>
-                            </p>
-                            <p><strong>Duration:</strong> <?= $module['duration_minutes'] ? $module['duration_minutes'] . ' minutes' : 'Not set' ?></p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Order:</strong> <?= $module['order_number'] ?></p>
-                            <p><strong>Required:</strong> <?= $module['is_required'] ? 'Yes' : 'No' ?></p>
-                            <p><strong>Created:</strong> <?= date('M d, Y', strtotime($module['created_at'])) ?></p>
-                            <?php if ($module['published_at']): ?>
-                                <p><strong>Published:</strong> <?= date('M d, Y', strtotime($module['published_at'])) ?></p>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <?php if ($module['description']): ?>
-                        <div class="mb-4">
-                            <h6>Description</h6>
-                            <div class="p-3 bg-light rounded">
-                                <?= nl2br(htmlspecialchars($module['description'])) ?>
+            <?php else: ?>
+                <div class="modern-courses-grid" id="modulesGrid">
+                    <?php foreach ($modules as $mod): ?>
+                        <div class="modern-course-card module-item" 
+                            data-module-title="<?= strtolower(htmlspecialchars($mod['title'])) ?>" 
+                            data-module-desc="<?= strtolower(htmlspecialchars($mod['description'] ?? '')) ?>">
+                            <div class="modern-card-img">
+                                <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($mod['thumbnail'] ?: 'placeholder.png') ?>" 
+                                    alt="<?= htmlspecialchars($mod['title']) ?>"
+                                    onerror="this.src='<?= BASE_URL ?>/uploads/images/placeholder.png'">
                             </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if ($module['content']): ?>
-                        <div class="mb-4">
-                            <h6>Content</h6>
-                            <div class="p-3 bg-light rounded">
-                                <?= nl2br(htmlspecialchars($module['content'])) ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if ($module['file_pdf'] || $module['file_video']): ?>
-                        <div class="mb-4">
-                            <h6>Module Files</h6>
-                            <div class="d-flex gap-2">
-                                <?php if ($module['file_pdf']): ?>
-                                    <a href="<?= BASE_URL ?>/uploads/pdf/<?= $module['file_pdf'] ?>" target="_blank" class="btn btn-outline-danger">
-                                        <i class="fas fa-file-pdf"></i> View PDF
+                            <div class="modern-card-body">
+                                <div class="modern-card-title">
+                                    <h6><?= htmlspecialchars($mod['title']) ?></h6>
+                                </div>
+                                <p><?= htmlspecialchars(substr($mod['description'] ?? '', 0, 100)) ?>...</p>
+                                
+                                <!-- Program Committee Badge -->
+                                <div class="committee-container">
+                                    <div class="committee-label">
+                                        Program Committee:
+                                    </div>
+                                    <div>
+                                        <?php if ($mod['committee_name']): ?>
+                                            <span class="committee-badge" style="background-color: #8227a9; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+                                                <?= htmlspecialchars($mod['committee_name']) ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted">—</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                
+                                <div class="modern-course-info mt-2">
+                                    <p><strong>Created by:</strong> <?= htmlspecialchars($mod['creator_name'] ?? 'Unknown') ?></p>
+                                    <p><strong>Created:</strong> <?= date('M d, Y', strtotime($mod['created_at'])) ?></p>
+                                </div>
+                                
+                                <div class="modern-card-actions">
+                                    <a href="../public/module_view.php?id=<?= $mod['id'] ?>" class="modern-btn-primary modern-btn-sm">
+                                        <i class="fas fa-eye"></i> View
                                     </a>
-                                <?php endif; ?>
-                                <?php if ($module['file_video']): ?>
-                                    <a href="<?= BASE_URL ?>/uploads/video/<?= $module['file_video'] ?>" target="_blank" class="btn btn-outline-primary">
-                                        <i class="fas fa-video"></i> View Video
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Resources Section -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
-                    <h6 class="mb-0"><i class="fas fa-link"></i> Resources</h6>
-                    <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addResourceForm">
-                        <i class="fas fa-plus"></i> Add Resource
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="collapse mb-3" id="addResourceForm">
-                        <form method="post" action="?act=add_resource&module_id=<?= $module_id ?>">
-                            <div class="row">
-                                <div class="col-md-4 mb-2">
-                                    <input type="text" name="title" class="form-control form-control-sm" placeholder="Title" required>
-                                </div>
-                                <div class="col-md-3 mb-2">
-                                    <input type="url" name="url" class="form-control form-control-sm" placeholder="URL" required>
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <select name="type" class="form-control form-control-sm">
-                                        <option value="link">Link</option>
-                                        <option value="video">Video</option>
-                                        <option value="document">Document</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3 mb-2">
-                                    <button type="submit" class="btn btn-sm btn-primary w-100">Add</button>
-                                </div>
-                            </div>
-                            <div class="mb-2">
-                                <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description (optional)"></textarea>
-                            </div>
-                        </form>
-                    </div>
-
-                    <?php if (empty($module_resources)): ?>
-                        <p class="text-muted mb-0">No resources added yet.</p>
-                    <?php else: ?>
-                        <?php foreach ($module_resources as $resource): ?>
-                            <div class="resource-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <a href="<?= htmlspecialchars($resource['url']) ?>" target="_blank">
-                                        <?= htmlspecialchars($resource['title']) ?>
-                                    </a>
-                                    <?php if ($resource['description']): ?>
-                                        <br><small class="text-muted"><?= htmlspecialchars($resource['description']) ?></small>
+                                    <?php if (canModifyModule($mod['id'], $pdo)): ?>
+                                        <a href="?act=edit&id=<?= $mod['id'] ?>" class="modern-btn-warning modern-btn-sm">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                        <a href="?act=delete&id=<?= $mod['id'] ?>" class="modern-btn-danger modern-btn-sm" 
+                                        onclick="return confirm('Delete this module? This action cannot be undone.')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </a>
                                     <?php endif; ?>
                                 </div>
-                                <div>
-                                    <span class="badge bg-secondary me-2"><?= $resource['type'] ?></span>
-                                    <a href="?act=delete_resource&resource_id=<?= $resource['id'] ?>" 
-                                       class="btn btn-sm btn-danger"
-                                       onclick="return confirm('Delete this resource?')">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                </div>
                             </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Attachments Section -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
-                    <h6 class="mb-0"><i class="fas fa-paperclip"></i> Attachments</h6>
-                    <button class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#addAttachmentForm">
-                        <i class="fas fa-plus"></i> Add Attachment
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="collapse mb-3" id="addAttachmentForm">
-                        <form method="post" enctype="multipart/form-data" action="?act=edit&module_id=<?= $module_id ?>">
-                            <div class="mb-2">
-                                <input type="file" name="attachments[]" class="form-control form-control-sm" multiple>
-                                <small class="text-muted">You can select multiple files</small>
-                            </div>
-                            <button type="submit" name="add_attachments" class="btn btn-sm btn-primary">Upload</button>
-                        </form>
-                    </div>
-
-                    <?php if (empty($module_attachments)): ?>
-                        <p class="text-muted mb-0">No attachments yet.</p>
-                    <?php else: ?>
-                        <?php foreach ($module_attachments as $attachment): ?>
-                            <div class="attachment-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <a href="<?= BASE_URL ?>/<?= $attachment['filepath'] ?>" target="_blank">
-                                        <?= htmlspecialchars($attachment['original_filename']) ?>
-                                    </a>
-                                    <br><small class="text-muted"><?= round($attachment['filesize'] / 1024, 2) ?> KB</small>
-                                </div>
-                                <a href="?act=delete_attachment&attachment_id=<?= $attachment['id'] ?>" 
-                                   class="btn btn-sm btn-danger"
-                                   onclick="return confirm('Delete this attachment?')">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-        <!-- Default View - Show course selection -->
-        <?php else: ?>
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Module Management</h5>
-                </div>
-                <div class="card-body">
-                    <p class="mb-3">Select a course to manage its modules:</p>
-                    <?php if (empty($courses)): ?>
-                        <p class="text-muted">No courses available. <a href="courses_crud.php?act=addform">Create a course first</a>.</p>
-                    <?php else: ?>
-                        <div class="list-group">
-                            <?php foreach ($courses as $course): ?>
-                                <a href="?act=list&course_id=<?= $course['id'] ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <?= htmlspecialchars($course['title']) ?>
-                                    <?php
-                                    $count_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM modules WHERE course_id = ?");
-                                    $count_stmt->execute([$course['id']]);
-                                    $count = $count_stmt->fetch(PDO::FETCH_ASSOC)['count'];
-                                    ?>
-                                    <span class="badge bg-primary rounded-pill"><?= $count ?> modules</span>
-                                </a>
-                            <?php endforeach; ?>
                         </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
-            </div>
+                
+                <!-- No Results Template -->
+                <div class="no-results" id="noResults" style="display: none;">
+                    <i class="fas fa-search"></i>
+                    <h5>No modules found</h5>
+                    <p>Try adjusting your search term</p>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
@@ -1066,11 +648,48 @@ $max_upload_size = ini_get('upload_max_filesize');
 <script>
     // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {
-        document.querySelectorAll('.alert').forEach(function(alert) {
-            let bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
+        let alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            alert.style.transition = 'opacity 0.5s';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
         });
     }, 5000);
+    
+    // Real-time search for modules
+    const searchInput = document.getElementById('moduleSearch');
+    const modulesGrid = document.getElementById('modulesGrid');
+    const noResults = document.getElementById('noResults');
+    const moduleItems = document.querySelectorAll('.module-item');
+    
+    if (searchInput && modulesGrid) {
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            let visibleCount = 0;
+            
+            moduleItems.forEach(item => {
+                const moduleTitle = item.getAttribute('data-module-title') || '';
+                const moduleDesc = item.getAttribute('data-module-desc') || '';
+                
+                if (moduleTitle.includes(searchTerm) || moduleDesc.includes(searchTerm) || searchTerm === '') {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            if (noResults) {
+                if (visibleCount === 0) {
+                    noResults.style.display = 'block';
+                    modulesGrid.style.display = 'none';
+                } else {
+                    noResults.style.display = 'none';
+                    modulesGrid.style.display = 'grid';
+                }
+            }
+        });
+    }
 </script>
 </body>
 </html>

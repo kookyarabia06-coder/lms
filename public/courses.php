@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_login();
-
 // PLSSSSSS WAG GALAWIN UNG DEPARTMENT HAHAHAHAHAH
 $user = $_SESSION['user'];
 $userId = $user['id'] ?? 0;
@@ -29,7 +28,7 @@ $hasReachedCourseLimit = $ongoingCount >= MAX_CONCURRENT_COURSES;
 $availableSlots = MAX_CONCURRENT_COURSES - $ongoingCount;
 
 // Build the WHERE clause based on filter
-$whereConditions = ["c.is_active = 1"];
+$whereConditions = ["c.is_active = 1", "c.status = 'approved'"]; // Only show approved courses
 $params = [$userId];
 
 if ($filter !== 'all') {

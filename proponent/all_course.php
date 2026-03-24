@@ -22,11 +22,12 @@ try {
     }
 }
 
-// IMPORTANT FIX: Show ALL courses to everyone
+// Show ALL courses but filter by status - only approved courses
 $stmt = $pdo->query("
     SELECT c.*, u.username 
     FROM courses c 
     LEFT JOIN users u ON c.proponent_id = u.id 
+    WHERE c.status = 'approved'
     ORDER BY c.updated_at DESC, c.created_at DESC
 ");
 $courses = $stmt->fetchAll();
@@ -37,7 +38,7 @@ foreach ($courses as &$course) {
         $comm_stmt = $pdo->prepare("
             SELECT c.id, c.name 
             FROM committees c
-            INNER JOIN course_departments cd ON c.id = cd.committee_id
+            INNER JOIN course_departments cd ON c.id = cd.department_id
             WHERE cd.course_id = :course_id
             ORDER BY c.name
         ");

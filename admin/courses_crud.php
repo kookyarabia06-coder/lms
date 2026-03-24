@@ -1,5 +1,4 @@
 <?php
-
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 
@@ -81,14 +80,12 @@ function calculateExpiry($expires_at, $valid_days) {
  */
 function uploadFile($input, $dir, $allowed = [], $max_size = MAX_FILE_SIZE) {
     if (!isset($_FILES[$input]) || $_FILES[$input]['error'] !== UPLOAD_ERR_OK) {
-        // Check for specific upload errors
         if (isset($_FILES[$input]['error']) && $_FILES[$input]['error'] === UPLOAD_ERR_INI_SIZE) {
             $_SESSION['error_message'] = "The uploaded file exceeds the maximum file size.";
         }
         return null;
     }
 
-    // Check file size
     if ($_FILES[$input]['size'] > $max_size) {
         $_SESSION['error_message'] = "File is too large. Maximum size is " . ($max_size / 1024 / 1024) . "MB.";
         return null;
@@ -103,7 +100,6 @@ function uploadFile($input, $dir, $allowed = [], $max_size = MAX_FILE_SIZE) {
     $filename = bin2hex(random_bytes(8)) . '.' . $ext;
     $upload_dir = __DIR__ . "/../uploads/$dir/";
     
-    // Create directory if it doesn't exist
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0777, true);
     }
@@ -336,7 +332,7 @@ if ($act === 'delete' && $id) {
 
     // Get file names to delete
     $stmt = $pdo->prepare("SELECT thumbnail, file_pdf, file_video FROM courses WHERE id = :id");
-    $stmt->execute([':id' => $id]);
+    $stmt->execute([$id]);
     $files = $stmt->fetch();
 
     // Delete files from server
@@ -353,7 +349,7 @@ if ($act === 'delete' && $id) {
     }
 
     $stmt = $pdo->prepare("DELETE FROM courses WHERE id = :id");
-    $stmt->execute([':id' => $id]);
+    $stmt->execute([$id]);
     
     $_SESSION['success_message'] = 'Course deleted successfully!';
     header('Location: courses_crud.php');
@@ -372,7 +368,7 @@ if (is_proponent() && !is_admin() && !is_superadmin()) {
         FROM courses c 
         LEFT JOIN users u ON c.proponent_id = u.id 
         WHERE c.proponent_id = :user_id
-        ORDER BY c.updated_at DESC, c.created_at DESC
+        ORDER BY c.created_at DESC
     ";
     $stmt = $pdo->prepare($query);
     $stmt->execute([':user_id' => $_SESSION['user']['id']]);
@@ -382,7 +378,7 @@ if (is_proponent() && !is_admin() && !is_superadmin()) {
         SELECT c.*, u.username 
         FROM courses c 
         LEFT JOIN users u ON c.proponent_id = u.id 
-        ORDER BY c.updated_at DESC, c.created_at DESC
+        ORDER BY c.created_at DESC
     ";
     $stmt = $pdo->prepare($query);
     $stmt->execute();
@@ -766,7 +762,7 @@ $max_post_size = ini_get('post_max_size');
                     <!-- Display committees -->
                     <?php if (!empty($c['committees'])): ?>
                         <div class="committee-container">
-                            <strong>Program Committee:</strong><br>
+                            <strong>Committees:</strong><br>
                             <?php foreach ($c['committees'] as $comm): ?>
                                 <span class="committee-badge" style="background-color: #8227a9; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; margin: 2px; display: inline-block;">
                                     <?= htmlspecialchars($comm['name']) ?>
@@ -782,10 +778,6 @@ $max_post_size = ini_get('post_max_size');
                             ? date('M d, Y', strtotime($c['expires_at']))
                             : 'No expiry';
                         $isExpired = !empty($c['expires_at']) && strtotime($c['expires_at']) <= time();
-
-                        $updatedDate = !empty($c['updated_at']) 
-                            ? date('M d, Y h:i A', strtotime($c['updated_at'])) 
-                            : 'Never';
                         ?>
                         <p><strong>Created by:</strong> <?= htmlspecialchars($c['username'] ?? 'Unknown') ?></p>
                         <p><strong>Start:</strong> <span><?= $startDate ?></span></p>
@@ -794,14 +786,6 @@ $max_post_size = ini_get('post_max_size');
                                 <?= $expiryDate ?>
                                 <?php if($isExpired): ?>
                                     <i class="fas fa-exclamation-circle" title="Expired"></i>
-                                <?php endif; ?>
-                            </span>
-                        </p>
-                        <p><strong>Last Edited:</strong> 
-                            <span class="<?= $c['updated_at'] ? 'text-primary' : 'text-muted' ?>">
-                                <?= $updatedDate ?>
-                                <?php if($c['updated_at']): ?>
-                                    <i class="fas fa-pen-alt ms-1" style="font-size: 11px;"></i>
                                 <?php endif; ?>
                             </span>
                         </p>
@@ -877,119 +861,6 @@ document.addEventListener('DOMContentLoaded', function () {
             bsAlert.close();
         }, 5000);
     });
-
-    // ===== UNSAVED CHANGES PRESERVATION =====
-    const courseForm = document.querySelector('form[enctype="multipart/form-data"]');
-    
-    if (courseForm) {
-        // Save form data to sessionStorage when user clicks the Manage Assessments link
-        const manageAssessmentsLink = document.querySelector('a[href*="assessment_crud.php"]');
-        if (manageAssessmentsLink) {
-            manageAssessmentsLink.addEventListener('click', function(e) {
-                // Store form data
-                const formData = {
-                    title: document.querySelector('input[name="title"]')?.value || '',
-                    description: document.querySelector('input[name="description"]')?.value || '',
-                    summary: document.querySelector('textarea[name="summary"]')?.value || '',
-                    expires_at: document.querySelector('input[name="expires_at"]')?.value || '',
-                    valid_days: document.querySelector('input[name="valid_days"]')?.value || '',
-                    committees: Array.from(document.querySelector('select[name="committees[]"]')?.selectedOptions || []).map(opt => opt.value)
-                };
-                
-                sessionStorage.setItem('pending_course_data', JSON.stringify(formData));
-                sessionStorage.setItem('pending_course_id', '<?= $id ?? '' ?>');
-                sessionStorage.setItem('pending_course_action', '<?= $act ?? '' ?>');
-                
-                // Allow the link to continue
-                return true;
-            });
-        }
-        
-        // Check if we have pending data to restore
-        const pendingData = sessionStorage.getItem('pending_course_data');
-        const pendingId = sessionStorage.getItem('pending_course_id');
-        const pendingAction = sessionStorage.getItem('pending_course_action');
-        
-        if (pendingData && pendingId == '<?= $id ?? '' ?>' && pendingAction == '<?= $act ?? '' ?>') {
-            try {
-                const restoredData = JSON.parse(pendingData);
-                
-                // Restore form fields
-                const titleInput = document.querySelector('input[name="title"]');
-                if (titleInput) titleInput.value = restoredData.title || '';
-                
-                const descInput = document.querySelector('input[name="description"]');
-                if (descInput) descInput.value = restoredData.description || '';
-                
-                const summaryTextarea = document.querySelector('textarea[name="summary"]');
-                if (summaryTextarea) summaryTextarea.value = restoredData.summary || '';
-                
-                const expiresInput = document.querySelector('input[name="expires_at"]');
-                if (expiresInput) expiresInput.value = restoredData.expires_at || '';
-                
-                const daysInput = document.querySelector('input[name="valid_days"]');
-                if (daysInput) daysInput.value = restoredData.valid_days || '';
-                
-                // Restore committee selection
-                const commSelect = document.querySelector('select[name="committees[]"]');
-                if (commSelect && restoredData.committees && Array.isArray(restoredData.committees)) {
-                    Array.from(commSelect.options).forEach(opt => {
-                        opt.selected = restoredData.committees.includes(opt.value);
-                    });
-                }
-                
-                // Clear the stored data
-                sessionStorage.removeItem('pending_course_data');
-                sessionStorage.removeItem('pending_course_id');
-                sessionStorage.removeItem('pending_course_action');
-                
-                // Insert at the top of the wrapper
-                const wrapper = document.querySelector('.modern-courses-wrapper');
-                if (wrapper) {
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-info alert-dismissible fade show';
-                    alertDiv.innerHTML = `
-                        <i class="fas fa-info-circle"></i> Your unsaved changes have been restored.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
-                    wrapper.insertBefore(alertDiv, wrapper.querySelector('.card'));
-                    
-                    // Auto-dismiss after 5 seconds
-                    setTimeout(function() {
-                        const bsAlert = new bootstrap.Alert(alertDiv);
-                        bsAlert.close();
-                    }, 5000);
-                }
-            } catch (e) {
-                console.error('Error restoring form data:', e);
-            }
-        }
-    }
-
-    // Check for return from assessment_crud.php
-    const returnMessage = sessionStorage.getItem('return_from_assessment');
-    if (returnMessage) {
-        sessionStorage.removeItem('return_from_assessment');
-        
-        // Show a message that they need to save the course
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-warning alert-dismissible fade show';
-        alertDiv.innerHTML = `
-            <i class="fas fa-exclamation-triangle"></i> Remember to save your course changes!
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        const wrapper = document.querySelector('.modern-courses-wrapper');
-        if (wrapper) {
-            wrapper.insertBefore(alertDiv, wrapper.querySelector('.card'));
-            
-            // Auto-dismiss after 5 seconds
-            setTimeout(function() {
-                const bsAlert = new bootstrap.Alert(alertDiv);
-                bsAlert.close();
-            }, 5000);
-        }
-    }
 });
 </script>
 

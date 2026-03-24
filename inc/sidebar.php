@@ -19,6 +19,21 @@ function get_role_icon($role = '') {
     return $icons[$role] ?? 'fa-user';
 }
 
+// Get pending courses count for admin/superadmin
+$pendingCoursesCount = 0;
+if (is_admin() || is_superadmin()) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM courses WHERE status = 'pending'");
+    $stmt->execute();
+    $pendingCoursesCount = $stmt->fetchColumn();
+}
+
+// Get pending users count for admin/superadmin
+$pendingUsersCount = 0;
+if (is_admin() || is_superadmin()) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE status = 'pending'");
+    $stmt->execute();
+    $pendingUsersCount = $stmt->fetchColumn();
+}
 ?>
 
 <!doctype html>
@@ -31,6 +46,7 @@ function get_role_icon($role = '') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/sidebar.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </head>
 <body>
     <div class="lms-sidebar-container"> 
@@ -85,11 +101,16 @@ function get_role_icon($role = '') {
                             <i class="fa fa-sliders"></i> Manage Courses
                         </a>
                     </li>
+                    <?php if($u && (is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/admin/module_crud.php">
-                            <i class="fa fa-sliders"></i> Manage Modules
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/pending_courses.php">
+                            <i class="fa fa-book-open-reader"></i> Pending Courses
+                            <?php if ($pendingCoursesCount > 0): ?>
+                                <span class="notification-badge"><?= $pendingCoursesCount ?></span>
+                            <?php endif; ?>
                         </a>
                     </li>
+                    <?php endif; ?>
                 <?php else: ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/public/courses.php">
@@ -114,6 +135,15 @@ function get_role_icon($role = '') {
                     </li>
                 <?php endif; ?>
 
+                <!-- MODULE MANAGEMENT SECTION -->
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/admin/module_crud.php">
+                        <i class="fa fa-cubes"></i> Manage Modules
+                    </a>
+                </li>
+                <?php endif; ?>
+
                 <!-- USER MANAGEMENT SECTION -->
                 <?php if($u && (is_admin() || is_superadmin())): ?>
                 <li class="nav-item" style="margin-top: 15px;">
@@ -126,17 +156,15 @@ function get_role_icon($role = '') {
                 <?php if($u && (is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/admin/users_crud.php">
-                            <i class="fa fa-user-gear"></i> User List
+                            <i class="fa fa-user"></i> User List
+                            <?php if ($pendingUsersCount > 0): ?>
+                                <span class="notification-badge"><?= $pendingUsersCount ?></span>
+                            <?php endif; ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/admin/Departments_crud.php">
-                            <i class="fa fa-building-user"></i> Departments
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/admin/committee_crud.php">
-                            <i class="fa fa-users-gear"></i> Committee
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/deptcommittee_crud.php">
+                            <i class="fa fa-building-user"></i> Departments & Committees
                         </a>
                     </li>
                 <?php endif; ?>
@@ -145,6 +173,13 @@ function get_role_icon($role = '') {
                 <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-divider"></li>
                 <?php endif; ?>
+
+                <!-- TRAINING REQUEST SECTION -->
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
+                        <i class="fa fa-clipboard-list"></i> Training Request
+                    </a>
+                </li>
 
                 <!-- News -->
                 <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>

@@ -15,8 +15,8 @@ $stmt = $pdo->prepare("
     WHERE c.is_active = 1
     ORDER BY c.id DESC
 ");
- $stmt->execute([$userId]);
- $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt->execute([$userId]);
+$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate counters
 $counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
@@ -25,6 +25,40 @@ foreach ($courses as $c) {
     elseif ($c['enroll_status'] === 'ongoing') $counter['ongoing']++;
     elseif ($c['enroll_status'] === 'completed') $counter['completed']++;
 }
+
+// Fetch modules with progress for current user
+$stmt = $pdo->prepare("
+    SELECT m.id, m.title, m.description, m.thumbnail, m.committee_id, 
+           c.name as committee_name,
+           mp.pdf_completed, mp.video_completed,
+           mp.pdf_progress, mp.video_progress,
+           -- Calculate overall progress for the module
+           CASE 
+               WHEN m.file_pdf IS NOT NULL AND m.file_video IS NOT NULL THEN 
+                   ROUND((COALESCE(mp.pdf_progress, 0) + COALESCE(mp.video_progress, 0)) / 2)
+               WHEN m.file_pdf IS NOT NULL THEN 
+                   COALESCE(mp.pdf_progress, 0)
+               WHEN m.file_video IS NOT NULL THEN 
+                   COALESCE(mp.video_progress, 0)
+               ELSE 0
+           END AS module_progress,
+           CASE 
+               WHEN (m.file_pdf IS NOT NULL AND m.file_video IS NOT NULL AND mp.pdf_completed = 1 AND mp.video_completed = 1) THEN 'completed'
+               WHEN (m.file_pdf IS NOT NULL AND m.file_video IS NOT NULL AND (mp.pdf_completed = 1 OR mp.video_completed = 1)) THEN 'ongoing'
+               WHEN (m.file_pdf IS NOT NULL AND mp.pdf_completed = 1) THEN 'completed'
+               WHEN (m.file_video IS NOT NULL AND mp.video_completed = 1) THEN 'completed'
+               WHEN (m.file_pdf IS NOT NULL AND mp.pdf_progress > 0) THEN 'ongoing'
+               WHEN (m.file_video IS NOT NULL AND mp.video_progress > 0) THEN 'ongoing'
+               ELSE 'not_started'
+           END AS module_status
+    FROM modules m
+    LEFT JOIN committees c ON m.committee_id = c.id
+    LEFT JOIN module_progress mp ON m.id = mp.module_id AND mp.user_id = ?
+    ORDER BY m.created_at DESC
+    LIMIT 8
+");
+$stmt->execute([$userId]);
+$modules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch news/announcements
 try {
@@ -46,35 +80,51 @@ try {
 // Check if user is admin or superadmin
 $isAdmin = is_admin() || is_superadmin();
 
-// Fetch mini audit trail for admin users
+// Fetch mini audit trail for admin users - FIXED QUERY
 $audit_entries = [];
 if ($isAdmin) {
     try {
         // Check if audit_log table exists
         $pdo->query("SELECT 1 FROM audit_log LIMIT 1");
         
-        // Get recent audit entries for courses
+        // Get recent audit entries - show all actions, not just courses
         $auditStmt = $pdo->prepare("
             SELECT 
-                a.created_at as audit_time,
-                a.action as audit_action,
+                a.id,
+                a.table_name,
                 a.record_id,
+                a.action,
                 a.user_id,
-                COALESCE(c.title, 'Deleted Course') as course_title,
+                a.created_at as audit_time,
                 u.username as user_name,
-                u.role as user_role
+                u.role as user_role,
+                -- Try to get a meaningful description based on table_name
+                CASE 
+                    WHEN a.table_name = 'courses' THEN 
+                        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.title')), 'Course')
+                    WHEN a.table_name = 'users' THEN 
+                        CONCAT('User ', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.username')), ''))
+                    WHEN a.table_name = 'departments' THEN 
+                        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.name')), 'Department')
+                    WHEN a.table_name = 'depts' THEN 
+                        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.name')), 'Department')
+                    WHEN a.table_name = 'committees' THEN 
+                        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.name')), 'Committee')
+                    WHEN a.table_name = 'modules' THEN 
+                        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.new_data, '$.title')), 'Module')
+                    ELSE 
+                        CONCAT(a.table_name, ' ID: ', a.record_id)
+                END AS record_name
             FROM audit_log a
-            LEFT JOIN courses c ON a.record_id = c.id AND a.table_name = 'courses'
             LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.table_name = 'courses'
-            AND a.action IN ('INSERT', 'UPDATE', 'DELETE')
             ORDER BY a.created_at DESC
-            LIMIT 5
+            LIMIT 8
         ");
         $auditStmt->execute();
         $audit_entries = $auditStmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         // Audit table doesn't exist or other error
+        error_log("Audit fetch error: " . $e->getMessage());
         $audit_entries = [];
     }
 }
@@ -86,557 +136,83 @@ if ($isAdmin) {
     <title>LMS Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/dashboard.css" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="32x32" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-   <style>
-    /* Mini audit trail styles */
-    .audit-table-mini {
-        font-size: 13px;
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 6px;
-    }
-
-    .audit-table-mini th {
-        background: #f8f9fa;
-        font-weight: 700;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        color: #495057;
-        padding: 12px 15px;
-        border-bottom: 2px solid #dee2e6;
-        white-space: nowrap;
-    }
-
-    .audit-table-mini td {
-        padding: 14px 15px;
-        vertical-align: middle;
-        background-color: #ffffff;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .audit-table-mini tbody tr {
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    }
-
-    .audit-table-mini tbody tr:hover {
-        background-color: #f8f9fa;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    .audit-table-mini tbody tr td:first-child {
-        border-radius: 8px 0 0 8px;
-    }
-
-    .audit-table-mini tbody tr td:last-child {
-        border-radius: 0 8px 8px 0;
-    }
-
-    .audit-badge-mini {
-        padding: 4px 8px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        letter-spacing: 0.1px;
-    }
-
-    .audit-badge-insert {
-        background: #28a745;
-        color: white;
-        border: none;
-    }
-
-    .audit-badge-update {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeeba;
-    }
-
-    .audit-badge-delete {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-    }
-
-    .view-all-link {
-        font-size: 12px;
-        padding: 6px 12px;
-        background: #f8f9fa;
-        border-radius: 6px;
-        color: #495057;
-        text-decoration: none;
-        transition: all 0.3s;
-        border: 1px solid #dee2e6;
-    }
-
-    .view-all-link:hover {
-        background: #e9ecef;
-        color: #212529;
-        border-color: #ced4da;
-    }
-
-    .view-all-btn {
-        font-size: 13px;
-        padding: 8px 20px;
-        background: #f8f9fa;
-        border-radius: 6px;
-        color: #495057;
-        text-decoration: none;
-        display: inline-block;
-        transition: all 0.3s;
-        border: 1px solid #dee2e6;
-    }
-
-    .view-all-btn:hover {
-        background: #e9ecef;
-        color: #212529;
-        border-color: #ced4da;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-
-    /* Stats Cards - Minimized (for both admin and users) */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 15px;
-        margin-bottom: 25px;
-    }
-
-    .stat-card {
-        background: linear-gradient(145deg, #ffffff, #f8fafc);
-        border-radius: 10px;
-        padding: 15px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e2e8f0;
-        transition: all 0.3s ease;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-    }
-
-    .stat-number {
-        font-size: 32px;
-        font-weight: 700;
-        margin-bottom: 5px;
-        line-height: 1;
-    }
-
-    .stat-label {
-        font-size: 14px;
-        color: #64748b;
-        font-weight: 500;
-    }
-
-    /* Card Colors */
-    .stat-card-ongoing .stat-number {
-        background: linear-gradient(135deg, #ffc107, #ffd54f);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .stat-card-completed .stat-number {
-        background: linear-gradient(135deg, #28a745, #34d058);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .stat-card-notenrolled .stat-number {
-        background: linear-gradient(135deg, #3498db, #1a75d2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    /* Scrollable Column Styles - For ALL scrollable columns */
-    .scrollable-column {
-        max-height: 450px;
-        overflow-y: auto;
-        padding-right: 5px;
-        scrollbar-width: thin;
-        -ms-overflow-style: auto;
-        transition: scrollbar-color 0.3s ease;
-    }
-
-    /* Webkit scrollbar styles for scrollable columns */
-    .scrollable-column::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-        transition: all 0.3s ease;
-    }
-
-    .scrollable-column::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .scrollable-column::-webkit-scrollbar-thumb {
-        background: #888;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .scrollable-column::-webkit-scrollbar-thumb:hover {
-        background: #555;
-    }
-
-    /* Class to hide scrollbar */
-    .scrollable-column.scrollbar-hidden {
-        scrollbar-width: none !important; /* Firefox */
-        -ms-overflow-style: none !important; /* IE/Edge */
-    }
-
-    .scrollable-column.scrollbar-hidden::-webkit-scrollbar {
-        display: none !important; /* Chrome/Safari/Opera */
-    }
-
-    /* Courses and Recent Courses - NOW SCROLLABLE */
-    .courses-column-list,
-    .recent-column-list {
-        max-height: 450px;
-        overflow-y: auto;
-        padding-right: 5px;
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    /* Two Column Layout for Admin */
-    .dashboard-two-column {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        margin-top: 20px;
-    }
-
-    /* Three Column Layout for Users */
-    .dashboard-three-column {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 20px;
-        margin-top: 20px;
-    }
-
-    /* Column Cards */
-    .column-card {
-        background: linear-gradient(145deg, #ffffff, #f8fafc);
-        border-radius: 16px;
-        padding: 25px;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-        border: 1px solid #e2e8f0;
-        height: fit-content;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .column-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e2e8f0;
-    }
-
-    .column-header h3 {
-        font-size: 18px;
-        font-weight: 600;
-        color: #1e3c72;
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .column-header h3 i {
-        color: #3498db;
-    }
-
-    /* News Column Items */
-    .news-column-item {
-        padding: 12px 0;
-        border-bottom: 1px solid #f1f5f9;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-    }
-
-    .news-column-item:last-child {
-        border-bottom: none;
-    }
-
-    .news-column-item:hover {
-        background: rgba(52, 152, 219, 0.05);
-        border-radius: 8px;
-        padding-left: 10px;
-        padding-right: 10px;
-    }
-
-    .news-column-item h5 {
-        font-size: 15px;
-        font-weight: 600;
-        color: #1e3c72;
-        margin-bottom: 5px;
-        padding-right: 25px;
-    }
-
-    .news-column-content {
-        font-size: 12px;
-        color: #64748b;
-        margin-bottom: 8px;
-        line-height: 1.5;
-    }
-
-    .news-column-meta {
-        display: flex;
-        gap: 12px;
-        font-size: 11px;
-        color: #94a3b8;
-    }
-
-    .news-column-expand {
-        position: absolute;
-        top: 12px;
-        right: 5px;
-        color: #3498db;
-        font-size: 11px;
-    }
-
-    /* Courses in Column - NOW SCROLLABLE */
-    .courses-column-list {
-        max-height: 400px;
-        overflow-y: auto;
-        padding-right: 5px;
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .course-column-item {
-        display: flex;
-        gap: 12px;
-        text-decoration: none;
-        color: inherit;
-        padding: 10px;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-        background: white;
-        border: 1px solid #e2e8f0;
-        flex-shrink: 0;
-    }
-
-    .course-column-item:hover {
-        transform: translateX(5px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        background: #f8fafc;
-    }
-
-    .course-column-img {
-        width: 70px;
-        height: 70px;
-        border-radius: 8px;
-        overflow: hidden;
-        flex-shrink: 0;
-    }
-
-    .course-column-img img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .course-column-info {
-        flex: 1;
-    }
-
-    .course-column-info h5 {
-        font-size: 15px;
-        font-weight: 600;
-        color: #1e3c72;
-        margin: 0 0 5px 0;
-        line-height: 1.3;
-    }
-
-    .course-column-info p {
-        font-size: 12px;
-        color: #64748b;
-        margin: 0 0 5px 0;
-        line-height: 1.4;
-    }
-
-    .course-column-badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 20px;
-        font-size: 10px;
-        font-weight: 600;
-    }
-
-    /* Recent Courses Column - NOW SCROLLABLE */
-    .recent-column-list {
-        max-height: 400px;
-        overflow-y: auto;
-        padding-right: 5px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .recent-column-item {
-        display: flex;
-        gap: 12px;
-        text-decoration: none;
-        color: inherit;
-        padding: 10px;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-        background: white;
-        border: 1px solid #e2e8f0;
-        flex-shrink: 0;
-    }
-
-    .recent-column-item:hover {
-        transform: translateX(3px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    }
-
-    .recent-column-img {
-        width: 50px;
-        height: 50px;
-        border-radius: 6px;
-        overflow: hidden;
-        flex-shrink: 0;
-    }
-
-    .recent-column-img img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .recent-column-info {
-        flex: 1;
-    }
-
-    .recent-column-info h6 {
-        font-size: 14px;
-        font-weight: 600;
-        color: #1e3c72;
-        margin: 0 0 3px 0;
-        line-height: 1.3;
-    }
-
-    .recent-column-meta {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 11px;
-    }
-
-    .recent-column-badge {
-        padding: 2px 6px;
-        border-radius: 20px;
-        font-size: 9px;
-        font-weight: 600;
-    }
-
-    .badge-ongoing {
-        background: linear-gradient(135deg, #ffc107, #ffd54f);
-        color: #1a202c;
-    }
-
-    .badge-completed {
-        background: linear-gradient(135deg, #28a745, #34d058);
-        color: white;
-    }
-
-    .badge-notenrolled {
-        background: linear-gradient(135deg, #3498db, #1a75d2);
-        color: white;
-    }
-
-    .recent-progress {
-        color: #64748b;
-    }
-
-    /* Empty State for Columns */
-    .column-empty-state {
-        text-align: center;
-        padding: 30px 15px;
-        color: #94a3b8;
-    }
-
-    .column-empty-state i {
-        font-size: 36px;
-        margin-bottom: 10px;
-        opacity: 0.5;
-    }
-
-    .column-empty-state h6 {
-        color: #64748b;
-        margin-bottom: 5px;
-        font-size: 14px;
-    }
-
-    .column-empty-state p {
-        font-size: 12px;
-        margin: 0;
-    }
-
-    /* Audit trail scrollbar if needed */
-    .audit-content-scroll {
-        max-height: 300px;
-        overflow-y: auto;
-        scrollbar-width: thin;
-    }
-
-    .audit-content-scroll::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .audit-content-scroll::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-
-    .audit-content-scroll::-webkit-scrollbar-thumb {
-        background: #888;
-        border-radius: 10px;
-    }
-
-    /* Responsive */
-    @media (max-width: 1200px) {
-        .dashboard-three-column,
-        .dashboard-two-column {
-            grid-template-columns: 1fr 1fr;
+    <style>
+        /* Additional module progress badge styles */
+        .badge-ongoing {
+            background: #ffc107;
+            color: #1a202c;
         }
-    }
-
-    @media (max-width: 768px) {
-        .dashboard-three-column,
-        .dashboard-two-column {
-            grid-template-columns: 1fr;
+        .badge-completed {
+            background: #28a745;
+            color: white;
+        }
+        .badge-notenrolled {
+            background: #3498db;
+            color: white;
+        }
+        .badge-not_started {
+            background: #6c757d;
+            color: white;
         }
         
-        .courses-column-list,
-        .recent-column-list,
-        .news-column-list {
-            max-height: 350px;
+        /* Audit trail specific styles */
+        .audit-table-mini {
+            font-size: 12px;
+            width: 100%;
         }
-    }
-</style>
+        
+        .audit-table-mini th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #495057;
+            padding: 8px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .audit-table-mini td {
+            padding: 10px 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .audit-badge-mini {
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .audit-badge-insert {
+            background: #28a745;
+            color: white;
+        }
+        
+        .audit-badge-update {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .audit-badge-delete {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .audit-content-scroll {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
     <!-- Sidebar -->
@@ -726,7 +302,7 @@ if ($isAdmin) {
                                 <thead>
                                     <tr>
                                         <th>Date/Time</th>
-                                        <th>Course</th>
+                                        <th>Item</th>
                                         <th>Action</th>
                                         <th>User</th>
                                     </tr>
@@ -741,15 +317,16 @@ if ($isAdmin) {
                                                 ?>
                                             </td>
                                             <td>
-                                                <strong><?= htmlspecialchars($entry['course_title']) ?></strong>
+                                                <strong><?= htmlspecialchars($entry['record_name']) ?></strong>
+                                                <br><small class="text-muted"><?= htmlspecialchars($entry['table_name']) ?></small>
                                             </td>
                                             <td>
-                                                <span class="audit-badge-mini audit-badge-<?= strtolower($entry['audit_action']) ?>">
-                                                    <?php if ($entry['audit_action'] == 'INSERT'): ?>
+                                                <span class="audit-badge-mini audit-badge-<?= strtolower($entry['action']) ?>">
+                                                    <?php if ($entry['action'] == 'INSERT'): ?>
                                                         <i class="fas fa-plus-circle me-1"></i>Added
-                                                    <?php elseif ($entry['audit_action'] == 'UPDATE'): ?>
+                                                    <?php elseif ($entry['action'] == 'UPDATE'): ?>
                                                         <i class="fas fa-edit me-1"></i>Edited
-                                                    <?php elseif ($entry['audit_action'] == 'DELETE'): ?>
+                                                    <?php elseif ($entry['action'] == 'DELETE'): ?>
                                                         <i class="fas fa-trash-alt me-1"></i>Deleted
                                                     <?php endif; ?>
                                                 </span>
@@ -774,7 +351,7 @@ if ($isAdmin) {
             </div>
 
         <?php else: ?>
-            <!-- USER DASHBOARD: Three Column Layout - News + Courses + Recent Courses (ALL SCROLLABLE) -->
+            <!-- USER DASHBOARD: Three Column Layout - News + Modules + Recent Courses (ALL SCROLLABLE) -->
             <div class="dashboard-three-column">
                 
                 <!-- Column 1: News & Announcements (Scrollable) -->
@@ -812,46 +389,61 @@ if ($isAdmin) {
                     </div>
                 </div>
 
-                <!-- Column 2: Courses (NOW SCROLLABLE) -->
+                <!-- Column 2: Modules (Scrollable) -->
                 <div class="column-card">
                     <div class="column-header">
-                        <h3><i class="fas fa-graduation-cap me-2"></i>Courses</h3>
-                        <a href="<?= BASE_URL ?>/public/courses.php" class="view-all-link">
+                        <h3><i class="fas fa-cube me-2"></i>Modules</h3>
+                        <a href="<?= BASE_URL ?>/public/modules.php" class="view-all-link">
                             <i class="fas fa-eye me-1"></i>View All
                         </a>
                     </div>
                     
-                    <?php if (!empty($courses)): ?>
-                        <div class="courses-column-list scrollable-column" id="coursesColumn">
-                            <?php 
-                            $mainCourses = array_slice($courses, 0, 10); // Show more courses now that it's scrollable
-                            foreach ($mainCourses as $c): 
-                                $courseUrl = BASE_URL . "/public/course_view.php?id={$c['id']}";
+                    <?php if (!empty($modules)): ?>
+                        <div class="courses-column-list scrollable-column" id="modulesColumn">
+                            <?php foreach ($modules as $mod): 
+                                $moduleUrl = BASE_URL . "/public/module_view.php?id={$mod['id']}";
+                                $moduleStatus = $mod['module_status'] ?? 'not_started';
+                                $moduleProgress = $mod['module_progress'] ?? 0;
                             ?>
-                                <a href="<?= $courseUrl ?>" class="course-column-item">
+                                <a href="<?= $moduleUrl ?>" class="course-column-item">
                                     <div class="course-column-img">
-                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($c['thumbnail'] ?: 'Course Image.png') ?>" alt="Course Image">
+                                        <img src="<?= BASE_URL ?>/uploads/images/<?= htmlspecialchars($mod['thumbnail'] ?: 'placeholder.png') ?>" 
+                                             alt="Module Image"
+                                             onerror="this.src='<?= BASE_URL ?>/uploads/images/placeholder.png'">
                                     </div>
                                     <div class="course-column-info">
-                                        <h5><?= htmlspecialchars($c['title']) ?></h5>
-                                        <p><?= htmlspecialchars(substr($c['description'], 0, 60)) ?>...</p>
-                                        <span class="course-column-badge <?= $c['enroll_status'] ? 'badge-' . $c['enroll_status'] : 'badge-notenrolled' ?>">
-                                            <?= $c['enroll_status'] ? ucfirst($c['enroll_status']) : 'Not Enrolled' ?>
-                                        </span>
+                                        <h5><?= htmlspecialchars($mod['title']) ?></h5>
+                                        <p><?= htmlspecialchars(substr($mod['description'] ?? '', 0, 60)) ?>...</p>
+                                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                            <?php if ($mod['committee_name']): ?>
+                                                <span class="course-column-badge" style="background-color: #8227a9; color: white;">
+                                                    <i class="fas fa-users me-1"></i><?= htmlspecialchars($mod['committee_name']) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <span class="course-column-badge <?= $moduleStatus === 'completed' ? 'badge-completed' : ($moduleStatus === 'ongoing' ? 'badge-ongoing' : 'badge-not_started') ?>">
+                                                <?php if ($moduleStatus === 'completed'): ?>
+                                                    <i class="fas fa-check-circle me-1"></i>Completed
+                                                <?php elseif ($moduleStatus === 'ongoing'): ?>
+                                                    <i class="fas fa-play-circle me-1"></i><?= $moduleProgress ?>%
+                                                <?php else: ?>
+                                                    <i class="fas fa-clock me-1"></i>Not Started
+                                                <?php endif; ?>
+                                            </span>
+                                        </div>
                                     </div>
                                 </a>
                             <?php endforeach; ?>
                         </div>
                     <?php else: ?>
                         <div class="column-empty-state">
-                            <i class="fas fa-book-open"></i>
-                            <h6>No courses available</h6>
-                            <p>Check back later for new courses</p>
+                            <i class="fas fa-cube"></i>
+                            <h6>No modules available</h6>
+                            <p>Check back later for new modules</p>
                         </div>
                     <?php endif; ?>
                 </div>
 
-                <!-- Column 3: Recent Courses (NOW SCROLLABLE) -->
+                <!-- Column 3: Recent Courses (Scrollable) -->
                 <div class="column-card">
                     <div class="column-header">
                         <h3><i class="fas fa-clock me-2"></i>Recent Courses</h3>
@@ -863,7 +455,7 @@ if ($isAdmin) {
                     <?php if (!empty($courses)): ?>
                         <div class="recent-column-list scrollable-column" id="recentColumn">
                             <?php 
-                            $recentCourses = array_slice($courses, 0, 8); // Show more recent courses now that it's scrollable
+                            $recentCourses = array_slice($courses, 0, 8);
                             foreach ($recentCourses as $c): 
                                 $progressPercent = 0;
                                 if ($c['enroll_status'] && $c['progress'] && ($c['file_pdf'] || $c['file_video'])) {
@@ -975,15 +567,15 @@ if ($isAdmin) {
 
             // Apply auto-hide scrollbar to ALL scrollable columns
             const newsColumn = document.getElementById('newsColumn');
-            const coursesColumn = document.getElementById('coursesColumn');
+            const modulesColumn = document.getElementById('modulesColumn');
             const recentColumn = document.getElementById('recentColumn');
             const auditScroll = document.getElementById('auditScroll');
             
             // Setup auto-hide for all scrollable columns
             setupScrollbarAutoHide(newsColumn, 3000);
             
-            if (coursesColumn) {
-                setupScrollbarAutoHide(coursesColumn, 3000);
+            if (modulesColumn) {
+                setupScrollbarAutoHide(modulesColumn, 3000);
             }
             
             if (recentColumn) {

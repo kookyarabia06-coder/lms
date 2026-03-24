@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 22, 2026 at 08:33 AM
+-- Generation Time: Mar 24, 2026 at 09:52 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -266,7 +266,10 @@ INSERT INTO `audit_log` (`id`, `table_name`, `record_id`, `action`, `old_data`, 
 (50, 'courses', 47, 'UPDATE', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": null, \"expires_at\": null, \"is_active\": 1}', '{\"title\": \"MS WORD\", \"description\": \"MS WORDMS WORD\", \"summary\": \"MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD\", \"thumbnail\": null, \"file_pdf\": \"0c8a2d5f9d024c5f.pdf\", \"file_video\": \"e8483caa3dd5f146.mp4\", \"expires_at\": null, \"is_active\": 1}', '[\"file_video\"]', NULL, '2026-03-13 01:05:44'),
 (51, 'courses', 48, 'INSERT', NULL, '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, '2026-03-13 08:01:14'),
 (52, 'courses', 49, 'INSERT', NULL, '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-13 08:13:17'),
-(53, 'courses', 50, 'INSERT', NULL, '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-18 07:48:04');
+(53, 'courses', 50, 'INSERT', NULL, '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-18 07:48:04'),
+(54, 'courses', 50, 'DELETE', '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:32'),
+(55, 'courses', 49, 'DELETE', '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:37'),
+(56, 'courses', 48, 'DELETE', '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:39');
 
 -- --------------------------------------------------------
 
@@ -404,20 +407,18 @@ CREATE TABLE `courses` (
   `expires_at` date DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `summary` varchar(2500) DEFAULT NULL,
-  `edited_at` timestamp NULL DEFAULT NULL
+  `edited_at` timestamp NULL DEFAULT NULL,
+  `status` enum('pending','reject','approve') DEFAULT 'pending'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `courses`
 --
 
-INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`) VALUES
-(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-19 07:02:50', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL),
-(46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', NULL, NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL),
-(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-13 07:49:30', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL),
-(48, 'Tester', 'TesterTester', NULL, 22, '60457b0ca7bb3a8c.pdf', NULL, '2026-03-13 08:01:14', NULL, '2026-03-28', 1, 'TesterTesterTesterTesterTesterTester', NULL),
-(49, 'adsasdasd', 'adsasdasd', NULL, 5, NULL, NULL, '2026-03-13 08:13:17', NULL, NULL, 1, 'adsasdasdadsasdasdadsasdasdadsasdasd', NULL),
-(50, 'Module', 'module description', 'bb8dae1ebab304a6.png', 72, '87f0387375dbeacd.pdf', NULL, '2026-03-18 07:48:04', NULL, NULL, 1, 'Module summary', NULL);
+INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`, `status`) VALUES
+(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-19 07:02:50', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL, 'pending'),
+(46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', NULL, NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 'pending'),
+(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-13 07:49:30', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL, 'pending');
 
 --
 -- Triggers `courses`
@@ -719,8 +720,7 @@ INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `complet
 (68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0),
 (69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0),
 (70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0),
-(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0),
-(72, 76, 50, '2026-03-18 07:48:12', NULL, NULL, 0.00, 0, 0, 0, 0, 13, 26, 'ongoing', 0);
+(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0);
 
 -- --------------------------------------------------------
 
@@ -766,62 +766,84 @@ CREATE TABLE `message_attachments` (
 
 CREATE TABLE `modules` (
   `id` int(11) NOT NULL,
-  `course_id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
-  `content` longtext DEFAULT NULL,
-  `order_number` int(11) DEFAULT 0,
+  `thumbnail` varchar(255) DEFAULT NULL,
   `file_pdf` varchar(255) DEFAULT NULL,
   `file_video` varchar(255) DEFAULT NULL,
-  `duration_minutes` int(11) DEFAULT NULL,
-  `is_required` tinyint(1) DEFAULT 1,
-  `status` enum('draft','published','archived') DEFAULT 'draft',
+  `created_by` int(11) NOT NULL,
+  `committee_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
-  `published_at` timestamp NULL DEFAULT NULL
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `modules`
 --
 
-INSERT INTO `modules` (`id`, `course_id`, `title`, `description`, `content`, `order_number`, `file_pdf`, `file_video`, `duration_minutes`, `is_required`, `status`, `created_at`, `updated_at`, `published_at`) VALUES
-(9, 50, 'moduletitle', 'moduledesctrip', 'contect', 1, '66ba7d8e18649fb5.pdf', NULL, NULL, 1, 'draft', '2026-03-18 07:56:08', '2026-03-18 07:56:14', NULL),
-(10, 50, '3erfqwerqwerqsed', 'fasdasdasdasdasdasd1212312', '3123123123123', 2, 'a4a17f1fabaa73e2.pdf', NULL, NULL, 1, 'draft', '2026-03-18 08:05:04', NULL, NULL);
+INSERT INTO `modules` (`id`, `title`, `description`, `thumbnail`, `file_pdf`, `file_video`, `created_by`, `committee_id`, `created_at`, `updated_at`) VALUES
+(1, 'asdasdasd', 'asdasdasdasdsd', 'add8bc215232155c.png', '25eac17bd6d6f6eb.pdf', NULL, 5, 18, '2026-03-24 03:32:30', '2026-03-24 05:23:39'),
+(2, 'asdasd', 'asdasdasd', 'e8df8437fd798f7c.jpg', '75244f619ebd3b5c.pdf', NULL, 72, 21, '2026-03-24 05:41:00', NULL);
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `module_attachments`
+-- Table structure for table `module_pdf_progress`
 --
 
-CREATE TABLE `module_attachments` (
+CREATE TABLE `module_pdf_progress` (
   `id` int(11) NOT NULL,
-  `module_id` int(11) NOT NULL,
-  `filename` varchar(255) NOT NULL,
-  `original_filename` varchar(255) NOT NULL,
-  `filepath` varchar(500) NOT NULL,
-  `filesize` int(11) NOT NULL,
-  `filetype` varchar(100) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `progress_id` int(11) NOT NULL,
+  `page_number` int(11) NOT NULL,
+  `viewed_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
 --
--- Table structure for table `module_comments`
+-- Dumping data for table `module_pdf_progress`
 --
 
-CREATE TABLE `module_comments` (
-  `id` int(11) NOT NULL,
-  `module_id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `comment` text NOT NULL,
-  `parent_id` int(11) DEFAULT NULL,
-  `is_approved` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO `module_pdf_progress` (`id`, `progress_id`, `page_number`, `viewed_at`) VALUES
+(190, 5, 1, '2026-03-24 06:42:16'),
+(191, 5, 2, '2026-03-24 06:42:17'),
+(192, 5, 3, '2026-03-24 06:42:18'),
+(193, 5, 4, '2026-03-24 06:42:18'),
+(194, 5, 5, '2026-03-24 06:42:26'),
+(195, 5, 6, '2026-03-24 06:42:27'),
+(196, 5, 7, '2026-03-24 06:42:27'),
+(197, 5, 8, '2026-03-24 06:42:27'),
+(198, 5, 9, '2026-03-24 06:42:27'),
+(199, 5, 10, '2026-03-24 06:42:28'),
+(200, 5, 11, '2026-03-24 06:42:28'),
+(201, 5, 12, '2026-03-24 06:42:28'),
+(202, 5, 13, '2026-03-24 06:42:29'),
+(203, 5, 14, '2026-03-24 06:42:29'),
+(204, 5, 15, '2026-03-24 06:42:29'),
+(205, 5, 16, '2026-03-24 06:42:30'),
+(206, 5, 17, '2026-03-24 06:42:30'),
+(207, 5, 18, '2026-03-24 06:42:30'),
+(208, 5, 19, '2026-03-24 06:42:41'),
+(209, 5, 20, '2026-03-24 06:42:42'),
+(210, 5, 21, '2026-03-24 06:42:42'),
+(211, 5, 22, '2026-03-24 06:42:42'),
+(212, 5, 23, '2026-03-24 06:42:43'),
+(213, 5, 24, '2026-03-24 06:42:43'),
+(214, 5, 25, '2026-03-24 06:42:43'),
+(215, 5, 26, '2026-03-24 06:42:44'),
+(216, 6, 1, '2026-03-24 07:02:29'),
+(217, 6, 2, '2026-03-24 07:02:30'),
+(218, 6, 3, '2026-03-24 07:02:30'),
+(219, 6, 4, '2026-03-24 07:02:31'),
+(220, 6, 5, '2026-03-24 07:02:31'),
+(221, 6, 6, '2026-03-24 07:02:32'),
+(222, 6, 7, '2026-03-24 07:02:32'),
+(223, 6, 8, '2026-03-24 07:02:32'),
+(224, 6, 9, '2026-03-24 07:02:33'),
+(225, 6, 10, '2026-03-24 07:02:33'),
+(226, 6, 11, '2026-03-24 07:02:34'),
+(227, 6, 12, '2026-03-24 07:02:34'),
+(228, 6, 13, '2026-03-24 07:02:34'),
+(229, 6, 14, '2026-03-24 07:02:35'),
+(230, 6, 15, '2026-03-24 07:02:35');
 
 -- --------------------------------------------------------
 
@@ -831,34 +853,27 @@ CREATE TABLE `module_comments` (
 
 CREATE TABLE `module_progress` (
   `id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `module_id` int(11) NOT NULL,
-  `enrollment_id` int(11) NOT NULL,
-  `status` enum('not_started','in_progress','completed') DEFAULT 'not_started',
-  `progress_percentage` decimal(5,2) DEFAULT 0.00,
-  `time_spent_seconds` int(11) DEFAULT 0,
+  `pdf_completed` tinyint(1) DEFAULT 0,
+  `video_completed` tinyint(1) DEFAULT 0,
   `pdf_progress` int(11) DEFAULT 0,
+  `video_progress` int(11) DEFAULT 0,
+  `pdf_total_pages` int(11) DEFAULT 0,
   `video_position` int(11) DEFAULT 0,
-  `started_at` timestamp NULL DEFAULT NULL,
   `completed_at` timestamp NULL DEFAULT NULL,
-  `last_accessed_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+  `last_accessed` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
 --
--- Table structure for table `module_resources`
+-- Dumping data for table `module_progress`
 --
 
-CREATE TABLE `module_resources` (
-  `id` int(11) NOT NULL,
-  `module_id` int(11) NOT NULL,
-  `title` varchar(255) NOT NULL,
-  `url` varchar(500) NOT NULL,
-  `description` text DEFAULT NULL,
-  `type` enum('link','video','document','other') DEFAULT 'link',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO `module_progress` (`id`, `module_id`, `user_id`, `pdf_completed`, `video_completed`, `pdf_progress`, `video_progress`, `pdf_total_pages`, `video_position`, `completed_at`, `last_accessed`) VALUES
+(1, 1, 72, 0, 0, 0, 0, 0, 0, NULL, '2026-03-24 05:18:00'),
+(2, 2, 72, 0, 0, 0, 0, 0, 0, NULL, '2026-03-24 05:41:03'),
+(5, 2, 76, 1, 0, 100, 0, 26, 0, NULL, '2026-03-24 06:42:44'),
+(6, 1, 76, 0, 0, 33, 0, 45, 0, NULL, '2026-03-24 07:02:35');
 
 -- --------------------------------------------------------
 
@@ -1657,6 +1672,39 @@ CREATE TABLE `time_logs` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `training_requests`
+--
+
+CREATE TABLE `training_requests` (
+  `id` int(11) NOT NULL,
+  `training_type` varchar(50) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `date_start` date NOT NULL,
+  `date_end` date NOT NULL,
+  `location_type` varchar(50) DEFAULT NULL,
+  `hospital_order_no` varchar(100) NOT NULL,
+  `amount` decimal(10,2) DEFAULT 0.00,
+  `late_filing` tinyint(1) DEFAULT 0,
+  `official_business` tinyint(1) DEFAULT 0,
+  `remarks` text DEFAULT NULL,
+  `requester_id` int(11) DEFAULT NULL,
+  `resched_reason` text DEFAULT NULL,
+  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `training_requests`
+--
+
+INSERT INTO `training_requests` (`id`, `training_type`, `title`, `date_start`, `date_end`, `location_type`, `hospital_order_no`, `amount`, `late_filing`, `official_business`, `remarks`, `requester_id`, `resched_reason`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'External', 'asdasdas', '2026-03-25', '2026-03-28', 'international', '', 0.00, 0, 1, '0', 97, NULL, 'pending', '2026-03-24 16:50:49', NULL),
+(2, 'External', 'asdasdasd', '2026-03-26', '2026-04-08', 'international', '', 0.00, 0, 0, '0', 97, NULL, 'pending', '2026-03-24 16:51:14', NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -1897,41 +1945,24 @@ ALTER TABLE `message_attachments`
 --
 ALTER TABLE `modules`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_course_id` (`course_id`),
-  ADD KEY `idx_order` (`order_number`);
+  ADD KEY `created_by` (`created_by`),
+  ADD KEY `committee_id` (`committee_id`);
 
 --
--- Indexes for table `module_attachments`
+-- Indexes for table `module_pdf_progress`
 --
-ALTER TABLE `module_attachments`
+ALTER TABLE `module_pdf_progress`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_module_id` (`module_id`);
-
---
--- Indexes for table `module_comments`
---
-ALTER TABLE `module_comments`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_module_id` (`module_id`),
-  ADD KEY `idx_user_id` (`user_id`),
-  ADD KEY `idx_parent_id` (`parent_id`);
+  ADD UNIQUE KEY `unique_progress_page` (`progress_id`,`page_number`),
+  ADD KEY `progress_id` (`progress_id`);
 
 --
 -- Indexes for table `module_progress`
 --
 ALTER TABLE `module_progress`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_user_module` (`user_id`,`module_id`),
-  ADD KEY `idx_enrollment_id` (`enrollment_id`),
-  ADD KEY `idx_module_id` (`module_id`),
-  ADD KEY `idx_status` (`status`);
-
---
--- Indexes for table `module_resources`
---
-ALTER TABLE `module_resources`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_module_id` (`module_id`);
+  ADD UNIQUE KEY `unique_module_user` (`module_id`,`user_id`),
+  ADD KEY `user_id` (`user_id`);
 
 --
 -- Indexes for table `news`
@@ -1958,6 +1989,13 @@ ALTER TABLE `pdf_progress`
 ALTER TABLE `time_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `enrollment_id` (`enrollment_id`);
+
+--
+-- Indexes for table `training_requests`
+--
+ALTER TABLE `training_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `requester_id` (`requester_id`);
 
 --
 -- Indexes for table `users`
@@ -2021,7 +2059,7 @@ ALTER TABLE `assessment_questions`
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
 
 --
 -- AUTO_INCREMENT for table `committees`
@@ -2057,7 +2095,7 @@ ALTER TABLE `departments`
 -- AUTO_INCREMENT for table `depts`
 --
 ALTER TABLE `depts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=66;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
 
 --
 -- AUTO_INCREMENT for table `edit`
@@ -2087,31 +2125,19 @@ ALTER TABLE `message_attachments`
 -- AUTO_INCREMENT for table `modules`
 --
 ALTER TABLE `modules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
--- AUTO_INCREMENT for table `module_attachments`
+-- AUTO_INCREMENT for table `module_pdf_progress`
 --
-ALTER TABLE `module_attachments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `module_comments`
---
-ALTER TABLE `module_comments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `module_pdf_progress`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=231;
 
 --
 -- AUTO_INCREMENT for table `module_progress`
 --
 ALTER TABLE `module_progress`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- AUTO_INCREMENT for table `module_resources`
---
-ALTER TABLE `module_resources`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `news`
@@ -2130,6 +2156,12 @@ ALTER TABLE `otp_verifications`
 --
 ALTER TABLE `time_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `training_requests`
+--
+ALTER TABLE `training_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -2237,35 +2269,21 @@ ALTER TABLE `message_attachments`
 -- Constraints for table `modules`
 --
 ALTER TABLE `modules`
-  ADD CONSTRAINT `fk_modules_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `modules_committee_fk` FOREIGN KEY (`committee_id`) REFERENCES `committees` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `modules_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `module_attachments`
+-- Constraints for table `module_pdf_progress`
 --
-ALTER TABLE `module_attachments`
-  ADD CONSTRAINT `fk_attachments_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `module_comments`
---
-ALTER TABLE `module_comments`
-  ADD CONSTRAINT `fk_comments_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_comments_parent` FOREIGN KEY (`parent_id`) REFERENCES `module_comments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_comments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `module_pdf_progress`
+  ADD CONSTRAINT `module_pdf_progress_ibfk_1` FOREIGN KEY (`progress_id`) REFERENCES `module_progress` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `module_progress`
 --
 ALTER TABLE `module_progress`
-  ADD CONSTRAINT `fk_progress_enrollment` FOREIGN KEY (`enrollment_id`) REFERENCES `enrollments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_progress_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `module_resources`
---
-ALTER TABLE `module_resources`
-  ADD CONSTRAINT `fk_resources_module` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `module_progress_ibfk_1` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `module_progress_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `time_logs`
