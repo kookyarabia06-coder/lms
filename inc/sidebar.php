@@ -35,12 +35,16 @@ if (is_admin() || is_superadmin()) {
     $pendingUsersCount = $stmt->fetchColumn();
 }
 
+
 if (is_admin() || is_superadmin()) {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
-    $stmt->execute();
+    $stmt = $pdo->query("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
+    $reqCount = $stmt->fetchColumn();
+} else {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE requester_id = ? AND status = 'pending'");
+    $stmt->execute([$_SESSION['user']['id']]);
     $reqCount = $stmt->fetchColumn();
 }
-?>
+
 
 ?>
 
@@ -177,18 +181,24 @@ if (is_admin() || is_superadmin()) {
                     </li>
                 <?php endif; ?>
 
+
+                <li class="nav-item">
+    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
+        <i class="fa fa-clipboard-list"></i> Training Request
+        <?php if ($reqCount > 0): ?>
+            <span class="notification-badge"><?= $reqCount ?></span>
+        <?php endif; ?>
+    </a>
+</li>
+                </li>
+
                 <!-- DIVIDER 2 -->
                 <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-divider"></li>
                 <?php endif; ?>
 
-                <!-- TRAINING REQUEST SECTION -->
-                <li class="nav-item">
-                    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
-                        <i class="fa fa-clipboard-list"></i> Training Request
-                         <span class="notification-badge"><?= $reqCount ?></span>
-                    </a>
-                </li>
+              
+                
 
                 <!-- News -->
                 <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>

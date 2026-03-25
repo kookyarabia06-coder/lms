@@ -140,8 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $id = (int)$_POST['id'];
         $training_type = trim($_POST['training_type'] ?? '');
         $title = trim($_POST['title'] ?? '');
-        $date_start = $_POST['date_start'] ?? '';
-        $date_end = $_POST['date_end'] ?? '';
         $location_type = trim($_POST['location_type'] ?? '');
         $hospital_id = trim($_POST['hospital_id'] ?? '');
         $amount = floatval($_POST['amount'] ?? 0);
@@ -153,13 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $errors = [];
         if (empty($training_type)) $errors[] = "Training type is required";
         if (empty($title)) $errors[] = "Title is required";
-    
-        
-        if (!empty($date_start) && !empty($date_end)) {
-            if (strtotime($date_end) < strtotime($date_start)) {
-                $errors[] = "End date cannot be earlier than start date";
-            }
-        }
         
         if (!empty($errors)) {
             echo json_encode(['success' => false, 'message' => implode(", ", $errors)]);
@@ -172,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             mkdir($upload_dir, 0777, true);
         }
         
-        function uploadTrainingFile($file, $field_name) {
+        function uploadTrainingFile($field_name) {
             if (!isset($_FILES[$field_name]) || $_FILES[$field_name]['error'] !== UPLOAD_ERR_OK) {
                 return null;
             }
@@ -189,17 +180,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             return null;
         }
         
-        $ptr_file = uploadTrainingFile($_FILES, 'ptr_file');
-        $coc_file = uploadTrainingFile($_FILES, 'coc_file');
-        $coa_file = uploadTrainingFile($_FILES, 'coa_file');
-        $mom_file = uploadTrainingFile($_FILES, 'mom_file');
+        $ptr_file = uploadTrainingFile('ptr_file');
+        $coc_file = uploadTrainingFile('coc_file');
+        $coa_file = uploadTrainingFile('coa_file');
+        $mom_file = uploadTrainingFile('mom_file');
         
+        // Start building the update query - exclude date fields since they're disabled in form
         $sql = "UPDATE training_requests SET 
-            training_type = ?, title = ?, date_start = ?, date_end = ?, 
+            training_type = ?, title = ?, 
             location_type = ?, hospital_order_no = ?, amount = ?, 
             late_filing = ?, official_business = ?, remarks = ?";
-        $params = [$training_type, $title, $date_start, $date_end, $location_type, 
-                   $hospital_id, $amount, $late_filing, $official_business, $remarks];
+        $params = [$training_type, $title, $location_type, $hospital_id, $amount, $late_filing, $official_business, $remarks];
         
         if ($ptr_file) {
             $sql .= ", ptr_file = ?";
@@ -223,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             $sql .= ", status = 'approved'";
         }
         
-        $sql .= " WHERE id = ?";
+        $sql .= ", updated_at = NOW() WHERE id = ?";
         $params[] = $id;
         
         $stmt = $pdo->prepare($sql);
@@ -304,8 +295,14 @@ $filter_month = isset($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
 $where_clause = [];
 $params = [];
 
+// Add user filter - regular users see only their requests, admins see all
+if (!is_admin() && !is_superadmin()) {
+    $where_clause[] = "tr.requester_id = ?";
+    $params[] = $current_user_id;
+}
+
 if (!empty($filter_month) && $filter_month >= 1 && $filter_month <= 12) {
-    $where_clause[] = "MONTH(date_start) = ? AND YEAR(date_start) = YEAR(CURDATE())";
+    $where_clause[] = "MONTH(tr.date_start) = ? AND YEAR(tr.date_start) = YEAR(CURDATE())";
     $params[] = $filter_month;
 }
 
@@ -325,15 +322,26 @@ $stmt->execute($params);
 $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get statistics
+// Get statistics - respect user permissions
+$stats_where = "";
+$stats_params = [];
+
+if (!is_admin() && !is_superadmin()) {
+    $stats_where = "AND requester_id = ?";
+    $stats_params[] = $current_user_id;
+}
+
 $stats_query = "SELECT 
     COUNT(*) as total,
     SUM(CASE WHEN training_type = 'Internal' THEN 1 ELSE 0 END) as internal_count,
     SUM(CASE WHEN training_type = 'External' THEN 1 ELSE 0 END) as external_count,
     COALESCE(SUM(amount), 0) as total_amount
     FROM training_requests
-    WHERE YEAR(date_start) = YEAR(CURDATE())";
-$stats_result = $pdo->query($stats_query);
-$stats = $stats_result->fetch(PDO::FETCH_ASSOC);
+    WHERE YEAR(date_start) = YEAR(CURDATE()) $stats_where";
+
+$stmt = $pdo->prepare($stats_query);
+$stmt->execute($stats_params);
+$stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$stats) {
     $stats = ['total' => 0, 'internal_count' => 0, 'external_count' => 0, 'total_amount' => 0];
@@ -439,117 +447,95 @@ if (!$stats) {
             <div class="table-responsive">
                 <table class="table" id="trainingTable">
                     <thead>
-    <tr>
-        <th>ID</th>
-        <th>Title</th>
-        <th>Type</th>
-        <th>From</th>
-        <th>To</th>
-        <th>Requester</th>
-        <th>Hospital Order No.</th>
-        <th>Amount</th>
-        <th>Is OB</th>
-        <th>Remarks</th>
-        <th>Resched Reason</th>
-        <th>Attachments</th>
-        <th>Status</th>
-        <th>Actions</th>
-    </tr>
-</thead>
-<tbody id="trainingTableBody">
-    <?php if (!empty($training_requests)): ?>
-        <?php foreach ($training_requests as $request): ?>
-            <tr data-id="<?= $request['id'] ?>"
-                data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
-                data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
-                data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
-                data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
-                data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
-                <td><?= $request['id'] ?></td>
-                <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
-                <td>
-                    <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
-                        <?= htmlspecialchars($request['training_type']) ?>
-                    </span>
-                </td>
-                <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
-                <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
-                <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
-                <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
-                <td>₱<?= number_format($request['amount'], 2) ?></td>
-                <td>
-                    <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
-                </td>
-                <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
-                    <?php 
-                    $remarks = $request['remarks'] ?? '';
-                    echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
-                    ?>
-                </td>
-                <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
-                    <?php 
-                    $resched_reason = $request['resched_reason'] ?? '';
-                    echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
-                    ?>
-                </td>
-                <td class="attachment-buttons">
-                    <?php
-                    $files = [
-                        'ptr' => $request['ptr_file'] ?? null,
-                        'coc' => $request['coc_file'] ?? null,
-                        'coa' => $request['coa_file'] ?? null,
-                        'mom' => $request['mom_file'] ?? null
-                    ];
-                    $has_files = false;
-                    foreach ($files as $type => $file) {
-                        if ($file) {
-                            $has_files = true;
-                            $file_url = BASE_URL . '/uploads/training/' . $file;
-                            $file_label = strtoupper($type);
-                            echo "<a href='{$file_url}' class='btn-view-attachment' target='_blank' title='View {$file_label} file'><i class='fas fa-file-alt'></i> {$file_label}</a> ";
-                        }
-                    }
-                    if (!$has_files) {
-                        echo "<span class='text-muted'>No files</span>";
-                    }
-                    ?>
-                </td>
-                <td>
-                    <span class="status-badge status-<?= $request['status'] ?>">
-                        <?= ucfirst($request['status']) ?>
-                    </span>
-                </td>
-                <td class="action-buttons">
-                    <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
-                        <i class="fas fa-edit"></i>
-                        <span>Edit</span>
-                    </button>
-                    <?php if((is_admin() || is_superadmin())): ?>
-                    <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Reschedule</span>
-                    </button>
-                    <?php endif; ?>
-                    <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
-                        <i class="fas fa-trash"></i>
-                        <span>Delete</span>
-                    </button>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-    <?php else: ?>
-
-
-
-        <tr id="emptyStateRow">
-            <td colspan="14" class="text-center py-5">
-                <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
-                <p class="text-muted mb-0">No training requests found</p>
-            </td>
-        </tr>
-    <?php endif; ?>
-</tbody>
-                 </table>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Requester</th>
+                            <th>Hospital Order No.</th>
+                            <th>Amount</th>
+                            <th>Is OB</th>
+                            <th>Remarks</th>
+                            <th>Resched Reason</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trainingTableBody">
+                        <?php if (!empty($training_requests)): ?>
+                            <?php foreach ($training_requests as $request): ?>
+                                <tr data-id="<?= $request['id'] ?>"
+                                    data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
+                                    data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
+                                    data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
+                                    data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
+                                    data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
+                                    <td><?= $request['id'] ?></td>
+                                    <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
+                                    <td>
+                                        <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
+                                            <?= htmlspecialchars($request['training_type']) ?>
+                                        </span>
+                                    </td>
+                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
+                                    <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
+                                    <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
+                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
+                                    <td>
+                                        <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
+                                    </td>
+                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
+                                        <?php 
+                                        $remarks = $request['remarks'] ?? '';
+                                        echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
+                                        ?>
+                                    </td>
+                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
+                                        <?php 
+                                        $resched_reason = $request['resched_reason'] ?? '';
+                                        echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-<?= $request['status'] ?>">
+                                            <?= ucfirst($request['status']) ?>
+                                        </span>
+                                    </td>
+                                    <td class="action-buttons">
+                                        <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
+                                            <i class="fas fa-edit"></i>
+                                            <span>Edit</span>
+                                        </button>
+                                        <?php if((is_admin() || is_superadmin())): ?>
+                                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <span>Reschedule</span>
+                                        </button>
+                                        <?php endif; ?>
+                                        <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(<?= $request['id'] ?>)" title="View Attachments">
+                                            <i class="fas fa-paperclip"></i>
+                                            <span>View Attachments</span>
+                                        </button>
+                                        <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
+                                            <i class="fas fa-trash"></i>
+                                            <span>Delete</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr id="emptyStateRow">
+                                <td colspan="13" class="text-center py-5">
+                                    <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                                    <p class="text-muted mb-0">No training requests found</p>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -644,52 +630,6 @@ if (!$stats) {
     </div>
 </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <!-- Edit Training Request Modal -->
 <div class="modal fade" id="editRequestModal" tabindex="-1" aria-labelledby="editRequestModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -748,18 +688,6 @@ if (!$stats) {
                             <input type="number" class="form-control" name="amount" id="edit_amount" step="0.01">
                         </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
                         <!-- Approve Section (Admin Only) -->
                         <?php if (is_admin() || is_superadmin()): ?>
                         <div class="col-md-12">
@@ -789,20 +717,6 @@ if (!$stats) {
                             </div>
                         </div>
                         <?php endif; ?>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
                          <div class="col-12">
                             <label class="form-label">Remarks</label>
@@ -851,64 +765,6 @@ if (!$stats) {
     </div>
 </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <!-- Reschedule Training Request Modal -->
 <div class="modal fade" id="rescheduleRequestModal" tabindex="-1" aria-labelledby="rescheduleRequestModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -952,6 +808,31 @@ if (!$stats) {
     </div>
 </div>
 
+<!-- View Attachments Modal -->
+<div class="modal fade" id="viewAttachmentsModal" tabindex="-1" aria-labelledby="viewAttachmentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAttachmentsModalLabel">
+                    <i class="fas fa-paperclip me-2"></i>Attachments
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="attachmentsList" class="attachments-list">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                        <p>Loading attachments...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="toastContainer" class="toast-notification"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -981,6 +862,94 @@ if (!$stats) {
         setTimeout(() => {
             toast.remove();
         }, 5000);
+    }
+    
+    // Open Attachments Modal
+    function openAttachmentModal(id) {
+        const modal = new bootstrap.Modal(document.getElementById('viewAttachmentsModal'));
+        const attachmentsList = document.getElementById('attachmentsList');
+        
+        // Show loading state
+        attachmentsList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                <p>Loading attachments...</p>
+            </div>
+        `;
+        
+        modal.show();
+        
+        // Fetch request data with attachments
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const request = data.request;
+                    const files = [
+                        { name: 'PTR (Post Training Report)', file: request.ptr_file, icon: 'fa-file-alt' },
+                        { name: 'COC (Certificate of Completion)', file: request.coc_file, icon: 'fa-file-pdf' },
+                        { name: 'COA (Certificate of Attendance)', file: request.coa_file, icon: 'fa-file-image' },
+                        { name: 'MOM (Minutes of the Meeting)', file: request.mom_file, icon: 'fa-file-word' }
+                    ];
+                    
+                    let attachmentsHtml = '<div class="row g-3">';
+                    let hasFiles = false;
+                    
+                    files.forEach(file => {
+                        if (file.file) {
+                            hasFiles = true;
+                            const fileUrl = `<?= BASE_URL ?>/uploads/training/${file.file}`;
+                            const fileExt = file.file.split('.').pop().toUpperCase();
+                            attachmentsHtml += `
+                                <div class="col-md-6">
+                                    <div class="attachment-card">
+                                        <div class="attachment-icon">
+                                            <i class="fas ${file.icon} fa-2x"></i>
+                                        </div>
+                                        <div class="attachment-info">
+                                            <h6 class="attachment-title">${file.name}</h6>
+                                            <p class="attachment-filename">${file.file}</p>
+                                            <span class="attachment-badge">${fileExt}</span>
+                                        </div>
+                                        <a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download>
+                                            <i class="fas fa-download me-1"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    attachmentsHtml += '</div>';
+                    
+                    if (!hasFiles) {
+                        attachmentsList.innerHTML = `
+                            <div class="text-center py-5">
+                                <i class="fas fa-paperclip fa-3x mb-3" style="color: #dee2e6;"></i>
+                                <p class="text-muted">No attachments found for this training request.</p>
+                            </div>
+                        `;
+                    } else {
+                        attachmentsList.innerHTML = attachmentsHtml;
+                    }
+                } else {
+                    attachmentsList.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'Error loading attachments'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                attachmentsList.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error loading attachments. Please try again.
+                    </div>
+                `;
+            });
     }
     
     // Submit training request via AJAX
@@ -1022,56 +991,56 @@ if (!$stats) {
                 const startDateFormatted = new Date(data.request.date_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const endDateFormatted = new Date(data.request.date_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 
-                // Inside the add_request_ajax success handler, update the newRow creation
-const newRow = document.createElement('tr');
-newRow.setAttribute('data-id', data.request.id);
-newRow.setAttribute('data-title', data.request.title.toLowerCase());
-newRow.setAttribute('data-type', data.request.training_type.toLowerCase());
-newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
-newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
-newRow.setAttribute('data-resched', '');
-
-// Create attachments HTML
-let attachmentsHtml = '<span class="text-muted">No files</span>';
-
-newRow.innerHTML = `
-    <td>${data.request.id}</td>
-    <td><strong>${escapeHtml(data.request.title)}</strong></td>
-    <td>
-        <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
-            ${data.request.training_type}
-        </span>
-    </td>
-    <td>${startDateFormatted}</td>
-    <td>${endDateFormatted}</td>
-    <td>${escapeHtml(data.request.requester_name)}</td>
-    <td>${escapeHtml(data.request.hospital_order_no)}</td>
-    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-    <td>
-        ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
-    </td>
-    <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
-        ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
-    </td>
-    <td class="truncated-cell" title="">—</td>
-    <td class="attachment-buttons">
-        ${attachmentsHtml}
-    </td>
-    <td>
-        <span class="status-badge status-pending">Pending</span>
-    </td>
-    <td class="action-buttons">
-        <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
-            <i class="fas fa-edit"></i> Edit
-        </button>
-        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
-            <i class="fas fa-calendar-alt"></i> Reschedule
-        </button>
-        <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
-            <i class="fas fa-trash"></i> Delete
-        </button>
-    </td>
-`;
+                const newRow = document.createElement('tr');
+                newRow.setAttribute('data-id', data.request.id);
+                newRow.setAttribute('data-title', data.request.title.toLowerCase());
+                newRow.setAttribute('data-type', data.request.training_type.toLowerCase());
+                newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
+                newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
+                newRow.setAttribute('data-resched', '');
+                
+                newRow.innerHTML = `
+                    <td>${data.request.id}</td>
+                    <td><strong>${escapeHtml(data.request.title)}</strong></td>
+                    <td>
+                        <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
+                            ${data.request.training_type}
+                        </span>
+                     </td>
+                    <td>${startDateFormatted}</td>
+                    <td>${endDateFormatted}</td>
+                    <td>${escapeHtml(data.request.requester_name)}</td>
+                    <td>${escapeHtml(data.request.hospital_order_no)}</td>
+                    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td>
+                        ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
+                     </td>
+                    <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
+                        ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
+                    </td>
+                    <td class="truncated-cell" title="">—</td>
+                    <td>
+                        <span class="status-badge status-pending">Pending</span>
+                    </td>
+                    <td class="action-buttons">
+                        <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
+                            <i class="fas fa-edit"></i>
+                            <span>Edit</span>
+                        </button>
+                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Reschedule</span>
+                        </button>
+                        <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(${data.request.id})">
+                            <i class="fas fa-paperclip"></i>
+                            <span>View Attachments</span>
+                        </button>
+                        <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
+                            <i class="fas fa-trash"></i>
+                            <span>Delete</span>
+                        </button>
+                     </div>
+                `;
                 
                 tableBody.insertBefore(newRow, tableBody.firstChild);
                 
@@ -1089,7 +1058,19 @@ newRow.innerHTML = `
                     externalSpan.textContent = parseInt(externalSpan.textContent) + 1;
                 }
                 
-                const modal = bootstrap.Modal.getInstance(document.getElementById('trainingRequestModal'));
+                const modalElement = document.getElementById('trainingRequestModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+
+                // Wait for modal to fully close
+                modalElement.addEventListener('hidden.bs.modal', function onHidden() {
+                    // Force remove any backdrop that remains
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    modalElement.removeEventListener('hidden.bs.modal', onHidden);
+                }, { once: true });
+
                 modal.hide();
                 document.getElementById('trainingFormModal').reset();
                 
@@ -1108,68 +1089,68 @@ newRow.innerHTML = `
         });
     });
     
-// Open Edit Modal
-function openEditModal(id) {
-    fetch(`${window.location.href}?get_request=1&id=${id}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const request = data.request;
-                document.getElementById('edit_id').value = request.id;
-                document.getElementById('edit_training_type').value = request.training_type;
-                document.getElementById('edit_title').value = request.title;
-                document.getElementById('edit_date_start').value = request.date_start;
-                document.getElementById('edit_date_end').value = request.date_end;
-                document.getElementById('edit_location_type').value = request.location_type || '';
-                document.getElementById('edit_hospital_id').value = request.hospital_order_no;
-                document.getElementById('edit_amount').value = request.amount;
-                
-                // Only set checkbox values if elements exist (admin/superadmin only)
-                const lateFilingCheckbox = document.getElementById('edit_late_filing');
-                const officialBusinessCheckbox = document.getElementById('edit_official_business');
-                
-                if (lateFilingCheckbox) {
-                    lateFilingCheckbox.checked = request.late_filing == 1;
-                }
-                if (officialBusinessCheckbox) {
-                    officialBusinessCheckbox.checked = request.official_business == 1;
-                }
-                
-                document.getElementById('edit_remarks').value = request.remarks || '';
-                
-                // Show current files
-                if (request.ptr_file) {
-                    document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
+    // Open Edit Modal
+    function openEditModal(id) {
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const request = data.request;
+                    document.getElementById('edit_id').value = request.id;
+                    document.getElementById('edit_training_type').value = request.training_type;
+                    document.getElementById('edit_title').value = request.title;
+                    document.getElementById('edit_date_start').value = request.date_start;
+                    document.getElementById('edit_date_end').value = request.date_end;
+                    document.getElementById('edit_location_type').value = request.location_type || '';
+                    document.getElementById('edit_hospital_id').value = request.hospital_order_no;
+                    document.getElementById('edit_amount').value = request.amount;
+                    
+                    // Only set checkbox values if elements exist (admin/superadmin only)
+                    const lateFilingCheckbox = document.getElementById('edit_late_filing');
+                    const officialBusinessCheckbox = document.getElementById('edit_official_business');
+                    
+                    if (lateFilingCheckbox) {
+                        lateFilingCheckbox.checked = request.late_filing == 1;
+                    }
+                    if (officialBusinessCheckbox) {
+                        officialBusinessCheckbox.checked = request.official_business == 1;
+                    }
+                    
+                    document.getElementById('edit_remarks').value = request.remarks || '';
+                    
+                    // Show current files
+                    if (request.ptr_file) {
+                        document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
+                    } else {
+                        document.getElementById('current_ptr').innerHTML = '';
+                    }
+                    if (request.coc_file) {
+                        document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
+                    } else {
+                        document.getElementById('current_coc').innerHTML = '';
+                    }
+                    if (request.coa_file) {
+                        document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
+                    } else {
+                        document.getElementById('current_coa').innerHTML = '';
+                    }
+                    if (request.mom_file) {
+                        document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
+                    } else {
+                        document.getElementById('current_mom').innerHTML = '';
+                    }
+                    
+                    const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+                    editModal.show();
                 } else {
-                    document.getElementById('current_ptr').innerHTML = '';
+                    showToast(data.message, 'danger');
                 }
-                if (request.coc_file) {
-                    document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
-                } else {
-                    document.getElementById('current_coc').innerHTML = '';
-                }
-                if (request.coa_file) {
-                    document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
-                } else {
-                    document.getElementById('current_coa').innerHTML = '';
-                }
-                if (request.mom_file) {
-                    document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
-                } else {
-                    document.getElementById('current_mom').innerHTML = '';
-                }
-                
-                const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
-                editModal.show();
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error loading request data', 'danger');
-        });
-}
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error loading request data', 'danger');
+            });
+    }
     
     // Edit form submission
     document.getElementById('editFormModal').addEventListener('submit', function(e) {
@@ -1315,20 +1296,20 @@ function openEditModal(id) {
                 const emptyRow = document.createElement('tr');
                 emptyRow.id = 'emptyStateRow';
                 emptyRow.innerHTML = `
-                     <td colspan="14" class="text-center py-5">
-        <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
-        <p class="text-muted mb-0">No training requests found</p>
-    </td>
+                    <td colspan="13" class="text-center py-5">
+                        <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                        <p class="text-muted mb-0">No training requests found</p>
+                     </td>
                 `;
                 tableBody.appendChild(emptyRow);
             } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
                 const noResultsRow = document.createElement('tr');
                 noResultsRow.className = 'no-results-row';
                 noResultsRow.innerHTML = `
-                    <td colspan="14" class="text-center py-5">
-        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
-        <p class="text-muted mb-0">No matching training requests found</p>
-    </td>
+                    <td colspan="13" class="text-center py-5">
+                        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
+                        <p class="text-muted mb-0">No matching training requests found</p>
+                     </td>
                 `;
                 tableBody.appendChild(noResultsRow);
             } else if (visibleCount > 0) {
@@ -1400,6 +1381,7 @@ function openEditModal(id) {
         });
     }
 </script>
+
 
 </body>
 </html>

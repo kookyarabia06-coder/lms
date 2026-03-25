@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 24, 2026 at 09:52 AM
+-- Generation Time: Mar 25, 2026 at 04:52 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -416,9 +416,9 @@ CREATE TABLE `courses` (
 --
 
 INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`, `status`) VALUES
-(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-19 07:02:50', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL, 'pending'),
-(46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', NULL, NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 'pending'),
-(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-13 07:49:30', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL, 'pending');
+(44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-25 03:16:28', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL, 'reject'),
+(46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', '2026-03-25 03:16:35', NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 'approve'),
+(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-25 03:16:37', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL, 'approve');
 
 --
 -- Triggers `courses`
@@ -873,7 +873,8 @@ INSERT INTO `module_progress` (`id`, `module_id`, `user_id`, `pdf_completed`, `v
 (1, 1, 72, 0, 0, 0, 0, 0, 0, NULL, '2026-03-24 05:18:00'),
 (2, 2, 72, 0, 0, 0, 0, 0, 0, NULL, '2026-03-24 05:41:03'),
 (5, 2, 76, 1, 0, 100, 0, 26, 0, NULL, '2026-03-24 06:42:44'),
-(6, 1, 76, 0, 0, 33, 0, 45, 0, NULL, '2026-03-24 07:02:35');
+(6, 1, 76, 0, 0, 33, 0, 45, 0, NULL, '2026-03-24 07:02:35'),
+(7, 2, 22, 0, 0, 0, 0, 0, 0, NULL, '2026-03-25 02:33:33');
 
 -- --------------------------------------------------------
 
@@ -1689,6 +1690,10 @@ CREATE TABLE `training_requests` (
   `remarks` text DEFAULT NULL,
   `requester_id` int(11) DEFAULT NULL,
   `resched_reason` text DEFAULT NULL,
+  `ptr_file` varchar(255) DEFAULT NULL,
+  `coc_file` varchar(255) DEFAULT NULL,
+  `coa_file` varchar(255) DEFAULT NULL,
+  `mom_file` varchar(255) DEFAULT NULL,
   `status` enum('pending','approved','rejected') DEFAULT 'pending',
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT NULL ON UPDATE current_timestamp()
@@ -1698,9 +1703,11 @@ CREATE TABLE `training_requests` (
 -- Dumping data for table `training_requests`
 --
 
-INSERT INTO `training_requests` (`id`, `training_type`, `title`, `date_start`, `date_end`, `location_type`, `hospital_order_no`, `amount`, `late_filing`, `official_business`, `remarks`, `requester_id`, `resched_reason`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'External', 'asdasdas', '2026-03-25', '2026-03-28', 'international', '', 0.00, 0, 1, '0', 97, NULL, 'pending', '2026-03-24 16:50:49', NULL),
-(2, 'External', 'asdasdasd', '2026-03-26', '2026-04-08', 'international', '', 0.00, 0, 0, '0', 97, NULL, 'pending', '2026-03-24 16:51:14', NULL);
+INSERT INTO `training_requests` (`id`, `training_type`, `title`, `date_start`, `date_end`, `location_type`, `hospital_order_no`, `amount`, `late_filing`, `official_business`, `remarks`, `requester_id`, `resched_reason`, `ptr_file`, `coc_file`, `coa_file`, `mom_file`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'External', 'asdasdas', '2026-03-25', '2026-03-28', 'international', '', 0.00, 0, 1, '0', 97, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-24 16:50:49', NULL),
+(2, 'External', 'asdasdasd', '2026-03-28', '2026-04-11', 'international', '', 0.00, 0, 0, '0', 97, 'late enrollees', NULL, NULL, NULL, NULL, 'pending', '2026-03-24 16:51:14', '2026-03-25 08:24:57'),
+(3, 'Internal', 'Test Training', '2026-04-01', '2026-04-04', 'local', '123123123', 120000.00, 0, 1, 'Test Training', 72, NULL, NULL, NULL, NULL, NULL, 'approved', '2026-03-24 17:33:25', '2026-03-24 17:56:32'),
+(5, 'Internal', 'adasdasd', '0000-00-00', '0000-00-00', 'local', '', 0.00, 1, 0, 'adasdasd', 72, NULL, 'training_1774409307_d6df5639.pdf', NULL, NULL, NULL, 'pending', '2026-03-25 11:14:24', '2026-03-25 11:28:27');
 
 -- --------------------------------------------------------
 
@@ -2137,7 +2144,7 @@ ALTER TABLE `module_pdf_progress`
 -- AUTO_INCREMENT for table `module_progress`
 --
 ALTER TABLE `module_progress`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `news`
@@ -2161,7 +2168,7 @@ ALTER TABLE `time_logs`
 -- AUTO_INCREMENT for table `training_requests`
 --
 ALTER TABLE `training_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `users`

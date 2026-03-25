@@ -1,5 +1,4 @@
-
-    * {
+  * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
@@ -253,8 +252,6 @@
     .table th:nth-child(10), .table td:nth-child(10) { width: 10%; } /* Remarks */
     .table th:nth-child(11), .table td:nth-child(11) { width: 10%; } /* Resched Reason */
     .table th:nth-child(12), .table td:nth-child(12) { width: 7%; } /* Status */
-
-
     /* Truncated cell with tooltip */
     .truncated-cell {
         cursor: help;
@@ -315,7 +312,7 @@
         color: white;
     }
 
-    /* Action Buttons - Icon only */
+    /* Action Buttons */
     .action-buttons {
         display: flex;
         gap: 6px;
@@ -371,6 +368,17 @@
         color: white;
     }
     
+    .btn-view-attachment {
+        background: #17a2b8;
+        color: white;
+    }
+    
+    .btn-view-attachment:hover {
+        background: #138496;
+        transform: translateY(-1px);
+        color: white;
+    }
+    
     .btn-delete {
         background: #dc3545;
         color: white;
@@ -380,6 +388,68 @@
         background: #c82333;
         transform: translateY(-1px);
         color: white;
+    }
+
+    /* Attachment Card Styles */
+    .attachments-list {
+        padding: 10px;
+    }
+    
+    .attachment-card {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        background: #f8f9fa;
+        transition: all 0.2s;
+        margin-bottom: 15px;
+    }
+    
+    .attachment-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    
+    .attachment-icon {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e9ecef;
+        border-radius: 10px;
+        color: #495057;
+    }
+    
+    .attachment-info {
+        flex: 1;
+    }
+    
+    .attachment-title {
+        margin: 0 0 5px 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1a2634;
+    }
+    
+    .attachment-filename {
+        margin: 0;
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-family: monospace;
+    }
+    
+    .attachment-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background: #dee2e6;
+        color: #495057;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        margin-top: 5px;
     }
 
     /* Alerts */
@@ -520,5 +590,18 @@
         
         .btn-action i {
             font-size: 0.7rem;
+        }
+        
+        .attachment-card {
+            flex-wrap: wrap;
+        }
+        
+        .attachment-icon {
+            width: 40px;
+            height: 40px;
+        }
+        
+        .btn-sm {
+            width: 100%;
         }
     }
