@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
+
 require_login();
 
 // Use PDO for consistency with your LMS
@@ -63,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) 
         $errors = [];
         if (empty($training_type)) $errors[] = "Training type is required";
         if (empty($title)) $errors[] = "Title is required";
-        if (empty($date_start)) $errors[] = "Start date is required";
-        if (empty($date_end)) $errors[] = "End date is required";
+    
+        
         
         if (!empty($date_start) && !empty($date_end)) {
             if (strtotime($date_end) < strtotime($date_start)) {
@@ -152,8 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $errors = [];
         if (empty($training_type)) $errors[] = "Training type is required";
         if (empty($title)) $errors[] = "Title is required";
-        if (empty($date_start)) $errors[] = "Start date is required";
-        if (empty($date_end)) $errors[] = "End date is required";
+    
         
         if (!empty($date_start) && !empty($date_end)) {
             if (strtotime($date_end) < strtotime($date_start)) {
@@ -439,85 +439,116 @@ if (!$stats) {
             <div class="table-responsive">
                 <table class="table" id="trainingTable">
                     <thead>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th>Requester</th>
-                            <th>Hospital Order No.</th>
-                            <th>Amount</th>
-                            <th>Is OB</th>
-                            <th>Remarks</th>
-                            <th>Resched Reason</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                         </thead>
-                    <tbody id="trainingTableBody">
-                        <?php if (!empty($training_requests)): ?>
-                            <?php foreach ($training_requests as $request): ?>
-                                <tr data-id="<?= $request['id'] ?>"
-                                    data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
-                                    data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
-                                    data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
-                                    data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
-                                    data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
-                                    <td><?= $request['id'] ?></td>
-                                    <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
-                                    <td>
-                                        <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
-                                            <?= htmlspecialchars($request['training_type']) ?>
-                                        </span>
-                                     </td>
-                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
-                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
-                                    <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
-                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
-                                    <td>
-                                        <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
-                                     </td>
-                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
-                                        <?php 
-                                        $remarks = $request['remarks'] ?? '';
-                                        echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
-                                        ?>
-                                     </td>
-                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
-                                        <?php 
-                                        $resched_reason = $request['resched_reason'] ?? '';
-                                        echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
-                                        ?>
-                                     </td>
-                                    <td>
-                                        <span class="status-badge status-<?= $request['status'] ?>">
-                                            <?= ucfirst($request['status']) ?>
-                                        </span>
-                                     </td>
-                                    <td class="action-buttons">
-                                        <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
-                                            <i class="fas fa-edit"></i>
-                                            <span>Edit</span>
-                                        </button>
-                                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
-                                            <i class="fas fa-calendar-alt"></i>
-                                            <span>Reschedule</span>
-                                        </button>
-                                        <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
-                                            <i class="fas fa-trash"></i>
-                                            <span>Delete</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr id="emptyStateRow">
-                                <td colspan="13" class="text-center py-5">
-                                    <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
-                                    <p class="text-muted mb-0">No training requests found</p>
-                                   </tr>
-                        <?php endif; ?>
-                    </tbody>
+    <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>From</th>
+        <th>To</th>
+        <th>Requester</th>
+        <th>Hospital Order No.</th>
+        <th>Amount</th>
+        <th>Is OB</th>
+        <th>Remarks</th>
+        <th>Resched Reason</th>
+        <th>Attachments</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
+</thead>
+<tbody id="trainingTableBody">
+    <?php if (!empty($training_requests)): ?>
+        <?php foreach ($training_requests as $request): ?>
+            <tr data-id="<?= $request['id'] ?>"
+                data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
+                data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
+                data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
+                data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
+                data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
+                <td><?= $request['id'] ?></td>
+                <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
+                <td>
+                    <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
+                        <?= htmlspecialchars($request['training_type']) ?>
+                    </span>
+                </td>
+                <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
+                <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
+                <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
+                <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
+                <td>₱<?= number_format($request['amount'], 2) ?></td>
+                <td>
+                    <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
+                </td>
+                <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
+                    <?php 
+                    $remarks = $request['remarks'] ?? '';
+                    echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
+                    ?>
+                </td>
+                <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
+                    <?php 
+                    $resched_reason = $request['resched_reason'] ?? '';
+                    echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
+                    ?>
+                </td>
+                <td class="attachment-buttons">
+                    <?php
+                    $files = [
+                        'ptr' => $request['ptr_file'] ?? null,
+                        'coc' => $request['coc_file'] ?? null,
+                        'coa' => $request['coa_file'] ?? null,
+                        'mom' => $request['mom_file'] ?? null
+                    ];
+                    $has_files = false;
+                    foreach ($files as $type => $file) {
+                        if ($file) {
+                            $has_files = true;
+                            $file_url = BASE_URL . '/uploads/training/' . $file;
+                            $file_label = strtoupper($type);
+                            echo "<a href='{$file_url}' class='btn-view-attachment' target='_blank' title='View {$file_label} file'><i class='fas fa-file-alt'></i> {$file_label}</a> ";
+                        }
+                    }
+                    if (!$has_files) {
+                        echo "<span class='text-muted'>No files</span>";
+                    }
+                    ?>
+                </td>
+                <td>
+                    <span class="status-badge status-<?= $request['status'] ?>">
+                        <?= ucfirst($request['status']) ?>
+                    </span>
+                </td>
+                <td class="action-buttons">
+                    <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
+                        <i class="fas fa-edit"></i>
+                        <span>Edit</span>
+                    </button>
+                    <?php if((is_admin() || is_superadmin())): ?>
+                    <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Reschedule</span>
+                    </button>
+                    <?php endif; ?>
+                    <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
+                    </button>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    <?php else: ?>
+
+
+
+        <tr id="emptyStateRow">
+            <td colspan="14" class="text-center py-5">
+                <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                <p class="text-muted mb-0">No training requests found</p>
+            </td>
+        </tr>
+    <?php endif; ?>
+</tbody>
                  </table>
             </div>
         </div>
@@ -579,7 +610,7 @@ if (!$stats) {
                             <label class="form-label">Amount (PHP)</label>
                             <input type="number" class="form-control" name="amount" step="0.01" placeholder="0.00">
                         </div>
-                        
+                        <?php if (is_admin() || is_superadmin()): ?>  
                         <div class="col-md-12">
                             <div class="d-flex flex-wrap gap-4">
                                 <div class="form-check">
@@ -592,7 +623,7 @@ if (!$stats) {
                                 </div>
                             </div>
                         </div>
-                        
+                        <?php endif; ?>
                         <div class="col-12">
                             <label class="form-label">Remarks</label>
                             <textarea class="form-control" name="remarks" rows="3" placeholder="Additional remarks..."></textarea>
@@ -612,6 +643,52 @@ if (!$stats) {
         </div>
     </div>
 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!-- Edit Training Request Modal -->
 <div class="modal fade" id="editRequestModal" tabindex="-1" aria-labelledby="editRequestModalLabel" aria-hidden="true">
@@ -644,12 +721,12 @@ if (!$stats) {
                         
                         <div class="col-md-6">
                             <label class="form-label">Date Start <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="date_start" id="edit_date_start" required>
+                            <input type="date" class="form-control" name="date_start" id="edit_date_start" required  disabled style="background-color: #babdc1;">
                         </div>
                         
                         <div class="col-md-6">
                             <label class="form-label">Date End <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="date_end" id="edit_date_end" required>
+                            <input type="date" class="form-control" name="date_end" id="edit_date_end" required disabled style="background-color: #babdc1;">
                         </div>
                         
                         <div class="col-md-6">
@@ -670,7 +747,21 @@ if (!$stats) {
                             <label class="form-label">Amount (PHP)</label>
                             <input type="number" class="form-control" name="amount" id="edit_amount" step="0.01">
                         </div>
-                        
+
+
+
+
+
+
+
+
+
+
+
+
+
+                        <!-- Approve Section (Admin Only) -->
+                        <?php if (is_admin() || is_superadmin()): ?>
                         <div class="col-md-12">
                             <div class="d-flex flex-wrap gap-4">
                                 <div class="form-check">
@@ -683,13 +774,11 @@ if (!$stats) {
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="col-12">
-                            <label class="form-label">Remarks</label>
-                            <textarea class="form-control" name="remarks" id="edit_remarks" rows="3"></textarea>
-                        </div>
-                        
-                        <!-- Approve Section (Admin Only) -->
+                        <?php else: ?>
+                            <input type="hidden" name="late_filing" value="0">
+                            <input type="hidden" name="official_business" value="0">
+                        <?php endif; ?>
+
                         <?php if (is_admin() || is_superadmin()): ?>
                         <div class="col-12">
                             <div class="card bg-light p-3">
@@ -700,6 +789,25 @@ if (!$stats) {
                             </div>
                         </div>
                         <?php endif; ?>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                         <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea class="form-control" name="remarks" id="edit_remarks" rows="3"></textarea>
+                        </div>
                         
                         <!-- Attachments Section -->
                         <div class="col-12">
@@ -742,6 +850,64 @@ if (!$stats) {
         </div>
     </div>
 </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!-- Reschedule Training Request Modal -->
 <div class="modal fade" id="rescheduleRequestModal" tabindex="-1" aria-labelledby="rescheduleRequestModalLabel" aria-hidden="true">
@@ -856,49 +1022,56 @@ if (!$stats) {
                 const startDateFormatted = new Date(data.request.date_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const endDateFormatted = new Date(data.request.date_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 
-                const newRow = document.createElement('tr');
-                newRow.setAttribute('data-id', data.request.id);
-                newRow.setAttribute('data-title', data.request.title.toLowerCase());
-                newRow.setAttribute('data-type', data.request.training_type.toLowerCase());
-                newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
-                newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
-                newRow.setAttribute('data-resched', '');
-                
-                newRow.innerHTML = `
-                     <td>${data.request.id}</td>
-                     <td><strong>${escapeHtml(data.request.title)}</strong></td>
-                     <td>
-                        <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
-                            ${data.request.training_type}
-                        </span>
-                     </td>
-                     <td>${startDateFormatted}</td>
-                     <td>${endDateFormatted}</td>
-                     <td>${escapeHtml(data.request.requester_name)}</td>
-                     <td>${escapeHtml(data.request.hospital_order_no)}</td>
-                     <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                     <td>
-                        ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
-                     </td>
-                    <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
-                        ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
-                     </td>
-                    <td class="truncated-cell" title="">—</td>
-                     <td>
-                        <span class="status-badge status-pending">Pending</span>
-                     </td>
-                    <td class="action-buttons">
-                        <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
-                            <i class="fas fa-calendar-alt"></i> Reschedule
-                        </button>
-                        <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                     </td>
-                `;
+                // Inside the add_request_ajax success handler, update the newRow creation
+const newRow = document.createElement('tr');
+newRow.setAttribute('data-id', data.request.id);
+newRow.setAttribute('data-title', data.request.title.toLowerCase());
+newRow.setAttribute('data-type', data.request.training_type.toLowerCase());
+newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
+newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
+newRow.setAttribute('data-resched', '');
+
+// Create attachments HTML
+let attachmentsHtml = '<span class="text-muted">No files</span>';
+
+newRow.innerHTML = `
+    <td>${data.request.id}</td>
+    <td><strong>${escapeHtml(data.request.title)}</strong></td>
+    <td>
+        <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
+            ${data.request.training_type}
+        </span>
+    </td>
+    <td>${startDateFormatted}</td>
+    <td>${endDateFormatted}</td>
+    <td>${escapeHtml(data.request.requester_name)}</td>
+    <td>${escapeHtml(data.request.hospital_order_no)}</td>
+    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+    <td>
+        ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
+    </td>
+    <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
+        ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
+    </td>
+    <td class="truncated-cell" title="">—</td>
+    <td class="attachment-buttons">
+        ${attachmentsHtml}
+    </td>
+    <td>
+        <span class="status-badge status-pending">Pending</span>
+    </td>
+    <td class="action-buttons">
+        <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
+            <i class="fas fa-edit"></i> Edit
+        </button>
+        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
+            <i class="fas fa-calendar-alt"></i> Reschedule
+        </button>
+        <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
+            <i class="fas fa-trash"></i> Delete
+        </button>
+    </td>
+`;
                 
                 tableBody.insertBefore(newRow, tableBody.firstChild);
                 
@@ -935,58 +1108,68 @@ if (!$stats) {
         });
     });
     
-    // Open Edit Modal
-    function openEditModal(id) {
-        fetch(`${window.location.href}?get_request=1&id=${id}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const request = data.request;
-                    document.getElementById('edit_id').value = request.id;
-                    document.getElementById('edit_training_type').value = request.training_type;
-                    document.getElementById('edit_title').value = request.title;
-                    document.getElementById('edit_date_start').value = request.date_start;
-                    document.getElementById('edit_date_end').value = request.date_end;
-                    document.getElementById('edit_location_type').value = request.location_type || '';
-                    document.getElementById('edit_hospital_id').value = request.hospital_order_no;
-                    document.getElementById('edit_amount').value = request.amount;
-                    document.getElementById('edit_late_filing').checked = request.late_filing == 1;
-                    document.getElementById('edit_official_business').checked = request.official_business == 1;
-                    document.getElementById('edit_remarks').value = request.remarks || '';
-                    
-                    // Show current files
-                    if (request.ptr_file) {
-                        document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
-                    } else {
-                        document.getElementById('current_ptr').innerHTML = '';
-                    }
-                    if (request.coc_file) {
-                        document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
-                    } else {
-                        document.getElementById('current_coc').innerHTML = '';
-                    }
-                    if (request.coa_file) {
-                        document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
-                    } else {
-                        document.getElementById('current_coa').innerHTML = '';
-                    }
-                    if (request.mom_file) {
-                        document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
-                    } else {
-                        document.getElementById('current_mom').innerHTML = '';
-                    }
-                    
-                    const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
-                    editModal.show();
-                } else {
-                    showToast(data.message, 'danger');
+// Open Edit Modal
+function openEditModal(id) {
+    fetch(`${window.location.href}?get_request=1&id=${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const request = data.request;
+                document.getElementById('edit_id').value = request.id;
+                document.getElementById('edit_training_type').value = request.training_type;
+                document.getElementById('edit_title').value = request.title;
+                document.getElementById('edit_date_start').value = request.date_start;
+                document.getElementById('edit_date_end').value = request.date_end;
+                document.getElementById('edit_location_type').value = request.location_type || '';
+                document.getElementById('edit_hospital_id').value = request.hospital_order_no;
+                document.getElementById('edit_amount').value = request.amount;
+                
+                // Only set checkbox values if elements exist (admin/superadmin only)
+                const lateFilingCheckbox = document.getElementById('edit_late_filing');
+                const officialBusinessCheckbox = document.getElementById('edit_official_business');
+                
+                if (lateFilingCheckbox) {
+                    lateFilingCheckbox.checked = request.late_filing == 1;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error loading request data', 'danger');
-            });
-    }
+                if (officialBusinessCheckbox) {
+                    officialBusinessCheckbox.checked = request.official_business == 1;
+                }
+                
+                document.getElementById('edit_remarks').value = request.remarks || '';
+                
+                // Show current files
+                if (request.ptr_file) {
+                    document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
+                } else {
+                    document.getElementById('current_ptr').innerHTML = '';
+                }
+                if (request.coc_file) {
+                    document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
+                } else {
+                    document.getElementById('current_coc').innerHTML = '';
+                }
+                if (request.coa_file) {
+                    document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
+                } else {
+                    document.getElementById('current_coa').innerHTML = '';
+                }
+                if (request.mom_file) {
+                    document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
+                } else {
+                    document.getElementById('current_mom').innerHTML = '';
+                }
+                
+                const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+                editModal.show();
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error loading request data', 'danger');
+        });
+}
     
     // Edit form submission
     document.getElementById('editFormModal').addEventListener('submit', function(e) {
@@ -1132,20 +1315,20 @@ if (!$stats) {
                 const emptyRow = document.createElement('tr');
                 emptyRow.id = 'emptyStateRow';
                 emptyRow.innerHTML = `
-                    <td colspan="13" class="text-center py-5">
-                        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
-                        <p class="text-muted mb-0">No matching training requests found</p>
-                     </td>
+                     <td colspan="14" class="text-center py-5">
+        <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+        <p class="text-muted mb-0">No training requests found</p>
+    </td>
                 `;
                 tableBody.appendChild(emptyRow);
             } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
                 const noResultsRow = document.createElement('tr');
                 noResultsRow.className = 'no-results-row';
                 noResultsRow.innerHTML = `
-                    <td colspan="13" class="text-center py-5">
-                        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
-                        <p class="text-muted mb-0">No matching training requests found</p>
-                     </td>
+                    <td colspan="14" class="text-center py-5">
+        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
+        <p class="text-muted mb-0">No matching training requests found</p>
+    </td>
                 `;
                 tableBody.appendChild(noResultsRow);
             } else if (visibleCount > 0) {

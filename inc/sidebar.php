@@ -34,6 +34,14 @@ if (is_admin() || is_superadmin()) {
     $stmt->execute();
     $pendingUsersCount = $stmt->fetchColumn();
 }
+
+if (is_admin() || is_superadmin()) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
+    $stmt->execute();
+    $reqCount = $stmt->fetchColumn();
+}
+?>
+
 ?>
 
 <!doctype html>
@@ -178,6 +186,7 @@ if (is_admin() || is_superadmin()) {
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
                         <i class="fa fa-clipboard-list"></i> Training Request
+                         <span class="notification-badge"><?= $reqCount ?></span>
                     </a>
                 </li>
 
