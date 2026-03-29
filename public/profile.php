@@ -23,7 +23,7 @@ $createdAt = $userData['created_at'] ?? null;
 // Fetch all courses with enrollment info for current user
 $stmt = $pdo->prepare("
     SELECT c.id, c.title, c.description, c.thumbnail, c.file_pdf, c.file_video,
-           e.status AS enroll_status, e.progress
+           e.status AS enroll_status, e.progress, e.badge_issued, e.completed_at
     FROM courses c
     LEFT JOIN enrollments e ON e.course_id = c.id AND e.user_id = ?
     WHERE c.is_active = 1
@@ -34,11 +34,18 @@ $stmt->execute([$userId]);
 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate counters
-$counter = ['ongoing' => 0, 'completed' => 0, 'not_enrolled' => 0];
+$counter = ['ongoing' => 0, 'completed' => 0];
+$badgedCourses = [];
+
 foreach ($courses as $c) {
-    if (!$c['enroll_status']) $counter['not_enrolled']++;
-    elseif ($c['enroll_status'] === 'ongoing') $counter['ongoing']++;
-    elseif ($c['enroll_status'] === 'completed') $counter['completed']++;
+    if ($c['enroll_status'] === 'ongoing') $counter['ongoing']++;
+    elseif ($c['enroll_status'] === 'completed') {
+        $counter['completed']++;
+        // Collect badged courses (completed and badge_issued = 1)
+        if ($c['badge_issued'] == 1) {
+            $badgedCourses[] = $c;
+        }
+    }
 }
 
 // Function to get role display name
@@ -143,6 +150,174 @@ if ($u['role'] === 'user') {
             margin-bottom: 10px;
             font-weight: 600;
         }
+
+        /* Badges Earned Section */
+        .badges-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+        }
+        .badges-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badges-title i {
+            color: #fd7e14;
+            font-size: 1.3rem;
+        }
+        .badges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .badge-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .badge-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(253, 126, 20, 0.15);
+            border-color: #fd7e14;
+        }
+        .badge-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #fd7e14 0%, #ffc107 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .badge-icon i {
+            font-size: 28px;
+            color: white;
+        }
+        .badge-info {
+            flex: 1;
+        }
+        .badge-course-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 5px;
+            color: #1e293b;
+        }
+        .badge-date {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .badge-status {
+            display: inline-block;
+            background: #fd7e14;
+            color: white;
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        .empty-badges {
+            text-align: center;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 16px;
+            color: #6c757d;
+        }
+        .empty-badges i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #dee2e6;
+        }
+        .empty-badges p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        .empty-badges small {
+            font-size: 0.8rem;
+            color: #adb5bd;
+        }
+
+        /* View Course Button */
+        .view-course-link {
+            font-size: 0.7rem;
+            color: #fd7e14;
+            text-decoration: none;
+            margin-top: 5px;
+            display: inline-block;
+        }
+        .view-course-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Profile Layout Enhancement */
+        .profile-wrapper {
+            margin-left: 280px;
+            padding: 30px;
+            max-width: calc(100% - 280px);
+        }
+        .profile-card {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Stats Grid - 3 columns */
+        .stats-grid {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 25px 0;
+        }
+        .stat-card {
+            flex: 1;
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 8px;
+        }
+
+        @media (max-width: 992px) {
+            .profile-wrapper {
+                margin-left: 0;
+                padding: 20px;
+                max-width: 100%;
+            }
+            .badges-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -164,14 +339,9 @@ if ($u['role'] === 'user') {
         <?php unset($_SESSION['success_message']); ?>
     <?php endif; ?>
 
-    <div class="profile-header">
-        <h1>My Profile</h1>
-        <p>View and manage your account information</p>
-    </div>
-
     <div class="profile-card">
         <!-- Avatar -->
-         <div class="profile-avatar <?= strtolower(trim($u['role'] ?? 'guest')) ?>">
+        <div class="profile-avatar <?= strtolower(trim($u['role'] ?? 'guest')) ?>">
             <?php
             $initials = 'U';
             if(isset($u['fname']) && !empty($u['fname'])) {
@@ -268,7 +438,8 @@ if ($u['role'] === 'user') {
             </div>
         </div>
 
-        <!-- Stats Grid -->
+        <!-- Stats Grid - 3 columns -->
+        <?php if ($u['role'] === 'user'): ?>
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number"><?= $counter['ongoing'] ?></div>
@@ -279,17 +450,61 @@ if ($u['role'] === 'user') {
                 <div class="stat-label">Completed</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number"><?= $counter['not_enrolled'] ?></div>
-                <div class="stat-label">Available Courses</div>
+                <div class="stat-number"><?= count($badgedCourses) ?></div>
+                <div class="stat-label">Badges Earned</div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Actions -->
-        <div class="text-center">
+        <div class="text-center mb-4">
             <a href="<?= BASE_URL ?>/public/edit_profile.php" class="modern-btn-warning modern-btn-sm">  
                 <i class="fas fa-edit"></i> Edit Profile
             </a>
         </div>
+
+        <!-- Badges Earned Section -->
+        <?php if ($u['role'] === 'user'): ?>
+        <div class="badges-section">
+            <div class="badges-title">
+                <i class="fas fa-medal"></i>
+                <span>Badges Earned</span>
+            </div>
+
+            <?php if (!empty($badgedCourses)): ?>
+                <div class="badges-grid">
+                    <?php foreach ($badgedCourses as $badge): ?>
+                        <div class="badge-card">
+                            <div class="badge-icon">
+                                <i class="fas fa-medal"></i>
+                            </div>
+                            <div class="badge-info">
+                                <div class="badge-course-title"><?= htmlspecialchars($badge['title']) ?></div>
+                                <div class="badge-date">
+                                    <i class="fas fa-calendar-check me-1"></i>
+                                    Earned: <?= $badge['completed_at'] ? date('M d, Y', strtotime($badge['completed_at'])) : 'Recently' ?>
+                                </div>
+                                <span class="badge-status">
+                                    <i class="fas fa-check-circle me-1"></i>Completed
+                                </span>
+                                <div>
+                                    <a href="<?= BASE_URL ?>/public/course_view.php?id=<?= $badge['id'] ?>" class="view-course-link">
+                                        <i class="fas fa-eye me-1"></i>View Course
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="empty-badges">
+                    <i class="fas fa-medal"></i>
+                    <p>No badges earned yet</p>
+                    <small>Complete courses and pass assessments to earn badges</small>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 

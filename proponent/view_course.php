@@ -73,6 +73,78 @@ try {
     error_log("Error fetching assessment: " . $e->getMessage());
 }
 
+// Handle AJAX Issue Badge
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['issue_badge'])) {
+    header('Content-Type: application/json');
+    try {
+        $enrollment_id = (int)$_POST['enrollment_id'];
+        $student_id = (int)$_POST['student_id'];
+        
+        // Verify user has permission (admin, superadmin, or proponent of the course)
+        if (!is_admin() && !is_superadmin()) {
+            // Check if user is the proponent of this course
+            $stmt = $pdo->prepare("
+                SELECT c.proponent_id 
+                FROM enrollments e
+                JOIN courses c ON e.course_id = c.id
+                WHERE e.id = ?
+            ");
+            $stmt->execute([$enrollment_id]);
+            $course_check = $stmt->fetch();
+            
+            if (!$course_check || $course_check['proponent_id'] != $_SESSION['user']['id']) {
+                echo json_encode(['success' => false, 'message' => 'You do not have permission to issue badges']);
+                exit;
+            }
+        }
+        
+        // Check if student has completed the course
+        $stmt = $pdo->prepare("
+            SELECT e.id, e.status, e.badge_issued, c.title, u.fname, u.lname, u.email
+            FROM enrollments e
+            JOIN users u ON e.user_id = u.id
+            JOIN courses c ON e.course_id = c.id
+            WHERE e.id = ? AND e.user_id = ?
+        ");
+        $stmt->execute([$enrollment_id, $student_id]);
+        $enrollment_check = $stmt->fetch();
+        
+        if (!$enrollment_check) {
+            echo json_encode(['success' => false, 'message' => 'Enrollment not found']);
+            exit;
+        }
+        
+        if ($enrollment_check['status'] != 'completed') {
+            echo json_encode(['success' => false, 'message' => 'Student has not completed the course yet']);
+            exit;
+        }
+        
+        if ($enrollment_check['badge_issued'] == 1) {
+            echo json_encode(['success' => false, 'message' => 'Badge has already been issued to this student']);
+            exit;
+        }
+        
+        // Update badge_issued flag
+        $stmt = $pdo->prepare("UPDATE enrollments SET badge_issued = 1 WHERE id = ?");
+        $stmt->execute([$enrollment_id]);
+        
+        // Log badge issuance
+        error_log("Badge issued to user ID {$student_id} for course ID {$courseId} by user ID {$_SESSION['user']['id']}");
+        
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Badge issued successfully to ' . $enrollment_check['fname'] . ' ' . $enrollment_check['lname'],
+            'student_name' => $enrollment_check['fname'] . ' ' . $enrollment_check['lname'],
+            'course_title' => $enrollment_check['title']
+        ]);
+        
+    } catch (Exception $e) {
+        error_log("Issue Badge Error: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Error issuing badge: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 // ============================================
 // FETCH ENROLLED STUDENTS
 // ============================================
@@ -85,11 +157,13 @@ $stmt = $pdo->prepare('
         u.lname, 
         u.email,
         u.username,
+        e.id as enrollment_id,
         e.status,
         e.progress,
         e.total_time_seconds,
         e.enrolled_at,
         e.completed_at,
+        e.badge_issued,
         DATE_FORMAT(e.enrolled_at, "%M %d, %Y") as enrolled_date,
         DATE_FORMAT(e.completed_at, "%M %d, %Y") as completed_date,
         CASE 
@@ -121,13 +195,30 @@ if (empty($enrolledStudents)) {
     }
 }
 
+
+// Calculate statistics for the modal header
+$stats = [
+    'total_enrolled' => count($enrolledStudents),
+    'ongoing_count' => 0,
+    'completed_count' => 0
+];
+
+foreach ($enrolledStudents as $student) {
+    if ($student['status'] == 'completed') {
+        $stats['completed_count']++;
+    } elseif ($student['status'] == 'ongoing') {
+        $stats['ongoing_count']++;
+    }
+}
+
+
 // Export CSV
 if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_proponent())) {
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="enrolled_students_course_' . $courseId . '.csv"');
     
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['Student Name', 'Email', 'Username', 'Status', 'Enrolled Date', 'Completed Date', 'Progress (%)', 'Time Spent (mins)']);
+    fputcsv($output, ['Student Name', 'Email', 'Username', 'Status', 'Badge Issued', 'Enrolled Date', 'Completed Date', 'Progress (%)', 'Time Spent (mins)']);
     
     foreach ($enrolledStudents as $student) {
         $timeMinutes = round($student['total_time_seconds'] / 60, 1);
@@ -136,6 +227,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             $student['email'],
             $student['username'],
             ucfirst($student['status']),
+            ($student['badge_issued'] ?? 0) == 1 ? 'Yes' : 'No',
             $student['enrolled_date'],
             $student['completed_date'] ?? 'N/A',
             $student['progress'] . '%',
@@ -158,6 +250,9 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+
+
+
         .students-section {
             margin-top: 30px;
             background: white;
@@ -563,6 +658,21 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             font-size: 11px;
         }
         
+        .badge-issued-btn {
+            background: #fd7e14;
+            border: none;
+            color: white;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 50px;
+            cursor: default;
+            opacity: 0.8;
+        }
+        
+        .badge-issued-btn i {
+            font-size: 11px;
+        }
+        
         /* Modal width */
         .modal-xl {
             max-width: 1400px !important;
@@ -591,6 +701,19 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
             background-color: #f8f9fa;
             font-weight: 500;
         }
+        
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -598,6 +721,8 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
     <div class="lms-sidebar-container">
         <?php include __DIR__ . '/../inc/sidebar.php'; ?>
     </div>
+
+    <div id="toastContainer" class="toast-notification"></div>
 
     <!-- Main Content -->
     <div class="course-content-wrapper">
@@ -687,8 +812,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                             <th>Score</th>
                                             <th>Status</th>
                                             <th>Action</th>
-                                        </tr>
-                                    </thead>
+                                         </thead>
                                     <tbody id="studentsTableBody">
                                         <?php foreach($enrolledStudents as $student): 
                                             // Fetch assessment score for this student
@@ -753,12 +877,26 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                                                     <?= ucfirst($student['status'] ?? 'Unknown') ?>
                                                 </span>
                                             </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-warning issue-badge-btn" 
-                                                        data-student-id="<?= $student['id'] ?>"
-                                                        data-student-name="<?= htmlspecialchars($student['fname'] ?? '') ?> <?= htmlspecialchars($student['lname'] ?? '') ?>">
-                                                    <i class="fas fa-medal me-1"></i>Issue Badge
-                                                </button>
+                                            <td class="action-buttons">
+                                                <?php if ($student['status'] == 'completed'): ?>
+                                                    <?php if (($student['badge_issued'] ?? 0) == 1): ?>
+                                                        <button class="btn btn-sm badge-issued-btn" disabled>
+                                                            <i class="fas fa-medal me-1"></i>Badge Issued
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <button class="btn btn-sm issue-badge-btn" 
+                                                                data-enrollment-id="<?= $student['enrollment_id'] ?>"
+                                                                data-student-id="<?= $student['id'] ?>"
+                                                                data-student-name="<?= htmlspecialchars($student['fname'] ?? '') ?> <?= htmlspecialchars($student['lname'] ?? '') ?>"
+                                                                data-course-title="<?= htmlspecialchars($course['title']) ?>">
+                                                            <i class="fas fa-medal me-1"></i>Issue Badge
+                                                        </button>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="btn btn-sm btn-secondary disabled" style="cursor: default; opacity: 0.5;">
+                                                        <i class="fas fa-lock me-1"></i>Complete First
+                                                    </span>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -797,18 +935,18 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                     <i class="fas fa-file-pdf me-2"></i>
                     Report Preview - <?= htmlspecialchars($course['title']) ?>
                 </h5>
-                <button class="btn-close btn-close-white" type="button" data-bs-toggle="modal" data-bs-target="#enrolleesModal" aria-label="Close" style="display: none;"></button>
+                <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead class="table-light">
-                            <tr>
+                             <tr>
                                 <th>Student Name</th>
                                 <th>Email</th>
                                 <th>Score</th>
                                 <th>Status</th>
-                            </tr>
+                             </tr>
                         </thead>
                         <tbody>
                             <?php 
@@ -866,11 +1004,11 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
                 </div>
             </div>
             <div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-    <button type="button" class="btn btn-primary" id="downloadReportBtn">
-        <i class="fas fa-download me-2"></i>Download PDF
-    </button>
-</div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="downloadReportBtn">
+                    <i class="fas fa-download me-2"></i>Download CSV
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1029,6 +1167,25 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv' && (is_admin() || is_prop
     
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Toast notification function
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show`;
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.getElementById('toastContainer');
+        container.innerHTML = '';
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+    
     // Fade in animation for cards
     const cards = document.querySelectorAll('.content-card, .course-info-card');
     cards.forEach((card, index) => {
@@ -1073,12 +1230,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Issue Badge buttons (placeholder functionality)
+    // Issue Badge functionality
     const badgeButtons = document.querySelectorAll('.issue-badge-btn');
     badgeButtons.forEach(btn => {
         btn.addEventListener('click', function() {
             const studentName = this.dataset.studentName;
-            alert(`Issue badge to ${studentName} - Coming soon!`);
+            const enrollmentId = this.dataset.enrollmentId;
+            const studentId = this.dataset.studentId;
+            const courseTitle = this.dataset.courseTitle;
+            
+            if (confirm(`Issue a completion badge to ${studentName} for the course "${courseTitle}"?`)) {
+                // Disable button and show loading
+                const originalHtml = this.innerHTML;
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Issuing...';
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `issue_badge=1&enrollment_id=${enrollmentId}&student_id=${studentId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Change button to orange "Badge Issued"
+                        this.className = 'btn btn-sm badge-issued-btn';
+                        this.innerHTML = '<i class="fas fa-medal me-1"></i>Badge Issued';
+                        this.disabled = true;
+                        showToast(data.message, 'success');
+                    } else {
+                        showToast(data.message, 'danger');
+                        this.disabled = false;
+                        this.innerHTML = originalHtml;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error issuing badge. Please try again.', 'danger');
+                    this.disabled = false;
+                    this.innerHTML = originalHtml;
+                });
+            }
         });
     });
     
@@ -1120,10 +1314,12 @@ document.addEventListener('DOMContentLoaded', function() {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
+            
+            showToast('Report exported successfully!', 'success');
         });
     }
 
-    // When report preview modal is closed, reopen enrollees modal (Pure JavaScript version)
+    // When report preview modal is closed, reopen enrollees modal
     const reportPreviewModal = document.getElementById('reportPreviewModal');
     if (reportPreviewModal) {
         reportPreviewModal.addEventListener('hidden.bs.modal', function () {
@@ -1131,15 +1327,6 @@ document.addEventListener('DOMContentLoaded', function() {
             enrolleesModal.show();
         });
     }
-
-    // Also fix the Close button in the modal footer
-    const closeButtons = document.querySelectorAll('#reportPreviewModal .btn-secondary');
-    closeButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            // The modal will close automatically due to data-bs-dismiss
-            // Then the hidden.bs.modal event above will trigger and reopen enrollees modal
-        });
-    });
 });
 </script>
 </body>

@@ -226,11 +226,6 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                     Back to Course
                 </a>
 
-                <a href="assessments.php" class="ar-btn-action ar-btn-outline">
-                    <i class="fas fa-list"></i>
-                    All Assessments
-                </a>
-
                 <?php if (!$attempt['passed'] && $canRetake): ?>
                     <a href="take_assessment.php?assessment_id=<?= $attempt['assessment_id'] ?>" class="ar-btn-action ar-btn-retake">
                         <i class="fas fa-redo-alt"></i>

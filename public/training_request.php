@@ -290,6 +290,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_request'])) {
     }
 }
 
+// Handle AJAX Get Filtered Report Data
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data'])) {
+    header('Content-Type: application/json');
+    try {
+        $year = isset($_GET['year']) && !empty($_GET['year']) ? (int)$_GET['year'] : null;
+        $month = isset($_GET['month']) && !empty($_GET['month']) ? (int)$_GET['month'] : null;
+        $division_id = isset($_GET['division_id']) && !empty($_GET['division_id']) ? (int)$_GET['division_id'] : null;
+        $dept_id = isset($_GET['dept_id']) && !empty($_GET['dept_id']) ? (int)$_GET['dept_id'] : null;
+        $type = isset($_GET['type']) && !empty($_GET['type']) ? $_GET['type'] : null;
+        
+        $where_clauses = ["tr.status = 'approved'"];
+        $params = [];
+        
+        if ($year) {
+            $where_clauses[] = "YEAR(tr.date_start) = ?";
+            $params[] = $year;
+        }
+        
+        if ($month) {
+            $where_clauses[] = "MONTH(tr.date_start) = ?";
+            $params[] = $month;
+        }
+        
+        if ($type) {
+            $where_clauses[] = "tr.training_type = ?";
+            $params[] = $type;
+        }
+        
+        if ($division_id) {
+            $where_clauses[] = "d.id = ?";
+            $params[] = $division_id;
+        }
+        
+        if ($dept_id) {
+            $where_clauses[] = "dept.id = ?";
+            $params[] = $dept_id;
+        }
+        
+        $where_sql = implode(" AND ", $where_clauses);
+        
+        $query = "
+            SELECT 
+                tr.id,
+                tr.title,
+                tr.training_type,
+                DATE_FORMAT(tr.date_start, '%M %d, %Y') as date_start,
+                DATE_FORMAT(tr.date_end, '%M %d, %Y') as date_end,
+                CONCAT(u.fname, ' ', u.lname) as requester_name,
+                u.username,
+                d.name as division_name,
+                dept.name as department_name,
+                tr.hospital_order_no,
+                tr.amount,
+                tr.status
+            FROM training_requests tr
+            LEFT JOIN users u ON tr.requester_id = u.id
+            LEFT JOIN user_departments ud ON ud.user_id = u.id
+            LEFT JOIN depts dept ON ud.dept_id = dept.id
+            LEFT JOIN departments d ON dept.department_id = d.id
+            WHERE $where_sql
+            GROUP BY tr.id
+            ORDER BY tr.date_start DESC, tr.created_at DESC
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode(['success' => true, 'reports' => $reports]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Filter Options
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_filter_options'])) {
+    header('Content-Type: application/json');
+    try {
+        // Get available years from approved requests
+        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM training_requests WHERE status = 'approved' ORDER BY year DESC");
+        $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // Get all divisions
+        $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
+        $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get all departments
+        $stmt = $pdo->query("SELECT id, name, department_id FROM depts ORDER BY name");
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode([
+            'success' => true, 
+            'years' => $years,
+            'divisions' => $divisions,
+            'departments' => $departments
+        ]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
 // Handle filter
 $filter_month = isset($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
 $where_clause = [];
@@ -442,7 +547,14 @@ if (!$stats) {
         <!-- Training Requests List -->
         <div class="table-card">
             <div class="table-card-header">
-                <h4><i class="fas fa-list"></i> Training Requests List</h4>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4><i class="fas fa-list"></i> Training Requests List</h4>
+                    <?php if (is_admin() || is_superadmin()): ?>
+                    <button class="btn btn-success" id="generateReportBtn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                        <i class="fas fa-chart-line me-2"></i>Generate Report
+                    </button>
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table" id="trainingTable">
@@ -461,8 +573,7 @@ if (!$stats) {
                             <th>Resched Reason</th>
                             <th>Status</th>
                             <th>Actions</th>
-                        </tr>
-                    </thead>
+                         </thead>
                     <tbody id="trainingTableBody">
                         <?php if (!empty($training_requests)): ?>
                             <?php foreach ($training_requests as $request): ?>
@@ -478,7 +589,7 @@ if (!$stats) {
                                         <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
                                             <?= htmlspecialchars($request['training_type']) ?>
                                         </span>
-                                    </td>
+                                      </td>
                                     <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
                                     <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
                                     <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
@@ -486,24 +597,24 @@ if (!$stats) {
                                     <td>₱<?= number_format($request['amount'], 2) ?></td>
                                     <td>
                                         <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
-                                    </td>
+                                      </td>
                                     <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
                                         <?php 
                                         $remarks = $request['remarks'] ?? '';
                                         echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
                                         ?>
-                                    </td>
+                                      </td>
                                     <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
                                         <?php 
                                         $resched_reason = $request['resched_reason'] ?? '';
                                         echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
                                         ?>
-                                    </td>
+                                      </td>
                                     <td>
                                         <span class="status-badge status-<?= $request['status'] ?>">
                                             <?= ucfirst($request['status']) ?>
                                         </span>
-                                    </td>
+                                      </td>
                                     <td class="action-buttons">
                                         <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
                                             <i class="fas fa-edit"></i>
@@ -515,16 +626,22 @@ if (!$stats) {
                                             <span>Reschedule</span>
                                         </button>
                                         <?php endif; ?>
+                                        <?php 
+                                        // Check if there are any attachments
+                                        $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']) || !empty($request['coa_file']) || !empty($request['mom_file']);
+                                        if ($has_attachments): 
+                                        ?>
                                         <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(<?= $request['id'] ?>)" title="View Attachments">
                                             <i class="fas fa-paperclip"></i>
                                             <span>View Attachments</span>
                                         </button>
+                                        <?php endif; ?>
                                         <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
                                             <i class="fas fa-trash"></i>
                                             <span>Delete</span>
                                         </button>
                                     </td>
-                                </tr>
+                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr id="emptyStateRow">
@@ -532,10 +649,10 @@ if (!$stats) {
                                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                                     <p class="text-muted mb-0">No training requests found</p>
                                 </td>
-                            </tr>
+                             </tr>
                         <?php endif; ?>
                     </tbody>
-                </table>
+                 </table>
             </div>
         </div>
     </div>
@@ -833,6 +950,107 @@ if (!$stats) {
     </div>
 </div>
 
+<!-- Generate Report Modal -->
+<?php if (is_admin() || is_superadmin()): ?>
+<div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="reportModalLabel">
+                    <i class="fas fa-chart-line me-2"></i>Approved Training Requests Report
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Filter Section -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label">Year</label>
+                        <select id="reportYear" class="form-select">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Month</label>
+                        <select id="reportMonth" class="form-select">
+                            <option value="">All Months</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Division</label>
+                        <select id="reportDivision" class="form-select">
+                            <option value="">All Divisions</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Department</label>
+                        <select id="reportDepartment" class="form-select">
+                            <option value="">All Departments</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Type</label>
+                        <select id="reportType" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="Internal">Internal</option>
+                            <option value="External">External</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button id="exportReportBtn" class="btn btn-success w-100">
+                            <i class="fas fa-download me-1"></i> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Results Table -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="reportTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Requester</th>
+                                <th>Division</th>
+                                <th>Department</th>
+                                <th>Hospital Order No.</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <tr>
+                                    <td colspan="10" class="text-center py-5">
+                                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                                        <p>Loading data...</p>
+                                     </div>
+                                 </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div id="toastContainer" class="toast-notification"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -863,6 +1081,198 @@ if (!$stats) {
             toast.remove();
         }, 5000);
     }
+    
+<?php if (is_admin() || is_superadmin()): ?>
+// Report Modal Functions
+let allDepartments = [];
+
+// Load filter options
+function loadFilterOptions() {
+    fetch(`${window.location.href}?get_filter_options=1`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Populate years
+                const yearSelect = document.getElementById('reportYear');
+                yearSelect.innerHTML = '<option value="">All Years</option>';
+                data.years.forEach(year => {
+                    yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+                });
+                
+                // Populate divisions
+                const divisionSelect = document.getElementById('reportDivision');
+                divisionSelect.innerHTML = '<option value="">All Divisions</option>';
+                data.divisions.forEach(division => {
+                    divisionSelect.innerHTML += `<option value="${division.id}">${escapeHtml(division.name)}</option>`;
+                });
+                
+                // Store departments for dynamic filtering
+                allDepartments = data.departments;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading filter options:', error);
+        });
+}
+
+// Load report data
+function loadReportData() {
+    const year = document.getElementById('reportYear').value;
+    const month = document.getElementById('reportMonth').value;
+    const division_id = document.getElementById('reportDivision').value;
+    const dept_id = document.getElementById('reportDepartment').value;
+    const type = document.getElementById('reportType').value;
+    
+    let url = `${window.location.href}?get_report_data=1`;
+    if (year) url += `&year=${year}`;
+    if (month) url += `&month=${month}`;
+    if (division_id) url += `&division_id=${division_id}`;
+    if (dept_id) url += `&dept_id=${dept_id}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('reportTableBody');
+            if (data.success && data.reports.length > 0) {
+                tbody.innerHTML = '';
+                data.reports.forEach(report => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${escapeHtml(report.title)}</strong></td>
+                            <td>
+                                <span class="badge ${report.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
+                                    ${escapeHtml(report.training_type)}
+                                </span>
+                            </td>
+                            <td>${escapeHtml(report.date_start)}</td>
+                            <td>${escapeHtml(report.date_end)}</td>
+                            <td>${escapeHtml(report.requester_name)}</td>
+                            <td>${escapeHtml(report.division_name || '—')}</td>
+                            <td>${escapeHtml(report.department_name || '—')}</td>
+                            <td>${escapeHtml(report.hospital_order_no || '—')}</td>
+                            <td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>
+                                <span class="badge badge-success">Approved</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                            <p class="text-muted mb-0">No approved training requests found</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading report data:', error);
+            document.getElementById('reportTableBody').innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-danger">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <p>Error loading data. Please try again.</p>
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+// Update department dropdown based on selected division
+function updateDepartments() {
+    const divisionId = document.getElementById('reportDivision').value;
+    const deptSelect = document.getElementById('reportDepartment');
+    
+    if (!divisionId) {
+        deptSelect.innerHTML = '<option value="">All Departments</option>';
+        return;
+    }
+    
+    const filteredDepts = allDepartments.filter(dept => dept.department_id == divisionId);
+    deptSelect.innerHTML = '<option value="">All Departments</option>';
+    filteredDepts.forEach(dept => {
+        deptSelect.innerHTML += `<option value="${dept.id}">${escapeHtml(dept.name)}</option>`;
+    });
+}
+
+// Export report as CSV
+function exportReportToCSV() {
+    const year = document.getElementById('reportYear').value;
+    const month = document.getElementById('reportMonth').value;
+    const division_id = document.getElementById('reportDivision').value;
+    const dept_id = document.getElementById('reportDepartment').value;
+    const type = document.getElementById('reportType').value;
+    
+    let url = `${window.location.href}?get_report_data=1`;
+    if (year) url += `&year=${year}`;
+    if (month) url += `&month=${month}`;
+    if (division_id) url += `&division_id=${division_id}`;
+    if (dept_id) url += `&dept_id=${dept_id}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.reports.length > 0) {
+                // Create CSV content
+                let csvContent = "Title,Type,From,To,Requester,Division,Department,Hospital Order No.,Amount,Status\n";
+                
+                data.reports.forEach(report => {
+                    csvContent += `"${escapeCsv(report.title)}","${report.training_type}","${report.date_start}","${report.date_end}","${escapeCsv(report.requester_name)}","${escapeCsv(report.division_name || '—')}","${escapeCsv(report.department_name || '—')}","${escapeCsv(report.hospital_order_no || '—')}","${report.amount}","Approved"\n`;
+                });
+                
+                // Download CSV
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `approved_training_report_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                showToast('Report exported successfully!', 'success');
+            } else {
+                showToast('No data to export', 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Error exporting report:', error);
+            showToast('Error exporting report', 'danger');
+        });
+}
+
+// Helper function to escape CSV fields
+function escapeCsv(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '""');
+}
+
+// Event listeners for report modal
+document.getElementById('reportYear')?.addEventListener('change', loadReportData);
+document.getElementById('reportMonth')?.addEventListener('change', loadReportData);
+document.getElementById('reportDivision')?.addEventListener('change', function() {
+    updateDepartments();
+    loadReportData();
+});
+document.getElementById('reportDepartment')?.addEventListener('change', loadReportData);
+document.getElementById('reportType')?.addEventListener('change', loadReportData);
+document.getElementById('exportReportBtn')?.addEventListener('click', exportReportToCSV);
+
+// When modal opens, load filter options and data
+document.getElementById('reportModal')?.addEventListener('show.bs.modal', function() {
+    loadFilterOptions();
+    setTimeout(() => {
+        updateDepartments();
+        loadReportData();
+    }, 100);
+});
+<?php endif; ?>
     
     // Open Attachments Modal
     function openAttachmentModal(id) {
@@ -1006,7 +1416,7 @@ if (!$stats) {
                         <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
                             ${data.request.training_type}
                         </span>
-                     </td>
+                      </td>
                     <td>${startDateFormatted}</td>
                     <td>${endDateFormatted}</td>
                     <td>${escapeHtml(data.request.requester_name)}</td>
@@ -1014,32 +1424,28 @@ if (!$stats) {
                     <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td>
                         ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
-                     </td>
+                      </td>
                     <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
                         ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
-                    </td>
+                      </td>
                     <td class="truncated-cell" title="">—</td>
                     <td>
                         <span class="status-badge status-pending">Pending</span>
-                    </td>
+                      </td>
                     <td class="action-buttons">
                         <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
-                            <i class="fas fa-edit"></i>
-                            <span>Edit</span>
+                            <i class="fas fa-edit"></i> Edit
                         </button>
                         <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Reschedule</span>
+                            <i class="fas fa-calendar-alt"></i> Reschedule
                         </button>
                         <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(${data.request.id})">
-                            <i class="fas fa-paperclip"></i>
-                            <span>View Attachments</span>
+                            <i class="fas fa-paperclip"></i> View Attachments
                         </button>
                         <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
-                            <i class="fas fa-trash"></i>
-                            <span>Delete</span>
+                            <i class="fas fa-trash"></i> Delete
                         </button>
-                     </div>
+                     </td>
                 `;
                 
                 tableBody.insertBefore(newRow, tableBody.firstChild);
@@ -1299,7 +1705,7 @@ if (!$stats) {
                     <td colspan="13" class="text-center py-5">
                         <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                         <p class="text-muted mb-0">No training requests found</p>
-                     </td>
+                      </div>
                 `;
                 tableBody.appendChild(emptyRow);
             } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
@@ -1309,7 +1715,7 @@ if (!$stats) {
                     <td colspan="13" class="text-center py-5">
                         <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
                         <p class="text-muted mb-0">No matching training requests found</p>
-                     </td>
+                      </div>
                 `;
                 tableBody.appendChild(noResultsRow);
             } else if (visibleCount > 0) {
@@ -1363,7 +1769,7 @@ if (!$stats) {
                         <td colspan="13" class="text-center py-5">
                             <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                             <p class="text-muted mb-0">No training requests found</p>
-                         </td>
+                          </div>
                     `;
                     tableBody.appendChild(emptyRow);
                 }
@@ -1381,7 +1787,6 @@ if (!$stats) {
         });
     }
 </script>
-
 
 </body>
 </html>

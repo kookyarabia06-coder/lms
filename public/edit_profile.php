@@ -22,26 +22,25 @@ $committeeStmt = $pdo->query("SELECT id, name FROM committees ORDER BY name ASC"
 $committees = $committeeStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get user's current assignments
-$userDivisions = [];
-$userDepartments = [];
+$userDivision = null;
+$userDepartment = null;
 $userCommittees = [];
 
 if ($user['role'] === 'user') {
-    // Get user's departments and their divisions
+    // Get user's department and its division (single selection)
     $stmt = $pdo->prepare("
         SELECT d.id as dept_id, d.name as dept_name, d.department_id as division_id
         FROM user_departments ud
         JOIN depts d ON ud.dept_id = d.id
         WHERE ud.user_id = ? AND ud.dept_id IS NOT NULL
+        LIMIT 1
     ");
     $stmt->execute([$userId]);
-    $userDepts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $userDept = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    foreach ($userDepts as $dept) {
-        $userDepartments[] = $dept['dept_id'];
-        if (!in_array($dept['division_id'], $userDivisions)) {
-            $userDivisions[] = $dept['division_id'];
-        }
+    if ($userDept) {
+        $userDepartment = $userDept['dept_id'];
+        $userDivision = $userDept['division_id'];
     }
 } else {
     // Get user's committees
@@ -60,15 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email']);
     $password = $_POST['password'] ?? '';
 
-    // Handle departments selection for students
-    $selectedDepts = isset($_POST['departments']) ? $_POST['departments'] : [];
-    if (!is_array($selectedDepts)) {
-        $selectedDepts = [$selectedDepts];
-    }
-    $selectedDepts = array_filter($selectedDepts, function($value) {
-        return !empty($value) && is_numeric($value);
-    });
-    $selectedDepts = array_values($selectedDepts);
+    // Handle department selection for students (single selection)
+    $selectedDept = isset($_POST['department']) && !empty($_POST['department']) ? (int)$_POST['department'] : null;
 
     // Handle committees selection for proponents/admins
     $selectedCommittees = isset($_POST['committees']) ? $_POST['committees'] : [];
@@ -101,18 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Insert new assignments based on role
         if ($user['role'] === 'user') {
-            // Insert departments for students
-            if (!empty($selectedDepts)) {
-                $placeholders = implode(',', array_fill(0, count($selectedDepts), '?'));
-                $checkStmt = $pdo->prepare("SELECT id FROM depts WHERE id IN ($placeholders)");
-                $checkStmt->execute($selectedDepts);
-                $validDeptIds = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
-                
-                if (!empty($validDeptIds)) {
+            // Insert single department for student
+            if ($selectedDept) {
+                $checkStmt = $pdo->prepare("SELECT id FROM depts WHERE id = ?");
+                $checkStmt->execute([$selectedDept]);
+                if ($checkStmt->fetch()) {
                     $deptStmt = $pdo->prepare("INSERT INTO user_departments (user_id, dept_id) VALUES (?, ?)");
-                    foreach ($validDeptIds as $deptId) {
-                        $deptStmt->execute([$userId, $deptId]);
-                    }
+                    $deptStmt->execute([$userId, $selectedDept]);
                 }
             }
         } else {
@@ -175,14 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .cascading-dropdown {
             transition: all 0.3s ease;
         }
-        .badge-division {
-            background-color: #6c757d;
-            color: white;
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-left: 5px;
-        }
         .assignment-section {
             background: #f8f9fa;
             border-radius: 8px;
@@ -209,6 +188,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .search-box {
             margin-bottom: 15px;
+        }
+        .current-selection {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .current-selection i {
+            color: #fd7e14;
         }
     </style>
 </head>
@@ -257,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <?php if ($user['role'] === 'user'): ?>
-                <!-- Student Section: Division and Department Selection -->
+                <!-- Student Section: Division and Department Selection (Single Selection) -->
                 <div class="assignment-section">
                     <h5 class="assignment-title">
                         <i class="fas fa-building me-2"></i>Division and Department Assignment
@@ -269,40 +258,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select class="form-control" id="divisionSelect" name="division_id">
                             <option value="">-- Choose a Division --</option>
                             <?php foreach($divisions as $division): ?>
-                                <option value="<?= $division['id'] ?>"><?= htmlspecialchars($division['name']) ?></option>
+                                <option value="<?= $division['id'] ?>" <?= ($userDivision == $division['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($division['name']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                         <small class="text-muted">Select a division to see its departments</small>
                     </div>
                     
-                    <!-- Department Dropdown (initially disabled) -->
+                    <!-- Department Dropdown -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">Select Department</label>
-                        <select class="form-control" id="departmentSelect" name="departments[]" disabled>
-                            <option value="">-- First select a division --</option>
+                        <select class="form-control" id="departmentSelect" name="department" <?= $userDivision ? '' : 'disabled' ?>>
+                            <option value="">-- Select a Department --</option>
                         </select>
                         <small class="text-muted">Choose the department for your profile</small>
                     </div>
                     
-                    <!-- Selected Departments Display -->
-                    <div class="mt-3" id="selectedDepartments">
-                        <label class="form-label fw-bold">Selected Departments:</label>
-                        <div class="d-flex flex-wrap gap-2" id="selectedDeptsList">
-                            <?php if (!empty($userDepartments)): ?>
-                                <?php
-                                $deptStmt = $pdo->prepare("SELECT id, name FROM depts WHERE id IN (" . implode(',', array_fill(0, count($userDepartments), '?')) . ")");
-                                $deptStmt->execute($userDepartments);
-                                $selectedDepts = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
-                                foreach($selectedDepts as $dept):
-                                ?>
-                                    <span class="badge bg-primary p-2" data-dept-id="<?= $dept['id'] ?>">
-                                        <?= htmlspecialchars($dept['name']) ?>
-                                        <button type="button" class="btn-close btn-close-white btn-sm ms-1" onclick="removeDepartment(this, <?= $dept['id'] ?>)"></button>
-                                    </span>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                    <!-- Display current selection -->
+                    <?php if ($userDepartment): ?>
+                        <div class="current-selection">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Current Assignment:</strong> 
+                            <?php
+                            $deptStmt = $pdo->prepare("SELECT name FROM depts WHERE id = ?");
+                            $deptStmt->execute([$userDepartment]);
+                            $deptName = $deptStmt->fetchColumn();
+                            echo htmlspecialchars($deptName);
+                            ?>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
 
             <?php else: ?>
@@ -356,11 +341,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Division change handler
             const divisionSelect = document.getElementById('divisionSelect');
             const departmentSelect = document.getElementById('departmentSelect');
+            const currentDepartmentId = <?= json_encode($userDepartment) ?>;
             
             if (divisionSelect && departmentSelect) {
-                divisionSelect.addEventListener('change', function() {
-                    const divisionId = this.value;
-                    
+                // Function to load departments
+                function loadDepartments(divisionId, selectedDeptId = null) {
                     if (divisionId) {
                         departmentSelect.disabled = false;
                         departmentSelect.innerHTML = '<option value="">Loading...</option>';
@@ -370,8 +355,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             .then(data => {
                                 departmentSelect.innerHTML = '<option value="">-- Select a Department --</option>';
                                 data.forEach(dept => {
-                                    departmentSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                                    const selected = (selectedDeptId == dept.id) ? 'selected' : '';
+                                    departmentSelect.innerHTML += `<option value="${dept.id}" ${selected}>${dept.name}</option>`;
                                 });
+                                
+                                // If no department is selected and there's a current selection, set it
+                                if (selectedDeptId && !departmentSelect.value) {
+                                    departmentSelect.value = selectedDeptId;
+                                }
                             })
                             .catch(error => {
                                 console.error('Error:', error);
@@ -381,15 +372,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         departmentSelect.disabled = true;
                         departmentSelect.innerHTML = '<option value="">-- First select a division --</option>';
                     }
-                });
+                }
                 
-                // Add department to selected list when chosen
-                departmentSelect.addEventListener('change', function() {
-                    const selectedOption = this.options[this.selectedIndex];
-                    if (selectedOption.value && !document.querySelector(`.badge[data-dept-id="${selectedOption.value}"]`)) {
-                        addDepartmentBadge(selectedOption.value, selectedOption.text);
-                    }
-                    this.value = ''; // Reset selection
+                // Load departments on page load if division is selected
+                if (divisionSelect.value) {
+                    loadDepartments(divisionSelect.value, currentDepartmentId);
+                }
+                
+                // Load departments when division changes
+                divisionSelect.addEventListener('change', function() {
+                    loadDepartments(this.value);
                 });
             }
 
@@ -407,35 +399,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
         });
-
-        function addDepartmentBadge(deptId, deptName) {
-            const list = document.getElementById('selectedDeptsList');
-            
-            // Create hidden input to submit with form
-            const hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = 'departments[]';
-            hiddenInput.value = deptId;
-            document.querySelector('form').appendChild(hiddenInput);
-            
-            // Create badge
-            const badge = document.createElement('span');
-            badge.className = 'badge bg-primary p-2';
-            badge.setAttribute('data-dept-id', deptId);
-            badge.innerHTML = `${deptName} <button type="button" class="btn-close btn-close-white btn-sm ms-1" onclick="removeDepartment(this, ${deptId})"></button>`;
-            
-            list.appendChild(badge);
-        }
-
-        function removeDepartment(btn, deptId) {
-            // Remove badge
-            btn.parentElement.remove();
-            
-            // Remove hidden input
-            document.querySelectorAll(`input[name="departments[]"][value="${deptId}"]`).forEach(input => {
-                input.remove();
-            });
-        }
     </script>
 </body>
 </html>

@@ -40,10 +40,12 @@ if (is_admin() || is_superadmin()) {
     $stmt = $pdo->query("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
     $reqCount = $stmt->fetchColumn();
 } else {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE requester_id = ? AND status = 'pending'");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE requester_id = ? AND status = 'approved'");
     $stmt->execute([$_SESSION['user']['id']]);
     $reqCount = $stmt->fetchColumn();
 }
+
+// Get approved training requests 
 
 
 ?>

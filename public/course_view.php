@@ -15,6 +15,50 @@ $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 if (!$course) die('Course not found');
 
+/**
+ * Calculate and update overall progress for an enrollment
+ * Progress = (Completed Materials / Total Available Materials) × 100
+ */
+function updateOverallProgress($pdo, $enrollmentId, $courseId) {
+    // Get course materials
+    $stmt = $pdo->prepare("SELECT file_pdf, file_video FROM courses WHERE id = ?");
+    $stmt->execute([$courseId]);
+    $course = $stmt->fetch();
+    
+    // Get current enrollment status
+    $stmt = $pdo->prepare("SELECT pdf_completed, video_completed FROM enrollments WHERE id = ?");
+    $stmt->execute([$enrollmentId]);
+    $enrollment = $stmt->fetch();
+    
+    $totalMaterials = 0;
+    $completedMaterials = 0;
+    
+    // Check PDF
+    if ($course['file_pdf']) {
+        $totalMaterials++;
+        if ($enrollment['pdf_completed'] == 1) {
+            $completedMaterials++;
+        }
+    }
+    
+    // Check Video
+    if ($course['file_video']) {
+        $totalMaterials++;
+        if ($enrollment['video_completed'] == 1) {
+            $completedMaterials++;
+        }
+    }
+    
+    // Calculate progress percentage
+    $progress = $totalMaterials > 0 ? round(($completedMaterials / $totalMaterials) * 100, 2) : 0;
+    
+    // Update the overall progress in enrollments table
+    $stmt = $pdo->prepare("UPDATE enrollments SET progress = ? WHERE id = ?");
+    $stmt->execute([$progress, $enrollmentId]);
+    
+    return $progress;
+}
+
 // Only students need enrollment tracking
 $enrollment = null;
 $pdfProgress = [];
@@ -117,6 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pdf_page']) && is_stu
         if ($pdfCompleted != $currentEnrollment['pdf_completed']) {
             $stmt = $pdo->prepare('UPDATE enrollments SET pdf_completed = ? WHERE id = ?');
             $stmt->execute([$pdfCompleted, $enrollment['id']]);
+            
+            // Update overall progress when PDF completion status changes
+            updateOverallProgress($pdo, $enrollment['id'], $courseId);
         }
 
         $pdo->commit();
@@ -153,6 +200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_position']) && 
         if ($completed == 1) {
             $stmt = $pdo->prepare('UPDATE enrollments SET video_completed = 1 WHERE id = ?');
             $stmt->execute([$enrollment['id']]);
+            
+            // Update overall progress when video completion status changes
+            updateOverallProgress($pdo, $enrollment['id'], $courseId);
         }
 
         $pdo->commit();

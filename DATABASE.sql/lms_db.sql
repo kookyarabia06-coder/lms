@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 25, 2026 at 04:52 AM
+-- Generation Time: Mar 26, 2026 at 11:52 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -46,7 +46,9 @@ CREATE TABLE `assessments` (
 INSERT INTO `assessments` (`id`, `course_id`, `title`, `description`, `passing_score`, `time_limit`, `attempts_allowed`, `created_at`, `updated_at`) VALUES
 (6, 44, 'Powerpoint', 'PowerpointPowerpoint', 70, 0, 0, '2026-03-12 02:44:29', '2026-03-16 05:32:06'),
 (8, 47, 'MS WORD', 'MS WORDMS WORDMS WORDMS WORD', 70, 0, 0, '2026-03-12 03:17:14', '2026-03-16 05:32:26'),
-(9, 46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 70, 0, 0, '2026-03-12 03:17:52', '2026-03-12 05:12:30');
+(9, 46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 70, 0, 0, '2026-03-12 03:17:52', '2026-03-12 05:12:30'),
+(10, 52, 'this is title', 'this is description', 50, 0, 0, '2026-03-25 06:14:33', NULL),
+(11, 53, 'assessment title ehre', 'this is description', 80, 0, 2, '2026-03-25 08:24:22', NULL);
 
 -- --------------------------------------------------------
 
@@ -82,7 +84,13 @@ INSERT INTO `assessment_answers` (`id`, `attempt_id`, `question_id`, `selected_o
 (11, 6, 31, 119, NULL, 1, 1),
 (12, 6, 32, 126, NULL, 1, 1),
 (13, 7, 17, 64, NULL, 0, 0),
-(14, 8, 17, 66, NULL, 1, 1);
+(14, 8, 17, 66, NULL, 1, 1),
+(15, 9, 36, 139, NULL, 1, 1),
+(16, 10, 36, 139, NULL, 1, 1),
+(17, 11, 37, 144, NULL, 1, 1),
+(18, 11, 38, 148, NULL, 0, 0),
+(19, 12, 37, 144, NULL, 1, 1),
+(20, 12, 38, 150, NULL, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -112,7 +120,11 @@ INSERT INTO `assessment_attempts` (`id`, `assessment_id`, `user_id`, `score`, `s
 (5, 6, 76, 66.67, 'completed', '2026-03-16 16:40:06', '2026-03-16 16:40:16', 0, NULL),
 (6, 6, 76, 100.00, 'completed', '2026-03-16 16:40:26', '2026-03-16 16:40:35', 1, NULL),
 (7, 9, 76, 0.00, 'completed', '2026-03-17 14:08:08', '2026-03-17 14:08:13', 0, NULL),
-(8, 9, 76, 100.00, 'completed', '2026-03-17 14:08:17', '2026-03-17 14:08:20', 1, NULL);
+(8, 9, 76, 100.00, 'completed', '2026-03-17 14:08:17', '2026-03-17 14:08:20', 1, NULL),
+(9, 10, 103, 100.00, 'completed', '2026-03-25 14:14:42', '2026-03-25 14:14:51', 1, NULL),
+(10, 10, 76, 100.00, 'completed', '2026-03-25 15:06:37', '2026-03-25 15:06:41', 1, NULL),
+(11, 11, 103, 50.00, 'completed', '2026-03-25 16:31:10', '2026-03-25 16:31:20', 0, NULL),
+(12, 11, 103, 100.00, 'completed', '2026-03-25 16:31:31', '2026-03-25 16:31:40', 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -160,7 +172,19 @@ INSERT INTO `assessment_options` (`id`, `question_id`, `option_text`, `is_correc
 (135, 35, 'Powerpoint', 1, 0),
 (136, 35, 'Powerpointdddsd', 0, 1),
 (137, 35, 'asdas', 0, 2),
-(138, 35, 'asdasd', 0, 3);
+(138, 35, 'asdasd', 0, 3),
+(139, 36, 'option 1', 1, 0),
+(140, 36, 'option 2', 0, 1),
+(141, 36, 'option 3', 0, 2),
+(142, 36, 'option 4', 0, 3),
+(143, 37, 'Option 1', 0, 0),
+(144, 37, 'Option 11', 1, 1),
+(145, 37, 'Option 111', 0, 2),
+(146, 37, 'Option 1111', 0, 3),
+(147, 38, 'Option 11232', 0, 0),
+(148, 38, 'Option 11235', 0, 1),
+(149, 38, 'Option 11238', 0, 2),
+(150, 38, 'Option 112311', 1, 3);
 
 -- --------------------------------------------------------
 
@@ -189,7 +213,10 @@ INSERT INTO `assessment_questions` (`id`, `assessment_id`, `question_text`, `que
 (32, 6, 'Powerpoint', 'multiple_choice', 1, 2, '2026-03-16 05:32:06'),
 (33, 8, 'MS WORDMS WORD', 'multiple_choice', 1, 0, '2026-03-16 05:32:26'),
 (34, 8, 'MS WORDMS WORDMS WORD', 'multiple_choice', 1, 1, '2026-03-16 05:32:26'),
-(35, 8, 'Powerpoint', 'multiple_choice', 1, 2, '2026-03-16 05:32:26');
+(35, 8, 'Powerpoint', 'multiple_choice', 1, 2, '2026-03-16 05:32:26'),
+(36, 10, 'question one', 'multiple_choice', 1, 0, '2026-03-25 06:14:33'),
+(37, 11, 'question text here', 'multiple_choice', 1, 0, '2026-03-25 08:24:22'),
+(38, 11, 'Option 1123', 'multiple_choice', 1, 1, '2026-03-25 08:24:22');
 
 -- --------------------------------------------------------
 
@@ -269,7 +296,12 @@ INSERT INTO `audit_log` (`id`, `table_name`, `record_id`, `action`, `old_data`, 
 (53, 'courses', 50, 'INSERT', NULL, '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-18 07:48:04'),
 (54, 'courses', 50, 'DELETE', '{\"title\": \"Module\", \"description\": \"module description\", \"summary\": \"Module summary\", \"thumbnail\": \"bb8dae1ebab304a6.png\", \"file_pdf\": \"87f0387375dbeacd.pdf\", \"file_video\": null, \"proponent_id\": 72, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:32'),
 (55, 'courses', 49, 'DELETE', '{\"title\": \"adsasdasd\", \"description\": \"adsasdasd\", \"summary\": \"adsasdasdadsasdasdadsasdasdadsasdasd\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 5, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:37'),
-(56, 'courses', 48, 'DELETE', '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:39');
+(56, 'courses', 48, 'DELETE', '{\"title\": \"Tester\", \"description\": \"TesterTester\", \"summary\": \"TesterTesterTesterTesterTesterTester\", \"thumbnail\": null, \"file_pdf\": \"60457b0ca7bb3a8c.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', NULL, NULL, NULL, '2026-03-24 06:31:39'),
+(57, 'courses', 51, 'INSERT', NULL, '{\"title\": \"test\", \"description\": \"testtest\", \"summary\": \"testtesttest\", \"thumbnail\": null, \"file_pdf\": null, \"file_video\": null, \"proponent_id\": 22, \"expires_at\": null, \"is_active\": 1}', NULL, NULL, '2026-03-25 05:48:18'),
+(58, 'courses', 52, 'INSERT', NULL, '{\"title\": \"Cisco\", \"description\": \"Course desc\", \"summary\": \"course summary\", \"thumbnail\": \"276cc0d823343fea.png\", \"file_pdf\": \"648c4e5b57b67cb3.pdf\", \"file_video\": null, \"proponent_id\": 104, \"expires_at\": \"2026-12-06\", \"is_active\": 1}', NULL, NULL, '2026-03-25 06:10:16'),
+(59, 'courses', 53, 'INSERT', NULL, '{\"title\": \"Java expt\", \"description\": \"java descript\", \"summary\": \"java summary\", \"thumbnail\": \"4b026f92c8ce07e3.png\", \"file_pdf\": \"4b103ff194454d12.pdf\", \"file_video\": null, \"proponent_id\": 22, \"expires_at\": \"2027-02-02\", \"is_active\": 1}', NULL, NULL, '2026-03-25 08:23:09'),
+(60, 'courses', 53, 'UPDATE', '{\"title\": \"Java expt\", \"description\": \"java descript\", \"summary\": \"java summary\", \"thumbnail\": \"4b026f92c8ce07e3.png\", \"file_pdf\": \"4b103ff194454d12.pdf\", \"file_video\": null, \"expires_at\": \"2027-02-02\", \"is_active\": 1}', '{\"title\": \"Java expt\", \"description\": \"java descript\", \"summary\": \"java summary\", \"thumbnail\": \"4b026f92c8ce07e3.png\", \"file_pdf\": \"4b103ff194454d12.pdf\", \"file_video\": null, \"expires_at\": \"2026-03-24\", \"is_active\": 1}', '[\"expires_at\"]', NULL, '2026-03-25 08:27:25'),
+(61, 'courses', 53, 'UPDATE', '{\"title\": \"Java expt\", \"description\": \"java descript\", \"summary\": \"java summary\", \"thumbnail\": \"4b026f92c8ce07e3.png\", \"file_pdf\": \"4b103ff194454d12.pdf\", \"file_video\": null, \"expires_at\": \"2026-03-24\", \"is_active\": 1}', '{\"title\": \"Java expt\", \"description\": \"java descript\", \"summary\": \"java summary\", \"thumbnail\": \"4b026f92c8ce07e3.png\", \"file_pdf\": \"4b103ff194454d12.pdf\", \"file_video\": null, \"expires_at\": \"2026-03-28\", \"is_active\": 1}', '[\"expires_at\"]', NULL, '2026-03-25 08:27:57');
 
 -- --------------------------------------------------------
 
@@ -418,7 +450,10 @@ CREATE TABLE `courses` (
 INSERT INTO `courses` (`id`, `title`, `description`, `thumbnail`, `proponent_id`, `file_pdf`, `file_video`, `created_at`, `updated_at`, `expires_at`, `is_active`, `summary`, `edited_at`, `status`) VALUES
 (44, 'MS Powerpoint', 'MS PowerpointMS Powerpoint', '787649e329f7066e.png', 22, '2511cc375026c19b.pdf', '3734cd9963722805.mp4', '2026-03-11 01:59:03', '2026-03-25 03:16:28', NULL, 1, 'MS PowerpointMS PowerpointMS Powerpoint', NULL, 'reject'),
 (46, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 5, '553d0b74f1e03290.pdf', NULL, '2026-03-12 03:15:47', '2026-03-25 03:16:35', NULL, 1, 'BASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTINGBASIC DESKTOP COMPUTER HARDWARE TROUBLESHOOTING', NULL, 'approve'),
-(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-25 03:16:37', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL, 'approve');
+(47, 'MS WORD', 'MS WORDMS WORD', NULL, 5, '0c8a2d5f9d024c5f.pdf', 'e8483caa3dd5f146.mp4', '2026-03-12 03:16:20', '2026-03-25 03:16:37', NULL, 1, 'MS WORDMS WORDMS WORDMS WORDMS WORDMS WORD', NULL, 'approve'),
+(51, 'test', 'testtest', NULL, 22, NULL, NULL, '2026-03-25 05:48:18', NULL, NULL, 1, 'testtesttest', NULL, 'pending'),
+(52, 'Cisco', 'Course desc', '276cc0d823343fea.png', 104, '648c4e5b57b67cb3.pdf', NULL, '2026-03-25 06:10:16', '2026-03-25 06:10:28', '2026-12-06', 1, 'course summary', NULL, 'approve'),
+(53, 'Java expt', 'java descript', '4b026f92c8ce07e3.png', 22, '4b103ff194454d12.pdf', NULL, '2026-03-25 08:23:09', '2026-03-25 08:27:57', '2026-03-28', 1, 'java summary', NULL, 'approve');
 
 --
 -- Triggers `courses`
@@ -560,7 +595,10 @@ CREATE TABLE `course_departments` (
 --
 
 INSERT INTO `course_departments` (`course_id`, `committee_id`) VALUES
-(44, 4);
+(44, 4),
+(51, 3),
+(52, 6),
+(53, 3);
 
 -- --------------------------------------------------------
 
@@ -709,6 +747,7 @@ CREATE TABLE `enrollments` (
   `pdf_current_page` int(11) DEFAULT 0,
   `pdf_total_pages` int(11) DEFAULT 0,
   `status` enum('ongoing','completed','expired') DEFAULT 'ongoing',
+  `badge_issued` tinyint(1) DEFAULT 0,
   `total_time_seconds` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -716,11 +755,13 @@ CREATE TABLE `enrollments` (
 -- Dumping data for table `enrollments`
 --
 
-INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `completed_at`, `expired_at`, `progress`, `video_progress`, `pdf_progress`, `video_completed`, `pdf_completed`, `pdf_current_page`, `pdf_total_pages`, `status`, `total_time_seconds`) VALUES
-(68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0),
-(69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0),
-(70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0),
-(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0);
+INSERT INTO `enrollments` (`id`, `user_id`, `course_id`, `enrolled_at`, `completed_at`, `expired_at`, `progress`, `video_progress`, `pdf_progress`, `video_completed`, `pdf_completed`, `pdf_current_page`, `pdf_total_pages`, `status`, `badge_issued`, `total_time_seconds`) VALUES
+(68, 77, 47, '2026-03-16 07:20:17', NULL, NULL, 1.00, 0, 2, 0, 0, 0, 0, 'ongoing', 0, 0),
+(69, 77, 44, '2026-03-16 07:20:23', NULL, NULL, 55.00, 10, 100, 1, 1, 0, 0, 'ongoing', 0, 0),
+(70, 76, 44, '2026-03-16 08:21:31', '2026-03-16 08:49:51', NULL, 0.00, 0, 0, 1, 1, 39, 39, 'completed', 0, 0),
+(71, 76, 46, '2026-03-17 06:07:19', NULL, NULL, 0.00, 0, 0, 0, 1, 66, 66, 'ongoing', 0, 0),
+(74, 76, 52, '2026-03-25 07:06:20', '2026-03-25 07:06:56', NULL, 100.00, 0, 0, 0, 1, 26, 26, 'completed', 0, 0),
+(75, 103, 53, '2026-03-25 08:29:26', '2026-03-25 08:31:50', NULL, 100.00, 0, 0, 0, 1, 12, 12, 'completed', 1, 0);
 
 -- --------------------------------------------------------
 
@@ -1652,7 +1693,71 @@ INSERT INTO `pdf_progress` (`id`, `enrollment_id`, `page_number`, `viewed_at`) V
 (0, 72, 10, '2026-03-18 07:49:19'),
 (0, 72, 11, '2026-03-18 07:49:19'),
 (0, 72, 12, '2026-03-18 07:49:20'),
-(0, 72, 13, '2026-03-18 07:49:21');
+(0, 72, 13, '2026-03-18 07:49:21'),
+(0, 73, 1, '2026-03-25 06:10:39'),
+(0, 73, 2, '2026-03-25 06:10:42'),
+(0, 73, 3, '2026-03-25 06:13:53'),
+(0, 73, 4, '2026-03-25 06:13:54'),
+(0, 73, 5, '2026-03-25 06:13:55'),
+(0, 73, 6, '2026-03-25 06:13:56'),
+(0, 73, 7, '2026-03-25 06:13:57'),
+(0, 73, 8, '2026-03-25 06:13:58'),
+(0, 73, 9, '2026-03-25 06:13:59'),
+(0, 73, 10, '2026-03-25 06:14:00'),
+(0, 73, 11, '2026-03-25 06:14:01'),
+(0, 73, 12, '2026-03-25 06:14:02'),
+(0, 73, 13, '2026-03-25 06:14:03'),
+(0, 73, 14, '2026-03-25 06:14:03'),
+(0, 73, 15, '2026-03-25 06:14:04'),
+(0, 73, 16, '2026-03-25 06:14:05'),
+(0, 73, 17, '2026-03-25 06:14:06'),
+(0, 73, 18, '2026-03-25 06:14:07'),
+(0, 73, 19, '2026-03-25 06:14:08'),
+(0, 73, 20, '2026-03-25 06:14:08'),
+(0, 73, 21, '2026-03-25 06:14:09'),
+(0, 73, 22, '2026-03-25 06:14:10'),
+(0, 73, 23, '2026-03-25 06:14:11'),
+(0, 73, 24, '2026-03-25 06:14:12'),
+(0, 73, 25, '2026-03-25 06:14:13'),
+(0, 73, 26, '2026-03-25 06:14:14'),
+(0, 74, 1, '2026-03-25 07:06:21'),
+(0, 74, 2, '2026-03-25 07:06:22'),
+(0, 74, 3, '2026-03-25 07:06:22'),
+(0, 74, 4, '2026-03-25 07:06:22'),
+(0, 74, 5, '2026-03-25 07:06:23'),
+(0, 74, 6, '2026-03-25 07:06:23'),
+(0, 74, 7, '2026-03-25 07:06:23'),
+(0, 74, 8, '2026-03-25 07:06:24'),
+(0, 74, 9, '2026-03-25 07:06:25'),
+(0, 74, 10, '2026-03-25 07:06:26'),
+(0, 74, 11, '2026-03-25 07:06:26'),
+(0, 74, 12, '2026-03-25 07:06:26'),
+(0, 74, 13, '2026-03-25 07:06:27'),
+(0, 74, 14, '2026-03-25 07:06:27'),
+(0, 74, 15, '2026-03-25 07:06:27'),
+(0, 74, 16, '2026-03-25 07:06:28'),
+(0, 74, 17, '2026-03-25 07:06:28'),
+(0, 74, 18, '2026-03-25 07:06:29'),
+(0, 74, 19, '2026-03-25 07:06:29'),
+(0, 74, 20, '2026-03-25 07:06:29'),
+(0, 74, 21, '2026-03-25 07:06:30'),
+(0, 74, 22, '2026-03-25 07:06:30'),
+(0, 74, 23, '2026-03-25 07:06:30'),
+(0, 74, 24, '2026-03-25 07:06:31'),
+(0, 74, 25, '2026-03-25 07:06:31'),
+(0, 74, 26, '2026-03-25 07:06:32'),
+(0, 75, 1, '2026-03-25 08:29:28'),
+(0, 75, 2, '2026-03-25 08:29:40'),
+(0, 75, 3, '2026-03-25 08:29:48'),
+(0, 75, 4, '2026-03-25 08:29:51'),
+(0, 75, 5, '2026-03-25 08:29:54'),
+(0, 75, 6, '2026-03-25 08:29:57'),
+(0, 75, 7, '2026-03-25 08:29:59'),
+(0, 75, 8, '2026-03-25 08:30:02'),
+(0, 75, 9, '2026-03-25 08:30:05'),
+(0, 75, 10, '2026-03-25 08:30:07'),
+(0, 75, 11, '2026-03-25 08:30:09'),
+(0, 75, 12, '2026-03-25 08:30:12');
 
 -- --------------------------------------------------------
 
@@ -1705,9 +1810,17 @@ CREATE TABLE `training_requests` (
 
 INSERT INTO `training_requests` (`id`, `training_type`, `title`, `date_start`, `date_end`, `location_type`, `hospital_order_no`, `amount`, `late_filing`, `official_business`, `remarks`, `requester_id`, `resched_reason`, `ptr_file`, `coc_file`, `coa_file`, `mom_file`, `status`, `created_at`, `updated_at`) VALUES
 (1, 'External', 'asdasdas', '2026-03-25', '2026-03-28', 'international', '', 0.00, 0, 1, '0', 97, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-24 16:50:49', NULL),
-(2, 'External', 'asdasdasd', '2026-03-28', '2026-04-11', 'international', '', 0.00, 0, 0, '0', 97, 'late enrollees', NULL, NULL, NULL, NULL, 'pending', '2026-03-24 16:51:14', '2026-03-25 08:24:57'),
-(3, 'Internal', 'Test Training', '2026-04-01', '2026-04-04', 'local', '123123123', 120000.00, 0, 1, 'Test Training', 72, NULL, NULL, NULL, NULL, NULL, 'approved', '2026-03-24 17:33:25', '2026-03-24 17:56:32'),
-(5, 'Internal', 'adasdasd', '0000-00-00', '0000-00-00', 'local', '', 0.00, 1, 0, 'adasdasd', 72, NULL, 'training_1774409307_d6df5639.pdf', NULL, NULL, NULL, 'pending', '2026-03-25 11:14:24', '2026-03-25 11:28:27');
+(2, 'External', 'asdasdasd', '0000-00-00', '0000-00-00', 'local', '', 0.00, 0, 0, '0', 97, 'late enrollees', NULL, NULL, NULL, NULL, 'pending', '2026-03-24 16:51:14', '2026-03-25 12:05:12'),
+(6, 'Internal', 'testerist', '2026-03-26', '2026-04-09', 'local', '', 10000.00, 0, 0, 'testeristtesteristtesterist', 76, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 13:37:08', NULL),
+(7, 'External', 'test2', '2026-04-14', '2026-05-22', 'international', '', 209000.00, 0, 0, 'test2  test2', 76, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 13:41:59', NULL),
+(8, 'Internal', 'test3', '2026-03-26', '2026-03-28', 'local', '', 400.00, 0, 0, 'test3 test3 test3', 76, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 13:44:10', NULL),
+(9, 'Internal', 'asdasdasdasdasd', '2026-03-28', '2026-03-31', 'local', '', 23123123.00, 1, 1, 'asdasdas', 76, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 13:45:07', '2026-03-25 13:46:36'),
+(10, 'External', 'asdasdddddddddd', '2026-03-27', '2026-03-28', 'local', '', 0.00, 1, 1, 'asdasdddddddddd', 76, NULL, 'training_1774418460_a1f6e146.pdf', NULL, NULL, NULL, 'approved', '2026-03-25 13:46:53', '2026-03-25 14:01:00'),
+(11, 'External', 'External', '2026-03-26', '2026-03-29', 'local', '', 100.00, 1, 1, '', 103, NULL, 'training_1774419661_e3134ea4.pdf', 'training_1774419711_d72014a3.png', 'training_1774419711_672d5156.png', 'training_1774419711_6f13f8e0.png', 'approved', '2026-03-25 14:17:35', '2026-03-25 14:21:51'),
+(12, 'Internal', 'conduct of orient', '2027-01-26', '2027-01-27', 'local', 'sdasdasdasd', 22.00, 1, 1, 'adasdsad', 104, NULL, 'training_1774419687_1e2e251e.pdf', 'training_1774419687_61f737c8.pdf', 'training_1774419687_9479b7df.pdf', 'training_1774419687_b8fb9b96.pdf', 'approved', '2026-03-25 14:17:42', '2026-03-25 14:21:27'),
+(13, 'Internal', 'asdasd', '2026-03-27', '2026-03-29', '', '', 0.00, 0, 0, '', 72, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 15:19:04', NULL),
+(14, 'External', 'external 2', '2026-03-25', '2026-03-28', 'local', '', 1000.00, 1, 1, 'gshsdfga', 103, NULL, 'training_1774427818_7d88a861.png', 'training_1774427818_6f5dccdd.png', 'training_1774427818_c141542d.png', 'training_1774427818_36fcbd68.png', 'approved', '2026-03-25 16:35:27', '2026-03-25 16:36:58'),
+(15, 'External', 'Title here', '2027-01-26', '2027-01-28', 'international', '', 21321313.00, 0, 0, 'sdadasd', 22, NULL, NULL, NULL, NULL, NULL, 'pending', '2026-03-25 16:35:52', NULL);
 
 -- --------------------------------------------------------
 
@@ -1739,7 +1852,6 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `role`, `created_at`, `updated_at`, `is_verified`, `otp_code`, `otp_expires_at`, `status`, `message_notifications`, `email_notifications`, `departments`) VALUES
-(1, 'kooky', '$2y$10$wjiEABSo/nLus0Nno0Y/dODGX6ZmNR6xkvmPGWndxaP4yZgBqpWja', 'Kooky', 'Arabia', 'Kookyarabia07@gmail.com', 'admin', '2026-01-30 01:25:37', NULL, 0, '842486', '2026-02-04 12:00:52', 'confirmed', 1, 1, NULL),
 (5, 'alvin', '$2y$10$p.0kdoyIco1ye14NdYTqY.FgdL3UF7Vpd/fo3rcEQEQo/qEhTATlO', 'Alvin', 'Lopez', 'traxcie21@gmail.com', 'admin', '2026-02-04 06:32:23', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (8, 'proponent', '$2y$10$YuqFFhnfrrPuXceFDMaVZugK18qFizJyOxrzKgrQX8nSkWRU4BLgW', 'Mr.', 'Proponent', 'proponent@gmail.com', 'proponent', '2026-02-11 00:43:36', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (22, 'pro', '$2y$10$gpII/P2uzcDch.35MinEve7EO4uQD05eaIkHpTshPmszmeMPArXaO', 'pro', 'pro', 'pro@gmail.com', 'proponent', '2026-02-16 05:15:51', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
@@ -1760,8 +1872,10 @@ INSERT INTO `users` (`id`, `username`, `password`, `fname`, `lname`, `email`, `r
 (97, 'admin', '$2y$10$NCSfBuMOdDJF7qNc/uAufeWhvEUBmSKZEm41.F7ahR4NJgj/KbMbO', 'Johnemmanulle', 'DL', 'gfaith209@gmail.com', 'user', '2026-03-18 08:31:32', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (98, 'asdasd', '$2y$10$544HNO.Fq0MC1dDz94QbfuSJCHspZpj/RcdD3kwfYJ7g2izNM0OFW', 'asdasdasdasd', 'asdasdasda', 'sdadasda@gm.com', 'proponent', '2026-03-19 00:53:28', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
 (99, 'ssssssssssssssssss', '$2y$10$wiSbAzOHstws/tgCcI3vbej3E4ULql9jeCjfvuarZyJJh5UJ1IVKO', 'ssssssssssssssssss', 'ssssssssssssssssss', 'ssssssssssssssssss@gm.com', 'proponent', '2026-03-19 00:53:47', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(101, 'imman', '$2y$10$QV8OYKGPAauLwB/b4tXEPedtMbWNAnl7jR8pwXS0cFqhJOKiQkkd6', 'imman', 'imman', 'imman@pogidawsya.com', 'user', '2026-03-19 01:44:53', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
-(102, 'testdepartments', '$2y$10$koNC7D8un48YIl0hV9eaGOneqNTwNBjv4jmKne/f7c7OfvcHmbUiS', 'test', 'departments', 'gplankton1@gmail.com', 'user', '2026-03-19 03:56:36', NULL, 0, NULL, NULL, 'pending', 1, 1, NULL);
+(102, 'testdepartments', '$2y$10$koNC7D8un48YIl0hV9eaGOneqNTwNBjv4jmKne/f7c7OfvcHmbUiS', 'test', 'departments', 'gplankton1@gmail.com', 'user', '2026-03-19 03:56:36', NULL, 0, NULL, NULL, 'pending', 1, 1, NULL),
+(103, 'kooky', '$2y$10$nBzxXp.0P9yk2V2Th7mE1OIik.gfQW0OjkdiUV37ZMpqaiVAIePri', 'Kooky Lyann', 'Arabia', 'kooky@test.com', 'user', '2026-03-25 05:14:19', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(104, 'imman', '$2y$10$T6uikNEJkuxZryApu5GDD.UB6Ng6b8NkyzfYDBv9MSpqz0FWobhoG', 'Emmanuelle', 'De Leon', 'imman@test.com', 'proponent', '2026-03-25 05:14:52', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL),
+(105, 'renz', '$2y$10$ryOJCl6M7FZLb0qp9qnjUef1LXc/z7zT1toC9faksPJSKXnVR.D8e', 'Renz Aaron', 'Mendiola', 'renz@test.com', 'admin', '2026-03-25 05:15:48', NULL, 0, NULL, NULL, 'confirmed', 1, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -1782,15 +1896,15 @@ CREATE TABLE `user_departments` (
 --
 
 INSERT INTO `user_departments` (`id`, `user_id`, `dept_id`, `committee_id`, `assigned_at`) VALUES
-(2, 101, 5, NULL, '2026-03-19 02:31:41'),
 (7, 76, 5, NULL, '2026-03-19 03:26:31'),
 (8, 102, 5, NULL, '2026-03-19 03:56:36'),
 (9, 5, NULL, 13, '2026-03-19 06:06:07'),
-(10, 1, NULL, 10, '2026-03-19 06:07:29'),
-(11, 1, NULL, 18, '2026-03-19 06:07:29'),
 (12, 22, NULL, 3, '2026-03-19 07:02:07'),
 (13, 22, NULL, 4, '2026-03-19 07:02:07'),
-(14, 22, NULL, 16, '2026-03-19 07:02:07');
+(14, 22, NULL, 16, '2026-03-19 07:02:07'),
+(19, 104, NULL, 6, '2026-03-25 05:14:52'),
+(20, 105, NULL, 51, '2026-03-25 05:15:48'),
+(24, 103, 5, NULL, '2026-03-25 06:38:21');
 
 -- --------------------------------------------------------
 
@@ -2036,37 +2150,37 @@ ALTER TABLE `video_progress`
 -- AUTO_INCREMENT for table `assessments`
 --
 ALTER TABLE `assessments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `assessment_answers`
 --
 ALTER TABLE `assessment_answers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `assessment_attempts`
 --
 ALTER TABLE `assessment_attempts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `assessment_options`
 --
 ALTER TABLE `assessment_options`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=139;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=151;
 
 --
 -- AUTO_INCREMENT for table `assessment_questions`
 --
 ALTER TABLE `assessment_questions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
 
 --
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
 
 --
 -- AUTO_INCREMENT for table `committees`
@@ -2090,7 +2204,7 @@ ALTER TABLE `conversations`
 -- AUTO_INCREMENT for table `courses`
 --
 ALTER TABLE `courses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=51;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `departments`
@@ -2114,7 +2228,7 @@ ALTER TABLE `edit`
 -- AUTO_INCREMENT for table `enrollments`
 --
 ALTER TABLE `enrollments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=76;
 
 --
 -- AUTO_INCREMENT for table `messages`
@@ -2168,19 +2282,19 @@ ALTER TABLE `time_logs`
 -- AUTO_INCREMENT for table `training_requests`
 --
 ALTER TABLE `training_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=103;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=106;
 
 --
 -- AUTO_INCREMENT for table `user_departments`
 --
 ALTER TABLE `user_departments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `video_progress`
