@@ -1,0 +1,2468 @@
+<?php
+require_once __DIR__ . '/../inc/config.php';
+require_once __DIR__ . '/../inc/auth.php';
+require_once __DIR__ . '/../inc/functions.php';
+
+require_login();
+
+// Use PDO for consistency with your LMS
+$pdo = $pdo; // Use the existing PDO connection
+
+$current_user_id = $_SESSION['user']['id'];
+
+// Initialize variables
+$success_message = '';
+$error_message = '';
+$filter_month = '';
+
+// Handle AJAX Delete Request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_POST['id'];
+        
+        // Check if user has permission to delete (only admin/superadmin or the requester)
+        $stmt = $pdo->prepare("SELECT requester_id FROM training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        $request = $stmt->fetch();
+        
+        if (!$request) {
+            echo json_encode(['success' => false, 'message' => 'Request not found']);
+            exit;
+        }
+        
+        if (!is_admin() && !is_superadmin() && $request['requester_id'] != $current_user_id) {
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to delete this request']);
+            exit;
+        }
+        
+        $stmt = $pdo->prepare("DELETE FROM training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Request deleted successfully']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Add Request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) {
+    header('Content-Type: application/json');
+    try {
+        $training_type = trim($_POST['training_type'] ?? '');
+        $title = trim($_POST['title'] ?? '');
+        $date_start = $_POST['date_start'] ?? '';
+        $date_end = $_POST['date_end'] ?? '';
+        $location_type = trim($_POST['location_type'] ?? '');
+        $hospital_id = trim($_POST['hospital_id'] ?? '');
+        $amount = floatval($_POST['amount'] ?? 0);
+        $late_filing = isset($_POST['late_filing']) ? 1 : 0;
+        $official_business = isset($_POST['official_business']) ? 1 : 0;
+        $remarks = trim($_POST['remarks'] ?? '');
+        
+        $errors = [];
+        if (empty($training_type)) $errors[] = "Training type is required";
+        if (empty($title)) $errors[] = "Title is required";
+    
+        
+        
+        if (!empty($date_start) && !empty($date_end)) {
+            if (strtotime($date_end) < strtotime($date_start)) {
+                $errors[] = "End date cannot be earlier than start date";
+            }
+        }
+        
+        if (!empty($errors)) {
+            echo json_encode(['success' => false, 'message' => implode(", ", $errors)]);
+            exit;
+        }
+        
+        $requester_id = $current_user_id;
+        
+        // Get requester name
+        $stmt = $pdo->prepare("SELECT CONCAT(fname, ' ', lname) as fullname, username FROM users WHERE id = ?");
+        $stmt->execute([$requester_id]);
+        $user = $stmt->fetch();
+        $requester_name = $user['fullname'] ?: ($user['username'] ?? 'Unknown');
+        
+        $stmt = $pdo->prepare("INSERT INTO training_requests (
+            training_type, title, date_start, date_end, location_type, 
+            hospital_order_no, amount, late_filing, official_business, 
+            remarks, requester_id, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())");
+        
+        $stmt->execute([
+            $training_type,
+            $title,
+            $date_start,
+            $date_end,
+            $location_type,
+            $hospital_id,
+            $amount,
+            $late_filing,
+            $official_business,
+            $remarks,
+            $requester_id
+        ]);
+        
+        $new_id = $pdo->lastInsertId();
+        
+        // Return the new request data to append to table
+        echo json_encode([
+            'success' => true,
+            'message' => 'Training request submitted successfully!',
+            'request' => [
+                'id' => $new_id,
+                'title' => $title,
+                'training_type' => $training_type,
+                'date_start' => $date_start,
+                'date_end' => $date_end,
+                'requester_name' => $requester_name,
+                'hospital_order_no' => $hospital_id,
+                'amount' => $amount,
+                'official_business' => $official_business,
+                'remarks' => $remarks,
+                'status' => 'pending'
+            ]
+        ]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Edit Request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_POST['id'];
+        $training_type = trim($_POST['training_type'] ?? '');
+        $title = trim($_POST['title'] ?? '');
+        $location_type = trim($_POST['location_type'] ?? '');
+        $hospital_id = trim($_POST['hospital_id'] ?? '');
+        $amount = floatval($_POST['amount'] ?? 0);
+        $late_filing = isset($_POST['late_filing']) ? 1 : 0;
+        $official_business = isset($_POST['official_business']) ? 1 : 0;
+        $remarks = trim($_POST['remarks'] ?? '');
+        $approve_status = isset($_POST['approve_status']) ? 1 : 0;
+        
+        $errors = [];
+        if (empty($training_type)) $errors[] = "Training type is required";
+        if (empty($title)) $errors[] = "Title is required";
+        
+        if (!empty($errors)) {
+            echo json_encode(['success' => false, 'message' => implode(", ", $errors)]);
+            exit;
+        }
+        
+        // Handle file uploads
+        $upload_dir = __DIR__ . '/../uploads/training/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        
+        function uploadTrainingFile($field_name) {
+            if (!isset($_FILES[$field_name]) || $_FILES[$field_name]['error'] !== UPLOAD_ERR_OK) {
+                return null;
+            }
+            $ext = strtolower(pathinfo($_FILES[$field_name]['name'], PATHINFO_EXTENSION));
+            $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+            if (!in_array($ext, $allowed)) {
+                return null;
+            }
+            $filename = 'training_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            $upload_dir = __DIR__ . '/../uploads/training/';
+            if (move_uploaded_file($_FILES[$field_name]['tmp_name'], $upload_dir . $filename)) {
+                return $filename;
+            }
+            return null;
+        }
+        
+        $ptr_file = uploadTrainingFile('ptr_file');
+        $coc_file = uploadTrainingFile('coc_file');
+        $coa_file = uploadTrainingFile('coa_file');
+        $mom_file = uploadTrainingFile('mom_file');
+        
+        // Start building the update query - exclude date fields since they're disabled in form
+        $sql = "UPDATE training_requests SET 
+            training_type = ?, title = ?, 
+            location_type = ?, hospital_order_no = ?, amount = ?, 
+            late_filing = ?, official_business = ?, remarks = ?";
+        $params = [$training_type, $title, $location_type, $hospital_id, $amount, $late_filing, $official_business, $remarks];
+        
+        if ($ptr_file) {
+            $sql .= ", ptr_file = ?";
+            $params[] = $ptr_file;
+        }
+        if ($coc_file) {
+            $sql .= ", coc_file = ?";
+            $params[] = $coc_file;
+        }
+        if ($coa_file) {
+            $sql .= ", coa_file = ?";
+            $params[] = $coa_file;
+        }
+        if ($mom_file) {
+            $sql .= ", mom_file = ?";
+            $params[] = $mom_file;
+        }
+        
+        // Update status if approved (only admin/superadmin can approve)
+        if ($approve_status && (is_admin() || is_superadmin())) {
+            $sql .= ", status = 'approved'";
+        }
+        
+        $sql .= ", updated_at = NOW() WHERE id = ?";
+        $params[] = $id;
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        
+        echo json_encode(['success' => true, 'message' => 'Training request updated successfully!']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Reschedule Request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_request_ajax'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_POST['id'];
+        $date_start = $_POST['date_start'] ?? '';
+        $date_end = $_POST['date_end'] ?? '';
+        $resched_reason = trim($_POST['resched_reason'] ?? '');
+        
+        $errors = [];
+        if (empty($date_start)) $errors[] = "New start date is required";
+        if (empty($date_end)) $errors[] = "New end date is required";
+        
+        if (!empty($date_start) && !empty($date_end)) {
+            if (strtotime($date_end) < strtotime($date_start)) {
+                $errors[] = "End date cannot be earlier than start date";
+            }
+        }
+        
+        if (empty($resched_reason)) $errors[] = "Reschedule reason is required";
+        
+        if (!empty($errors)) {
+            echo json_encode(['success' => false, 'message' => implode(", ", $errors)]);
+            exit;
+        }
+        
+        // Update dates directly (overwrite original) and store reason
+        $stmt = $pdo->prepare("UPDATE training_requests SET 
+            date_start = ?, date_end = ?, resched_reason = ?, status = 'pending' 
+            WHERE id = ?");
+        $stmt->execute([$date_start, $date_end, $resched_reason, $id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Training request rescheduled successfully!']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Request Data for Edit
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_request'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_GET['id'];
+        $stmt = $pdo->prepare("SELECT * FROM training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$request) {
+            echo json_encode(['success' => false, 'message' => 'Request not found']);
+            exit;
+        }
+        
+        echo json_encode(['success' => true, 'request' => $request]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Filtered Report Data
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data'])) {
+    header('Content-Type: application/json');
+    try {
+        $year = isset($_GET['year']) && !empty($_GET['year']) ? (int)$_GET['year'] : null;
+        $month = isset($_GET['month']) && !empty($_GET['month']) ? (int)$_GET['month'] : null;
+        $division_id = isset($_GET['division_id']) && !empty($_GET['division_id']) ? (int)$_GET['division_id'] : null;
+        $dept_id = isset($_GET['dept_id']) && !empty($_GET['dept_id']) ? (int)$_GET['dept_id'] : null;
+        $type = isset($_GET['type']) && !empty($_GET['type']) ? $_GET['type'] : null;
+        
+        $where_clauses = ["tr.status = 'approved'"];
+        $params = [];
+        
+        if ($year) {
+            $where_clauses[] = "YEAR(tr.date_start) = ?";
+            $params[] = $year;
+        }
+        
+        if ($month) {
+            $where_clauses[] = "MONTH(tr.date_start) = ?";
+            $params[] = $month;
+        }
+        
+        if ($type) {
+            $where_clauses[] = "tr.training_type = ?";
+            $params[] = $type;
+        }
+        
+        if ($division_id) {
+            $where_clauses[] = "d.id = ?";
+            $params[] = $division_id;
+        }
+        
+        if ($dept_id) {
+            $where_clauses[] = "dept.id = ?";
+            $params[] = $dept_id;
+        }
+        
+        $where_sql = implode(" AND ", $where_clauses);
+        
+        $query = "
+            SELECT 
+                tr.id,
+                tr.title,
+                tr.training_type,
+                DATE_FORMAT(tr.date_start, '%M %d, %Y') as date_start,
+                DATE_FORMAT(tr.date_end, '%M %d, %Y') as date_end,
+                CONCAT(u.fname, ' ', u.lname) as requester_name,
+                u.username,
+                d.name as division_name,
+                dept.name as department_name,
+                tr.hospital_order_no,
+                tr.amount,
+                tr.status
+            FROM training_requests tr
+            LEFT JOIN users u ON tr.requester_id = u.id
+            LEFT JOIN user_departments ud ON ud.user_id = u.id
+            LEFT JOIN depts dept ON ud.dept_id = dept.id
+            LEFT JOIN departments d ON dept.department_id = d.id
+            WHERE $where_sql
+            GROUP BY tr.id
+            ORDER BY tr.date_start DESC, tr.created_at DESC
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode(['success' => true, 'reports' => $reports]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Filter Options
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_filter_options'])) {
+    header('Content-Type: application/json');
+    try {
+        // Get available years from approved requests
+        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM training_requests WHERE status = 'approved' ORDER BY year DESC");
+        $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // Get all divisions
+        $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
+        $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get all departments
+        $stmt = $pdo->query("SELECT id, name, department_id FROM depts ORDER BY name");
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode([
+            'success' => true, 
+            'years' => $years,
+            'divisions' => $divisions,
+            'departments' => $departments
+        ]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle filter
+$filter_month = isset($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
+$where_clause = [];
+$params = [];
+
+// Add user filter - regular users see only their requests, admins see all
+if (!is_admin() && !is_superadmin()) {
+    $where_clause[] = "tr.requester_id = ?";
+    $params[] = $current_user_id;
+}
+
+if (!empty($filter_month) && $filter_month >= 1 && $filter_month <= 12) {
+    $where_clause[] = "MONTH(tr.date_start) = ? AND YEAR(tr.date_start) = YEAR(CURDATE())";
+    $params[] = $filter_month;
+}
+
+$where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
+
+// Fetch training requests
+$query = "SELECT 
+    tr.*,
+    COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name
+    FROM training_requests tr
+    LEFT JOIN users u ON tr.requester_id = u.id
+    $where_sql
+    ORDER BY tr.created_at DESC";
+
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Get statistics
+// Get statistics - respect user permissions
+$stats_where = "";
+$stats_params = [];
+
+if (!is_admin() && !is_superadmin()) {
+    $stats_where = "AND requester_id = ?";
+    $stats_params[] = $current_user_id;
+}
+
+$stats_query = "SELECT 
+    COUNT(*) as total,
+    SUM(CASE WHEN training_type = 'Internal' THEN 1 ELSE 0 END) as internal_count,
+    SUM(CASE WHEN training_type = 'External' THEN 1 ELSE 0 END) as external_count,
+    COALESCE(SUM(amount), 0) as total_amount
+    FROM training_requests
+    WHERE YEAR(date_start) = YEAR(CURDATE()) $stats_where";
+
+$stmt = $pdo->prepare($stats_query);
+$stmt->execute($stats_params);
+$stats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$stats) {
+    $stats = ['total' => 0, 'internal_count' => 0, 'external_count' => 0, 'total_amount' => 0];
+}
+
+
+
+// fetch all proponents for dropdown
+  $stmt = $pdo->prepare("SELECT id, username FROM users WHERE role = 'proponent' ORDER BY username");
+  $stmt->execute();
+    $proponents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+//fetch all user for attendance
+$stmt = $pdo->prepare("SELECT id, username FROM users ORDER BY username");
+$stmt->execute();
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+
+
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Request Management - LMS</title>
+    <link href="<?= BASE_URL ?>/assets/css/training.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* ============================================
+           ENHANCED CSS FOR TRAINING REQUEST MODULE
+           NO GRADIENTS - CLEAN FLAT DESIGN
+           ============================================ */
+
+        /* Color Variables based on LMS theme */
+        :root {
+            --primary-blue: #1e3c72;
+            --secondary-blue: #3498db;
+            --accent-blue: #1a75d2;
+            --success-green: #28a745;
+            --warning-yellow: #ffc107;
+            --danger-red: #dc3545;
+            --info-cyan: #17a2b8;
+            --text-dark: #1a2634;
+            --text-muted: #64748b;
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+            --white: #ffffff;
+        }
+
+        /* Table Enhancements */
+        .table-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .table-card-header {
+            padding: 20px 24px;
+            border-bottom: 2px solid var(--border-color);
+            background: var(--white);
+        }
+
+        .table-card-header h4 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary-blue);
+        }
+
+        .table-card-header h4 i {
+            color: var(--secondary-blue);
+            margin-right: 8px;
+        }
+
+        .table {
+            margin: 0;
+            width: 100%;
+            white-space: nowrap;
+            table-layout: auto !important;
+        }
+
+        .table thead th {
+            background: var(--primary-blue);
+            padding: 16px 14px;
+            font-weight: 600;
+            color: var(--white);
+            border: none;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .table tbody td {
+            padding: 16px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-dark);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+
+        .table tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.08);
+        }
+
+        .table tbody tr:nth-child(even) {
+            background-color: rgba(248, 250, 252, 0.5);
+        }
+
+        .table tbody tr:nth-child(even):hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        /* Table Responsive with Custom Scrollbar */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: var(--bg-light);
+            border-radius: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: var(--secondary-blue);
+            border-radius: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-blue);
+        }
+
+        /* Override training.css column widths - set proper widths for readability */
+        .table th:nth-child(1), .table td:nth-child(1) { min-width: 60px !important; } /* ID */
+        .table th:nth-child(2), .table td:nth-child(2) { min-width: 180px !important; } /* Title */
+        .table th:nth-child(3), .table td:nth-child(3) { min-width: 100px !important; } /* Type */
+        .table th:nth-child(4), .table td:nth-child(4) { min-width: 110px !important; } /* From */
+        .table th:nth-child(5), .table td:nth-child(5) { min-width: 110px !important; } /* To */
+        .table th:nth-child(6), .table td:nth-child(6) { min-width: 140px !important; } /* Requester */
+        .table th:nth-child(7), .table td:nth-child(7) { min-width: 150px !important; } /* Hospital Order No */
+        .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px !important; } /* Amount */
+        .table th:nth-child(9), .table td:nth-child(9) { min-width: 70px !important; } /* Is OB */
+        .table th:nth-child(10), .table td:nth-child(10) { min-width: 150px !important; } /* Remarks */
+        .table th:nth-child(11), .table td:nth-child(11) { min-width: 180px !important; } /* Resched Reason */
+        .table th:nth-child(12), .table td:nth-child(12) { min-width: 100px !important; } /* Status */
+        .table th:nth-child(13), .table td:nth-child(13) { min-width: 200px !important; } /* Actions */
+
+        /* Badges - More Spacing */
+        .badge {
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            letter-spacing: 0.3px;
+            display: inline-block;
+        }
+
+        .badge-info {
+            background: var(--secondary-blue);
+            color: var(--white);
+        }
+
+        .badge-warning {
+            background: #fd7e14;
+            color: var(--white);
+        }
+
+        .badge-success {
+            background: var(--success-green);
+            color: var(--white);
+        }
+
+        .badge-secondary {
+            background: #6c757d;
+            color: var(--white);
+        }
+
+        /* Status Badges - More Spacing */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-pending {
+            background: var(--warning-yellow);
+            color: #1a202c;
+        }
+
+        .status-approved {
+            background: var(--success-green);
+            color: var(--white);
+        }
+
+        .status-rejected {
+            background: var(--danger-red);
+            color: var(--white);
+        }
+
+        /* Action Buttons - More Spacing */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+        }
+
+        .btn-action {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-action i {
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .btn-action span {
+            display: none;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-action:active {
+            transform: translateY(0);
+        }
+
+        .btn-edit {
+            background: var(--warning-yellow);
+            color: #1a202c;
+        }
+
+        .btn-edit:hover {
+            background: #ffca2c;
+            color: #1a202c;
+        }
+
+        .btn-reschedule {
+            background: var(--secondary-blue);
+            color: var(--white);
+        }
+
+        .btn-reschedule:hover {
+            background: var(--accent-blue);
+            color: var(--white);
+        }
+
+        .btn-view-attachment {
+            background: var(--info-cyan);
+            color: var(--white);
+        }
+
+        .btn-view-attachment:hover {
+            background: #138496;
+            color: var(--white);
+        }
+
+        .btn-delete {
+            background: var(--danger-red);
+            color: var(--white);
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+            color: var(--white);
+        }
+
+        /* Filter Card */
+        .filter-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .filter-group label,
+        .search-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-blue);
+            margin-bottom: 6px;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--secondary-blue);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+
+        /* Statistics Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-number {
+            color: var(--primary-blue);
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background: var(--secondary-blue);
+            border: none;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-blue);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: var(--success-green);
+            border: none;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            border: none;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        /* Modal Styles */
+        .modal-content {
+            border-radius: 16px;
+            border: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            background: var(--primary-blue);
+            color: var(--white);
+            border: none;
+            padding: 20px 24px;
+        }
+
+        .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+            opacity: 0.8;
+        }
+
+        .modal-header .btn-close:hover {
+            opacity: 1;
+        }
+
+        .modal-title {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-light);
+            border-radius: 0 0 16px 16px;
+        }
+
+        /* Alert Styles */
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .alert-success {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #842029;
+        }
+
+        /* Attachment Cards */
+        .attachment-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--white);
+            transition: all 0.3s ease;
+            margin-bottom: 12px;
+        }
+
+        .attachment-card:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+            transform: translateY(-3px);
+            border-color: var(--secondary-blue);
+        }
+
+        .attachment-icon {
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--secondary-blue);
+            border-radius: 12px;
+            color: var(--white);
+            flex-shrink: 0;
+        }
+
+        .attachment-info {
+            flex: 1;
+        }
+
+        .attachment-title {
+            margin: 0 0 6px 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--primary-blue);
+        }
+
+        .attachment-filename {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .attachment-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: var(--bg-light);
+            color: var(--text-muted);
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-top: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                gap: 6px;
+            }
+
+            .btn-action {
+                width: 34px;
+                height: 34px;
+            }
+        }
+
+        /* Empty State Enhancement */
+        #emptyStateRow td {
+            padding: 60px 20px !important;
+        }
+
+        #emptyStateRow i {
+            color: #cbd5e1 !important;
+        }
+
+        /* Report Modal Header */
+        #reportModal .modal-header {
+            background: var(--success-green);
+        }
+
+        /* Form Input Enhancements */
+        .form-control,
+        .form-select {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:hover,
+        .form-select:hover {
+            border-color: var(--secondary-blue);
+        }
+
+        /* Card for approve section */
+        .card.bg-light {
+            background: var(--bg-light) !important;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        /* Toast Notification */
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            min-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Current file link styling */
+        .current-file a {
+            color: var(--secondary-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .current-file a:hover {
+            text-decoration: underline;
+            color: var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+
+<div class="lms-sidebar-container">
+    <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+</div>
+
+<div class="main-content">
+    <div class="container-fluid">
+        <!-- Alert Messages -->
+        <?php if ($success_message): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i> <?= htmlspecialchars($success_message) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($error_message): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i> <?= htmlspecialchars($error_message) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Header with Request Button -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="m-0">Training Request Management</h3>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#trainingRequestModal">
+                <i class="fas fa-plus me-2"></i>Request Training
+            </button>
+        </div>
+        
+        <!-- Filter Section with Search -->
+        <div class="filter-card">
+            <form method="GET" action="" class="filter-row" id="filterForm">
+                <div class="filter-group">
+                    <label class="form-label">Filter by Month</label>
+                    <select name="filter_month" class="form-select" id="filterMonth">
+                        <option value="">All Months</option>
+                        <?php for ($i = 1; $i <= 12; $i++): ?>
+                            <option value="<?= $i ?>" <?= ($filter_month == $i) ? 'selected' : '' ?>>
+                                <?= date('F', mktime(0, 0, 0, $i, 1)) ?>
+                            </option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+                <div class="search-group">
+                    <label class="form-label">Search</label>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search by title, type, order no., remarks, or resched reason...">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                    <a href="<?= $_SERVER['PHP_SELF'] ?>" class="btn btn-secondary">
+                        <i class="fas fa-undo me-1"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Statistics -->
+        <div class="stats-row">
+            <div class="stat-item">
+                <span class="stat-label">Total Training Requests:</span>
+                <span class="stat-number" id="totalCount"><?= number_format($stats['total'] ?? 0) ?></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Internal Training:</span>
+                <span class="stat-number"><?= number_format($stats['internal_count'] ?? 0) ?></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">External Training:</span>
+                <span class="stat-number"><?= number_format($stats['external_count'] ?? 0) ?></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total Amount:</span>
+                <span class="stat-number">₱<?= number_format($stats['total_amount'] ?? 0, 2) ?></span>
+            </div>
+        </div>
+        
+        <!-- Training Requests List -->
+        <div class="table-card">
+            <div class="table-card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4><i class="fas fa-list"></i> Training Requests List</h4>
+                    <?php if (is_admin() || is_superadmin()): ?>
+                    <button class="btn btn-success" id="generateReportBtn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                        <i class="fas fa-chart-line me-2"></i>Generate Report
+                    </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table" id="trainingTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Requester</th>
+                            <th>Hospital Order No.</th>
+                            <th>Amount</th>
+                            <th>Is OB</th>
+                            <th>Remarks</th>
+                            <th>Resched Reason</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                         </thead>
+                    <tbody id="trainingTableBody">
+                        <?php if (!empty($training_requests)): ?>
+                            <?php foreach ($training_requests as $request): ?>
+                                <tr data-id="<?= $request['id'] ?>"
+                                    data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
+                                    data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
+                                    data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
+                                    data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
+                                    data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
+                                    <td><?= $request['id'] ?></td>
+                                    <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
+                                    <td>
+                                        <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
+                                            <?= htmlspecialchars($request['training_type']) ?>
+                                        </span>
+                                      </td>
+                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
+                                    <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
+                                    <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
+                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
+                                    <td>
+                                        <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
+                                      </td>
+                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
+                                        <?php 
+                                        $remarks = $request['remarks'] ?? '';
+                                        echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
+                                        ?>
+                                      </td>
+                                    <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
+                                        <?php 
+                                        $resched_reason = $request['resched_reason'] ?? '';
+                                        echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
+                                        ?>
+                                      </td>
+                                    <td>
+                                        <span class="status-badge status-<?= $request['status'] ?>">
+                                            <?= ucfirst($request['status']) ?>
+                                        </span>
+                                      </td>
+                                    <td class="action-buttons">
+                                        <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
+                                            <i class="fas fa-edit"></i>
+                                            <span>Edit</span>
+                                        </button>
+                                        <?php if((is_admin() || is_superadmin())): ?>
+                                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <span>Reschedule</span>
+                                        </button>
+                                        <?php endif; ?>
+                                        <?php 
+                                        // Check if there are any attachments
+                                        $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']) || !empty($request['coa_file']) || !empty($request['mom_file']);
+                                        if ($has_attachments): 
+                                        ?>
+                                        <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(<?= $request['id'] ?>)" title="View Attachments">
+                                            <i class="fas fa-paperclip"></i>
+                                            <span>View Attachments</span>
+                                        </button>
+                                        <?php endif; ?>
+                                        <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
+                                            <i class="fas fa-trash"></i>
+                                            <span>Delete</span>
+                                        </button>
+                                    </td>
+                                 </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr id="emptyStateRow">
+                                <td colspan="13" class="text-center py-5">
+                                    <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                                    <p class="text-muted mb-0">No training requests found</p>
+                                </td>
+                             </tr>
+                        <?php endif; ?>
+                    </tbody>
+                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Training Request Modal -->
+<div class="modal fade" id="trainingRequestModal" tabindex="-1" aria-labelledby="trainingRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="trainingRequestModalLabel">
+                    <i class="fas fa-calendar-alt me-2"></i>Training Request Form
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="trainingFormModal">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><span class="text-danger"></span></label>
+                            <select name="training_type" class="form-select" required>
+                                <option value="Internal" selected>Internal</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Training Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="title" required placeholder="Enter training title">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Date Start <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="date_start" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Date End <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="date_end" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Location Type</label>
+                            <select name="location_type" class="form-select">
+                                <option value="">--Select One--</option>
+                                <option value="local">Local</option>
+                                <option value="international">International</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Hospital Order No.</label>
+                            <input type="text" class="form-control" name="hospital_id" placeholder="e.g., HOSP-2024-001">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Amount (PHP)</label>
+                            <input type="number" class="form-control" name="amount" step="0.01" placeholder="0.00">
+                        </div>
+                        <?php if (is_admin() || is_superadmin()): ?>  
+                        <div class="col-md-12">
+                            <div class="d-flex flex-wrap gap-4">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="late_filing" name="late_filing" value="1">
+                                    <label class="form-check-label" for="late_filing">Late Filing</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="official_business" name="official_business" value="1">
+                                    <label class="form-check-label" for="official_business">Official Business</label>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea class="form-control" name="remarks" rows="3" placeholder="Additional remarks..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary" id="submitRequestBtn">
+                            <i class="fas fa-paper-plane me-1"></i> Submit Request
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Training Request Modal -->
+<div class="modal fade" id="editRequestModal" tabindex="-1" aria-labelledby="editRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editRequestModalLabel">
+                    <i class="fas fa-edit me-2"></i>Edit Training Request
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editFormModal" enctype="multipart/form-data">
+                    <input type="hidden" name="id" id="edit_id">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label"> <span class="text-danger"></span></label>
+                            <select name="training_type" id="edit_training_type" class="form-select" required>
+                                <option value="Internal">Internal</option>
+
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Training Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="title" id="edit_title" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Date Start <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="date_start" id="edit_date_start" required  disabled style="background-color: #babdc1;">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Date End <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="date_end" id="edit_date_end" required disabled style="background-color: #babdc1;">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Location Type</label>
+                            <select name="location_type" id="edit_location_type" class="form-select">
+                                <option value="">--Select One--</option>
+                                <option value="local">Local</option>
+                                <option value="international">International</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Hospital Order No.</label>
+                            <input type="text" class="form-control" name="hospital_id" id="edit_hospital_id">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Amount (PHP)</label>
+                            <input type="number" class="form-control" name="amount" id="edit_amount" step="0.01">
+                        </div>
+
+                        <!-- Approve Section (Admin Only) -->
+                        <?php if (is_admin() || is_superadmin()): ?>
+                        <div class="col-md-12">
+                            <div class="d-flex flex-wrap gap-4">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="edit_late_filing" name="late_filing" value="1">
+                                    <label class="form-check-label" for="edit_late_filing">Late Filing</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="edit_official_business" name="official_business" value="1">
+                                    <label class="form-check-label" for="edit_official_business">Official Business</label>
+                                </div>
+                            </div>
+                        </div>
+                        <?php else: ?>
+                            <input type="hidden" name="late_filing" value="0">
+                            <input type="hidden" name="official_business" value="0">
+                        <?php endif; ?>
+
+                        <?php if (is_admin() || is_superadmin()): ?>
+                        <div class="col-12">
+                            <div class="card bg-light p-3">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="edit_approve_status" name="approve_status" value="1">
+                                    <label class="form-check-label fw-bold" for="edit_approve_status">Approve this request</label>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
+                         <div class="col-12">
+                            <label class="form-label">Remarks</label>
+                            <textarea class="form-control" name="remarks" id="edit_remarks" rows="3"></textarea>
+                        </div>
+                        
+                        <!-- Attachments Section -->
+                        <div class="col-12">
+                            <h6 class="mt-3 mb-3"><i class="fas fa-paperclip me-2"></i>Attachments</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">PTR (Post Training Report)</label>
+                                    <input type="file" class="form-control" name="ptr_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <div id="current_ptr" class="current-file"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">COC (Certificate of Completion)</label>
+                                    <input type="file" class="form-control" name="coc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <div id="current_coc" class="current-file"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">COA (Certificate of Attendance)</label>
+                                    <input type="file" class="form-control" name="coa_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <div id="current_coa" class="current-file"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">MOM (Minutes of the Meeting)</label>
+                                    <input type="file" class="form-control" name="mom_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <div id="current_mom" class="current-file"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary" id="updateRequestBtn">
+                            <i class="fas fa-save me-1"></i> Update Request
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance and Training Request Forms -->
+<div class="table-card" style="margin-top: 24px;">
+    <div class="table-card-header">
+        <h4><i class="fas fa-clipboard-check"></i> Attendance & Training Request</h4>
+    </div>
+    <div class="form-card-body">
+        <form method="POST" action="">
+            <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th>Employee Name</th>
+                        <th>Present</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($users as $u): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($u['username']) ?></td>
+                        <td><input type="checkbox" name="attendance[]" value="<?= $u['id'] ?>"></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <button type="submit" name="submit_attendance" class="btn-submit">Submit Attendance</button>
+
+            <!-- training request internal table -->
+            <table class="training-request-table" style="margin-top: 24px;">
+                <thead>
+                    <tr>
+                        <th>Training Type</th>
+                        <th>Proponent Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Internal</td>
+                        <td><input type="text" name="proponent_name"></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button type="submit" name="submit_training_request" class="btn-submit" style="margin-top: 12px;">Submit Training Request</button>
+        </form>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- Reschedule Training Request Modal -->
+<div class="modal fade" id="rescheduleRequestModal" tabindex="-1" aria-labelledby="rescheduleRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rescheduleRequestModalLabel">
+                    <i class="fas fa-calendar-alt me-2"></i>Reschedule Training Request
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="rescheduleFormModal">
+                    <input type="hidden" name="id" id="reschedule_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">New Start Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" name="date_start" id="reschedule_date_start" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">New End Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" name="date_end" id="reschedule_date_end" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Reschedule Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="resched_reason" id="reschedule_reason" rows="3" required placeholder="Please provide reason for rescheduling..."></textarea>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary" id="rescheduleRequestBtn">
+                            <i class="fas fa-calendar-check me-1"></i> Submit Reschedule
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Attachments Modal -->
+<div class="modal fade" id="viewAttachmentsModal" tabindex="-1" aria-labelledby="viewAttachmentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAttachmentsModalLabel">
+                    <i class="fas fa-paperclip me-2"></i>Attachments
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="attachmentsList" class="attachments-list">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                        <p>Loading attachments...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Report Modal -->
+<?php if (is_admin() || is_superadmin()): ?>
+<div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="reportModalLabel">
+                    <i class="fas fa-chart-line me-2"></i>Approved Training Requests Report
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Filter Section -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label">Year</label>
+                        <select id="reportYear" class="form-select">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Month</label>
+                        <select id="reportMonth" class="form-select">
+                            <option value="">All Months</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Division</label>
+                        <select id="reportDivision" class="form-select">
+                            <option value="">All Divisions</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Department</label>
+                        <select id="reportDepartment" class="form-select">
+                            <option value="">All Departments</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Type</label>
+                        <select id="reportType" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="Internal">Internal</option>
+                            <option value="External">External</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button id="exportReportBtn" class="btn btn-success w-100">
+                            <i class="fas fa-download me-1"></i> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Results Table -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="reportTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Requester</th>
+                                <th>Division</th>
+                                <th>Department</th>
+                                <th>Hospital Order No.</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <tr>
+                                    <td colspan="10" class="text-center py-5">
+                                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                                        <p>Loading data...</p>
+                                     </div>
+                                 </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<div id="toastContainer" class="toast-notification"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Auto-dismiss alerts after 5 seconds
+    setTimeout(function() {
+        document.querySelectorAll('.alert').forEach(function(alert) {
+            let bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+    
+    // Toast notification function
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show`;
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.getElementById('toastContainer');
+        container.innerHTML = '';
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+    
+<?php if (is_admin() || is_superadmin()): ?>
+// Report Modal Functions
+let allDepartments = [];
+
+// Load filter options
+function loadFilterOptions() {
+    fetch(`${window.location.href}?get_filter_options=1`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Populate years
+                const yearSelect = document.getElementById('reportYear');
+                yearSelect.innerHTML = '<option value="">All Years</option>';
+                data.years.forEach(year => {
+                    yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+                });
+                
+                // Populate divisions
+                const divisionSelect = document.getElementById('reportDivision');
+                divisionSelect.innerHTML = '<option value="">All Divisions</option>';
+                data.divisions.forEach(division => {
+                    divisionSelect.innerHTML += `<option value="${division.id}">${escapeHtml(division.name)}</option>`;
+                });
+                
+                // Store departments for dynamic filtering
+                allDepartments = data.departments;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading filter options:', error);
+        });
+}
+
+// Load report data
+function loadReportData() {
+    const year = document.getElementById('reportYear').value;
+    const month = document.getElementById('reportMonth').value;
+    const division_id = document.getElementById('reportDivision').value;
+    const dept_id = document.getElementById('reportDepartment').value;
+    const type = document.getElementById('reportType').value;
+    
+    let url = `${window.location.href}?get_report_data=1`;
+    if (year) url += `&year=${year}`;
+    if (month) url += `&month=${month}`;
+    if (division_id) url += `&division_id=${division_id}`;
+    if (dept_id) url += `&dept_id=${dept_id}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('reportTableBody');
+            if (data.success && data.reports.length > 0) {
+                tbody.innerHTML = '';
+                data.reports.forEach(report => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${escapeHtml(report.title)}</strong></td>
+                            <td>
+                                <span class="badge ${report.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
+                                    ${escapeHtml(report.training_type)}
+                                </span>
+                            </td>
+                            <td>${escapeHtml(report.date_start)}</td>
+                            <td>${escapeHtml(report.date_end)}</td>
+                            <td>${escapeHtml(report.requester_name)}</td>
+                            <td>${escapeHtml(report.division_name || '—')}</td>
+                            <td>${escapeHtml(report.department_name || '—')}</td>
+                            <td>${escapeHtml(report.hospital_order_no || '—')}</td>
+                            <td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>
+                                <span class="badge badge-success">Approved</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                            <p class="text-muted mb-0">No approved training requests found</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading report data:', error);
+            document.getElementById('reportTableBody').innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-danger">
+                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                        <p>Error loading data. Please try again.</p>
+                    </td>
+                </tr>
+            `;
+        });
+}
+
+// Update department dropdown based on selected division
+function updateDepartments() {
+    const divisionId = document.getElementById('reportDivision').value;
+    const deptSelect = document.getElementById('reportDepartment');
+    
+    if (!divisionId) {
+        deptSelect.innerHTML = '<option value="">All Departments</option>';
+        return;
+    }
+    
+    const filteredDepts = allDepartments.filter(dept => dept.department_id == divisionId);
+    deptSelect.innerHTML = '<option value="">All Departments</option>';
+    filteredDepts.forEach(dept => {
+        deptSelect.innerHTML += `<option value="${dept.id}">${escapeHtml(dept.name)}</option>`;
+    });
+}
+
+// Export report as CSV
+function exportReportToCSV() {
+    const year = document.getElementById('reportYear').value;
+    const month = document.getElementById('reportMonth').value;
+    const division_id = document.getElementById('reportDivision').value;
+    const dept_id = document.getElementById('reportDepartment').value;
+    const type = document.getElementById('reportType').value;
+    
+    let url = `${window.location.href}?get_report_data=1`;
+    if (year) url += `&year=${year}`;
+    if (month) url += `&month=${month}`;
+    if (division_id) url += `&division_id=${division_id}`;
+    if (dept_id) url += `&dept_id=${dept_id}`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.reports.length > 0) {
+                // Create CSV content
+                let csvContent = "Title,Type,From,To,Requester,Division,Department,Hospital Order No.,Amount,Status\n";
+                
+                data.reports.forEach(report => {
+                    csvContent += `"${escapeCsv(report.title)}","${report.training_type}","${report.date_start}","${report.date_end}","${escapeCsv(report.requester_name)}","${escapeCsv(report.division_name || '—')}","${escapeCsv(report.department_name || '—')}","${escapeCsv(report.hospital_order_no || '—')}","${report.amount}","Approved"\n`;
+                });
+                
+                // Download CSV
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `approved_training_report_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                showToast('Report exported successfully!', 'success');
+            } else {
+                showToast('No data to export', 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Error exporting report:', error);
+            showToast('Error exporting report', 'danger');
+        });
+}
+
+// Helper function to escape CSV fields
+function escapeCsv(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '""');
+}
+
+// Event listeners for report modal
+document.getElementById('reportYear')?.addEventListener('change', loadReportData);
+document.getElementById('reportMonth')?.addEventListener('change', loadReportData);
+document.getElementById('reportDivision')?.addEventListener('change', function() {
+    updateDepartments();
+    loadReportData();
+});
+document.getElementById('reportDepartment')?.addEventListener('change', loadReportData);
+document.getElementById('reportType')?.addEventListener('change', loadReportData);
+document.getElementById('exportReportBtn')?.addEventListener('click', exportReportToCSV);
+
+// When modal opens, load filter options and data
+document.getElementById('reportModal')?.addEventListener('show.bs.modal', function() {
+    loadFilterOptions();
+    setTimeout(() => {
+        updateDepartments();
+        loadReportData();
+    }, 100);
+});
+<?php endif; ?>
+    
+    // Open Attachments Modal
+    function openAttachmentModal(id) {
+        const modal = new bootstrap.Modal(document.getElementById('viewAttachmentsModal'));
+        const attachmentsList = document.getElementById('attachmentsList');
+        
+        // Show loading state
+        attachmentsList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                <p>Loading attachments...</p>
+            </div>
+        `;
+        
+        modal.show();
+        
+        // Fetch request data with attachments
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const request = data.request;
+                    const files = [
+                        { name: 'PTR (Post Training Report)', file: request.ptr_file, icon: 'fa-file-alt' },
+                        { name: 'COC (Certificate of Completion)', file: request.coc_file, icon: 'fa-file-pdf' },
+                        { name: 'COA (Certificate of Attendance)', file: request.coa_file, icon: 'fa-file-image' },
+                        { name: 'MOM (Minutes of the Meeting)', file: request.mom_file, icon: 'fa-file-word' }
+                    ];
+                    
+                    let attachmentsHtml = '<div class="row g-3">';
+                    let hasFiles = false;
+                    
+                    files.forEach(file => {
+                        if (file.file) {
+                            hasFiles = true;
+                            const fileUrl = `<?= BASE_URL ?>/uploads/training/${file.file}`;
+                            const fileExt = file.file.split('.').pop().toUpperCase();
+                            attachmentsHtml += `
+                                <div class="col-md-6">
+                                    <div class="attachment-card">
+                                        <div class="attachment-icon">
+                                            <i class="fas ${file.icon} fa-2x"></i>
+                                        </div>
+                                        <div class="attachment-info">
+                                            <h6 class="attachment-title">${file.name}</h6>
+                                            <p class="attachment-filename">${file.file}</p>
+                                            <span class="attachment-badge">${fileExt}</span>
+                                        </div>
+                                        <a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download>
+                                            <i class="fas fa-download me-1"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    attachmentsHtml += '</div>';
+                    
+                    if (!hasFiles) {
+                        attachmentsList.innerHTML = `
+                            <div class="text-center py-5">
+                                <i class="fas fa-paperclip fa-3x mb-3" style="color: #dee2e6;"></i>
+                                <p class="text-muted">No attachments found for this training request.</p>
+                            </div>
+                        `;
+                    } else {
+                        attachmentsList.innerHTML = attachmentsHtml;
+                    }
+                } else {
+                    attachmentsList.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'Error loading attachments'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                attachmentsList.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error loading attachments. Please try again.
+                    </div>
+                `;
+            });
+    }
+    
+    // Submit training request via AJAX
+    document.getElementById('trainingFormModal').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const startDate = document.querySelector('[name="date_start"]').value;
+        const endDate = document.querySelector('[name="date_end"]').value;
+        
+        if (startDate && endDate) {
+            if (new Date(endDate) < new Date(startDate)) {
+                showToast('End date cannot be earlier than start date', 'danger');
+                return false;
+            }
+        }
+        
+        const formData = new FormData(this);
+        formData.append('add_request_ajax', '1');
+        
+        const submitBtn = document.getElementById('submitRequestBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Submitting...';
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add new row to table
+                const tableBody = document.getElementById('trainingTableBody');
+                const emptyStateRow = document.getElementById('emptyStateRow');
+                
+                if (emptyStateRow) {
+                    emptyStateRow.remove();
+                }
+                
+                const startDateFormatted = new Date(data.request.date_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const endDateFormatted = new Date(data.request.date_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                const newRow = document.createElement('tr');
+                newRow.setAttribute('data-id', data.request.id);
+                newRow.setAttribute('data-title', data.request.title.toLowerCase());
+                newRow.setAttribute('data-type', data.request.training_type.toLowerCase());
+                newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
+                newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
+                newRow.setAttribute('data-resched', '');
+                
+                newRow.innerHTML = `
+                    <td>${data.request.id}</td>
+                    <td><strong>${escapeHtml(data.request.title)}</strong></td>
+                    <td>
+                        <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
+                            ${data.request.training_type}
+                        </span>
+                      </td>
+                    <td>${startDateFormatted}</td>
+                    <td>${endDateFormatted}</td>
+                    <td>${escapeHtml(data.request.requester_name)}</td>
+                    <td>${escapeHtml(data.request.hospital_order_no)}</td>
+                    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td>
+                        ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
+                      </td>
+                    <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
+                        ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
+                      </td>
+                    <td class="truncated-cell" title="">—</td>
+                    <td>
+                        <span class="status-badge status-pending">Pending</span>
+                      </td>
+                    <td class="action-buttons">
+                        <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-action btn-reschedule" onclick="openRescheduleModal(${data.request.id})">
+                            <i class="fas fa-calendar-alt"></i> Reschedule
+                        </button>
+                        <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(${data.request.id})">
+                            <i class="fas fa-paperclip"></i> View Attachments
+                        </button>
+                        <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                     </td>
+                `;
+                
+                tableBody.insertBefore(newRow, tableBody.firstChild);
+                
+                // Update total count
+                const totalCountSpan = document.getElementById('totalCount');
+                const currentTotal = parseInt(totalCountSpan.textContent) || 0;
+                totalCountSpan.textContent = currentTotal + 1;
+                
+                // Update statistics
+                const internalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
+                const externalSpan = document.querySelector('.stat-item:nth-child(3) .stat-number');
+                if (data.request.training_type === 'Internal') {
+                    internalSpan.textContent = parseInt(internalSpan.textContent) + 1;
+                } else {
+                    externalSpan.textContent = parseInt(externalSpan.textContent) + 1;
+                }
+                
+                const modalElement = document.getElementById('trainingRequestModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+
+                // Wait for modal to fully close
+                modalElement.addEventListener('hidden.bs.modal', function onHidden() {
+                    // Force remove any backdrop that remains
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    modalElement.removeEventListener('hidden.bs.modal', onHidden);
+                }, { once: true });
+
+                modal.hide();
+                document.getElementById('trainingFormModal').reset();
+                
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred. Please try again.', 'danger');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Submit Request';
+        });
+    });
+    
+    // Open Edit Modal
+    function openEditModal(id) {
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const request = data.request;
+                    document.getElementById('edit_id').value = request.id;
+                    document.getElementById('edit_training_type').value = request.training_type;
+                    document.getElementById('edit_title').value = request.title;
+                    document.getElementById('edit_date_start').value = request.date_start;
+                    document.getElementById('edit_date_end').value = request.date_end;
+                    document.getElementById('edit_location_type').value = request.location_type || '';
+                    document.getElementById('edit_hospital_id').value = request.hospital_order_no;
+                    document.getElementById('edit_amount').value = request.amount;
+                    
+                    // Only set checkbox values if elements exist (admin/superadmin only)
+                    const lateFilingCheckbox = document.getElementById('edit_late_filing');
+                    const officialBusinessCheckbox = document.getElementById('edit_official_business');
+                    
+                    if (lateFilingCheckbox) {
+                        lateFilingCheckbox.checked = request.late_filing == 1;
+                    }
+                    if (officialBusinessCheckbox) {
+                        officialBusinessCheckbox.checked = request.official_business == 1;
+                    }
+                    
+                    document.getElementById('edit_remarks').value = request.remarks || '';
+                    
+                    // Show current files
+                    if (request.ptr_file) {
+                        document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
+                    } else {
+                        document.getElementById('current_ptr').innerHTML = '';
+                    }
+                    if (request.coc_file) {
+                        document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
+                    } else {
+                        document.getElementById('current_coc').innerHTML = '';
+                    }
+                    if (request.coa_file) {
+                        document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
+                    } else {
+                        document.getElementById('current_coa').innerHTML = '';
+                    }
+                    if (request.mom_file) {
+                        document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
+                    } else {
+                        document.getElementById('current_mom').innerHTML = '';
+                    }
+                    
+                    const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+                    editModal.show();
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error loading request data', 'danger');
+            });
+    }
+    
+    // Edit form submission
+    document.getElementById('editFormModal').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        formData.append('edit_request_ajax', '1');
+        
+        const submitBtn = document.getElementById('updateRequestBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Updating...';
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const editModal = bootstrap.Modal.getInstance(document.getElementById('editRequestModal'));
+                editModal.hide();
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred. Please try again.', 'danger');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Update Request';
+        });
+    });
+    
+    // Open Reschedule Modal
+    function openRescheduleModal(id) {
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const request = data.request;
+                    document.getElementById('reschedule_id').value = request.id;
+                    document.getElementById('reschedule_date_start').value = request.date_start;
+                    document.getElementById('reschedule_date_end').value = request.date_end;
+                    document.getElementById('reschedule_reason').value = '';
+                    
+                    const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleRequestModal'));
+                    rescheduleModal.show();
+                } else {
+                    showToast(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error loading request data', 'danger');
+            });
+    }
+    
+    // Reschedule form submission
+    document.getElementById('rescheduleFormModal').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        formData.append('reschedule_request_ajax', '1');
+        
+        const submitBtn = document.getElementById('rescheduleRequestBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Submitting...';
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const rescheduleModal = bootstrap.Modal.getInstance(document.getElementById('rescheduleRequestModal'));
+                rescheduleModal.hide();
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred. Please try again.', 'danger');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-calendar-check me-1"></i> Submit Reschedule';
+        });
+    });
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Real-time search functionality
+    const searchInput = document.getElementById('searchInput');
+    const tableBody = document.getElementById('trainingTableBody');
+    
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            let visibleCount = 0;
+            const rows = tableBody.querySelectorAll('tr:not(#emptyStateRow)');
+            
+            rows.forEach(row => {
+                const title = row.getAttribute('data-title') || '';
+                const type = row.getAttribute('data-type') || '';
+                const order = row.getAttribute('data-order') || '';
+                const remarks = row.getAttribute('data-remarks') || '';
+                const resched = row.getAttribute('data-resched') || '';
+                
+                if (title.includes(searchTerm) || 
+                    type.includes(searchTerm) || 
+                    order.includes(searchTerm) || 
+                    remarks.includes(searchTerm) ||
+                    resched.includes(searchTerm) ||
+                    searchTerm === '') {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            const totalCountSpan = document.getElementById('totalCount');
+            if (totalCountSpan) {
+                totalCountSpan.textContent = visibleCount;
+            }
+            
+            const emptyStateRow = document.getElementById('emptyStateRow');
+            if (visibleCount === 0 && rows.length === 0 && !emptyStateRow) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.id = 'emptyStateRow';
+                emptyRow.innerHTML = `
+                    <td colspan="13" class="text-center py-5">
+                        <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                        <p class="text-muted mb-0">No training requests found</p>
+                      </div>
+                `;
+                tableBody.appendChild(emptyRow);
+            } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
+                const noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                noResultsRow.innerHTML = `
+                    <td colspan="13" class="text-center py-5">
+                        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
+                        <p class="text-muted mb-0">No matching training requests found</p>
+                      </div>
+                `;
+                tableBody.appendChild(noResultsRow);
+            } else if (visibleCount > 0) {
+                const noResultsRow = tableBody.querySelector('.no-results-row');
+                if (noResultsRow) noResultsRow.remove();
+            }
+        });
+    }
+    
+    // Delete request via AJAX
+    function deleteRequest(id, buttonElement) {
+        if (!confirm('Are you sure you want to delete this training request? This action cannot be undone.')) {
+            return;
+        }
+        
+        const row = buttonElement.closest('tr');
+        
+        const buttons = row.querySelectorAll('.btn-action');
+        buttons.forEach(btn => btn.disabled = true);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `delete_request=1&id=${id}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                row.remove();
+                
+                const totalCountSpan = document.getElementById('totalCount');
+                const currentTotal = parseInt(totalCountSpan.textContent) || 0;
+                totalCountSpan.textContent = currentTotal - 1;
+                
+                const trainingType = row.querySelector('.badge-info, .badge-warning').textContent.trim();
+                if (trainingType === 'Internal') {
+                    const internalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
+                    internalSpan.textContent = parseInt(internalSpan.textContent) - 1;
+                } else if (trainingType === 'External') {
+                    const externalSpan = document.querySelector('.stat-item:nth-child(3) .stat-number');
+                    externalSpan.textContent = parseInt(externalSpan.textContent) - 1;
+                }
+                
+                const remainingRows = tableBody.querySelectorAll('tr:not(#emptyStateRow)');
+                if (remainingRows.length === 0 && !document.getElementById('emptyStateRow')) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.id = 'emptyStateRow';
+                    emptyRow.innerHTML = `
+                        <td colspan="13" class="text-center py-5">
+                            <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                            <p class="text-muted mb-0">No training requests found</p>
+                          </div>
+                    `;
+                    tableBody.appendChild(emptyRow);
+                }
+                
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'danger');
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred. Please try again.', 'danger');
+            buttons.forEach(btn => btn.disabled = false);
+        });
+    }
+</script>
+
+</body>
+</html>
