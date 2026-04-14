@@ -415,11 +415,14 @@ if (!empty($filter_month) && $filter_month >= 1 && $filter_month <= 12) {
 $where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
 
 // Fetch training requests
-$query = "SELECT 
+$query = "SELECT
     tr.*,
-    COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name
+    COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name,
+    c.name as committee_name
     FROM training_requests tr
     LEFT JOIN users u ON tr.requester_id = u.id
+    LEFT JOIN user_departments ud ON ud.user_id = u.id
+    LEFT JOIN committees c ON ud.committee_id = c.id
     $where_sql
     ORDER BY tr.created_at DESC";
 
@@ -606,13 +609,14 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .table th:nth-child(4), .table td:nth-child(4) { min-width: 110px !important; } /* From */
         .table th:nth-child(5), .table td:nth-child(5) { min-width: 110px !important; } /* To */
         .table th:nth-child(6), .table td:nth-child(6) { min-width: 140px !important; } /* Requester */
-        .table th:nth-child(7), .table td:nth-child(7) { min-width: 150px !important; } /* Hospital Order No */
-        .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px !important; } /* Amount */
-        .table th:nth-child(9), .table td:nth-child(9) { min-width: 70px !important; } /* Is OB */
-        .table th:nth-child(10), .table td:nth-child(10) { min-width: 150px !important; } /* Remarks */
-        .table th:nth-child(11), .table td:nth-child(11) { min-width: 180px !important; } /* Resched Reason */
-        .table th:nth-child(12), .table td:nth-child(12) { min-width: 100px !important; } /* Status */
-        .table th:nth-child(13), .table td:nth-child(13) { min-width: 200px !important; } /* Actions */
+        .table th:nth-child(7), .table td:nth-child(7) { min-width: 200px !important; } /* Committee */
+        .table th:nth-child(8), .table td:nth-child(8) { min-width: 150px !important; } /* Hospital Order No */
+        .table th:nth-child(9), .table td:nth-child(9) { min-width: 100px !important; } /* Amount */
+        .table th:nth-child(10), .table td:nth-child(10) { min-width: 70px !important; } /* Is OB */
+        .table th:nth-child(11), .table td:nth-child(11) { min-width: 150px !important; } /* Remarks */
+        .table th:nth-child(12), .table td:nth-child(12) { min-width: 180px !important; } /* Resched Reason */
+        .table th:nth-child(13), .table td:nth-child(13) { min-width: 100px !important; } /* Status */
+        .table th:nth-child(14), .table td:nth-child(14) { min-width: 200px !important; } /* Actions */
 
         /* Badges - More Spacing */
         .badge {
@@ -1126,7 +1130,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
                 <div class="search-group">
                     <label class="form-label">Search</label>
-                    <input type="text" id="searchInput" class="form-control" placeholder="Search by title, type, order no., remarks, or resched reason...">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search by title, type, committee, order no., remarks, or resched reason...">
                 </div>
                 <div>
                     <button type="submit" class="btn btn-primary">
@@ -1181,6 +1185,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <th>From</th>
                             <th>To</th>
                             <th>Requester</th>
+                            <th>Committee</th>
                             <th>Hospital Order No.</th>
                             <th>Amount</th>
                             <th>Is OB</th>
@@ -1188,13 +1193,14 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <th>Resched Reason</th>
                             <th>Status</th>
                             <th>Actions</th>
-                         </thead>
+                        </tr>
                     <tbody id="trainingTableBody">
                         <?php if (!empty($training_requests)): ?>
                             <?php foreach ($training_requests as $request): ?>
                                 <tr data-id="<?= $request['id'] ?>"
-                                    data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
+                                    data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>"
                                     data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
+                                    data-committee="<?= strtolower(htmlspecialchars($request['committee_name'] ?? '')) ?>"
                                     data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
                                     data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
                                     data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
@@ -1208,6 +1214,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
                                     <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
                                     <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
+                                    <td><?= htmlspecialchars($request['committee_name'] ?? 'N/A') ?></td>
                                     <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
                                     <td>₱<?= number_format($request['amount'], 2) ?></td>
                                     <td>
@@ -2347,17 +2354,19 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
             const searchTerm = this.value.toLowerCase().trim();
             let visibleCount = 0;
             const rows = tableBody.querySelectorAll('tr:not(#emptyStateRow)');
-            
+
             rows.forEach(row => {
                 const title = row.getAttribute('data-title') || '';
                 const type = row.getAttribute('data-type') || '';
+                const committee = row.getAttribute('data-committee') || '';
                 const order = row.getAttribute('data-order') || '';
                 const remarks = row.getAttribute('data-remarks') || '';
                 const resched = row.getAttribute('data-resched') || '';
-                
-                if (title.includes(searchTerm) || 
-                    type.includes(searchTerm) || 
-                    order.includes(searchTerm) || 
+
+                if (title.includes(searchTerm) ||
+                    type.includes(searchTerm) ||
+                    committee.includes(searchTerm) ||
+                    order.includes(searchTerm) ||
                     remarks.includes(searchTerm) ||
                     resched.includes(searchTerm) ||
                     searchTerm === '') {
