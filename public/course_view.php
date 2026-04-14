@@ -906,7 +906,8 @@ if (is_student() && $enrollment) {
             videoCompleted: courseData.videoCompleted,
             isFullscreen: false,
             currentPage: 1,
-            pageCache: {}
+            pageCache: {},
+            pageViewTimers: {} // Track 10-second viewing timers for each page
         };
 
         // DOM Elements
@@ -1109,15 +1110,27 @@ if (is_student() && $enrollment) {
                     const observer = new IntersectionObserver((entries) => {
                         entries.forEach(entry => {
                             if (entry.isIntersecting && !state.viewedSet.has(num) && !state.pdfCompleted) {
-                                trackPageView(num);
+                                // Start 10-second timer if not already running
+                                if (!state.pageViewTimers[num]) {
+                                    state.pageViewTimers[num] = setTimeout(() => {
+                                        trackPageView(num);
 
-                                if (!document.getElementById(`page-badge-${num}`)) {
-                                    const badge = document.createElement('div');
-                                    badge.className = 'page-viewed-badge';
-                                    badge.id = `page-badge-${num}`;
-                                    badge.innerHTML = '<i class="fas fa-check"></i>';
-                                    pageWrapper.appendChild(badge);
+                                        if (!document.getElementById(`page-badge-${num}`)) {
+                                            const badge = document.createElement('div');
+                                            badge.className = 'page-viewed-badge';
+                                            badge.id = `page-badge-${num}`;
+                                            badge.innerHTML = '<i class="fas fa-check"></i>';
+                                            pageWrapper.appendChild(badge);
+                                        }
+
+                                        // Clear timer after completion
+                                        delete state.pageViewTimers[num];
+                                    }, 5000); // 5 seconds requirement
                                 }
+                            } else if (!entry.isIntersecting && state.pageViewTimers[num]) {
+                                // Clear timer if page leaves viewport before 10 seconds
+                                clearTimeout(state.pageViewTimers[num]);
+                                delete state.pageViewTimers[num];
                             }
                         });
                     }, { threshold: 0.5 });
@@ -1173,15 +1186,27 @@ if (is_student() && $enrollment) {
                     );
 
                     if (isVisible && !state.viewedSet.has(num) && !state.serverConfirmed.has(num) && !state.pdfCompleted) {
-                        trackPageView(num);
+                        // Start 10-second timer if not already running
+                        if (!state.pageViewTimers[num]) {
+                            state.pageViewTimers[num] = setTimeout(() => {
+                                trackPageView(num);
 
-                        if (!document.getElementById(`page-badge-${num}`)) {
-                            const badge = document.createElement('div');
-                            badge.className = 'page-viewed-badge';
-                            badge.id = `page-badge-${num}`;
-                            badge.innerHTML = '<i class="fas fa-check"></i>';
-                            pageElement.appendChild(badge);
+                                if (!document.getElementById(`page-badge-${num}`)) {
+                                    const badge = document.createElement('div');
+                                    badge.className = 'page-viewed-badge';
+                                    badge.id = `page-badge-${num}`;
+                                    badge.innerHTML = '<i class="fas fa-check"></i>';
+                                    pageElement.appendChild(badge);
+                                }
+
+                                // Clear timer after completion
+                                delete state.pageViewTimers[num];
+                            }, 5000); // 5 seconds requirement
                         }
+                    } else if (!isVisible && state.pageViewTimers[num]) {
+                        // Clear timer if page leaves viewport before 5 seconds
+                        clearTimeout(state.pageViewTimers[num]);
+                        delete state.pageViewTimers[num];
                     } else if (isVisible) {
                         state.currentPage = num;
                     }

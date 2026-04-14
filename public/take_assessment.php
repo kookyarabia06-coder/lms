@@ -200,7 +200,7 @@ foreach ($questionsData as $q) {
 
         <div class="ta-grace-timer" id="graceTimer" style="display: none;">
             <i class="fas fa-hourglass-half me-2"></i>
-            <span id="graceTimerText">Auto-submitting in 60s</span>
+            <span id="graceTimerText">Auto-submitting in 10s</span>
         </div>
 
         <div class="ta-shortcut-hint" id="shortcutHint">
@@ -292,7 +292,7 @@ foreach ($questionsData as $q) {
                 timeLeft: assessmentData.timeLimit,
                 timerInterval: null,
                 graceTimer: null,
-                graceTimeLeft: 60,
+                graceTimeLeft: 10,
                 inGrace: false,
                 submitting: false
             };
@@ -555,7 +555,7 @@ foreach ($questionsData as $q) {
                 elements.timer.classList.add('grace');
                 elements.timerValue.textContent = '00:00';
                 elements.graceMessage.style.display = 'block';
-                elements.graceMessage.innerHTML = '⏰ Assessment timer ended. Please finalize your work and submit. Auto-submit in <span id="graceCountdown">60</span>s';
+                elements.graceMessage.innerHTML = '⏰ Assessment timer ended. Please finalize your work and submit. Auto-submit in <span id="graceCountdown">10</span>s';
                 elements.graceTimer.style.display = 'flex';
                 
                 state.graceTimer = setInterval(() => {

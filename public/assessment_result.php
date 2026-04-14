@@ -61,6 +61,14 @@ $correctAnswers = count(array_filter($answers, fn($a) => $a['is_correct'] == 1))
 $totalPoints = array_sum(array_column($answers, 'points'));
 $earnedPoints = array_sum(array_column($answers, 'points_earned'));
 
+// Get current attempt number
+$stmt = $pdo->prepare("
+    SELECT COUNT(*) FROM assessment_attempts 
+    WHERE user_id = ? AND assessment_id = ? AND id <= ?
+");
+$stmt->execute([$u['id'], $attempt['assessment_id'], $attemptId]);
+$currentAttemptNumber = $stmt->fetchColumn();
+
 // Check if user can retake
 $stmt = $pdo->prepare("
     SELECT COUNT(*) FROM assessment_attempts 
@@ -69,6 +77,83 @@ $stmt = $pdo->prepare("
 $stmt->execute([$u['id'], $attempt['assessment_id']]);
 $attemptsUsed = $stmt->fetchColumn();
 $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts_allowed'] == 0);
+
+// Handle course reset (AJAX)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_course'])) {
+    try {
+        $pdo->beginTransaction();
+        
+        $courseId = $attempt['course_id'];
+        $userId = $u['id'];
+        
+        // Get enrollment record
+        $stmt = $pdo->prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?");
+        $stmt->execute([$userId, $courseId]);
+        $enrollment = $stmt->fetch();
+        
+        if ($enrollment) {
+            $enrollmentId = $enrollment['id'];
+            
+            // Clear PDF progress
+            $stmt = $pdo->prepare("DELETE FROM pdf_progress WHERE enrollment_id = ?");
+            $stmt->execute([$enrollmentId]);
+            
+            // Clear video progress
+            $stmt = $pdo->prepare("DELETE FROM video_progress WHERE enrollment_id = ?");
+            $stmt->execute([$enrollmentId]);
+            
+            // Reset enrollment progress
+            $stmt = $pdo->prepare("
+                UPDATE enrollments 
+                SET pdf_completed = 0, 
+                    video_completed = 0, 
+                    pdf_total_pages = 0, 
+                    pdf_current_page = 0,
+                    progress = 0,
+                    status = 'ongoing',
+                    completed_at = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([$enrollmentId]);
+        }
+        
+        // Get all assessments for this course and delete attempts
+        $stmt = $pdo->prepare("
+            SELECT id FROM assessments WHERE course_id = ?
+        ");
+        $stmt->execute([$courseId]);
+        $assessments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($assessments)) {
+            foreach ($assessments as $assessmentId) {
+                // Delete assessment answers
+                $stmt = $pdo->prepare("
+                    DELETE FROM assessment_answers 
+                    WHERE attempt_id IN (
+                        SELECT id FROM assessment_attempts 
+                        WHERE user_id = ? AND assessment_id = ?
+                    )
+                ");
+                $stmt->execute([$userId, $assessmentId]);
+                
+                // Delete assessment attempts
+                $stmt = $pdo->prepare("
+                    DELETE FROM assessment_attempts 
+                    WHERE user_id = ? AND assessment_id = ?
+                ");
+                $stmt->execute([$userId, $assessmentId]);
+            }
+        }
+        
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Course progress has been reset. You can now retake the course.']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Course Reset Error: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Error resetting course progress']);
+    }
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -82,6 +167,7 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/assessment_result.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
     <!-- Print button -->
@@ -138,18 +224,23 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                             <p>Date Completed</p>
                         </div>
                     </div>
+
+                    <div class="ar-stat-card">
+                        <div class="ar-stat-icon attempt">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <div class="ar-stat-details">
+                            <h4><?= $currentAttemptNumber ?><?php if($attempt['attempts_allowed'] > 0): ?>/<?= $attempt['attempts_allowed'] ?><?php endif; ?></h4>
+                            <p>Attempt Number</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Detailed Answers -->
             <div class="ar-answers-section">
                 <div class="ar-section-title">
-                    <h3>Detailed Answers</h3>
-                    <div class="ar-filter-buttons">
-                        <button class="ar-filter-btn active" onclick="filterAnswers('all')">All</button>
-                        <button class="ar-filter-btn" onclick="filterAnswers('correct')">Correct</button>
-                        <button class="ar-filter-btn" onclick="filterAnswers('incorrect')">Incorrect</button>
-                    </div>
+                    <h3>Answer Summary</h3>
                 </div>
 
                 <div class="ar-answers-list" id="answersList">
@@ -160,27 +251,22 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                         }
                     ?>
                     <div class="ar-answer-item" data-status="<?= $status ?>">
-                        <div class="ar-answer-header <?= $status ?>" onclick="toggleAnswer(this)">
+                        <div class="ar-answer-header <?= $status ?>">
                             <div class="ar-question-info">
                                 <span class="ar-question-number"><?= $index + 1 ?></span>
                                 <div>
                                     <div class="fw-600">Question <?= $index + 1 ?></div>
-                                    <div class="ar-question-type">
-                                        <i class="fas <?= $answer['question_type'] == 'essay' ? 'fa-pencil-alt' : 'fa-check-circle' ?> me-1"></i>
-                                                                                <?= ucfirst(str_replace('_', ' ', $answer['question_type'])) ?>
-                                    </div>
                                 </div>
                             </div>
                             <div class="ar-score-indicator">
                                 <span class="ar-score-badge <?= $status ?>">
                                     <i class="fas <?= $status == 'correct' ? 'fa-check-circle' : ($status == 'partial' ? 'fa-adjust' : 'fa-times-circle') ?> me-1"></i>
-                                    <?= $answer['points_earned'] ?>/<?= $answer['points'] ?> pts
+                                    <?= ucfirst($status) ?>
                                 </span>
-                                <i class="fas fa-chevron-down ar-expand-icon"></i>
                             </div>
                         </div>
 
-                        <div class="ar-answer-content">
+                        <div class="ar-answer-content" style="display: none;">
                             <div class="ar-answer-detail">
                                 <div class="ar-detail-label">Question:</div>
                                 <div class="ar-detail-value"><?= nl2br(htmlspecialchars($answer['question_text'])) ?></div>
@@ -232,9 +318,9 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
                         Retake Assessment
                     </a>
                 <?php elseif (!$attempt['passed'] && !$canRetake): ?>
-                    <button class="ar-btn-action ar-btn-retake disabled" disabled>
-                        <i class="fas fa-ban"></i>
-                        No Attempts Left
+                    <button class="ar-btn-action ar-btn-retake" onclick="retakeCourse()">
+                        <i class="fas fa-refresh"></i>
+                        Retake Course
                     </button>
                 <?php endif; ?>
             </div>
@@ -406,6 +492,64 @@ $canRetake = ($attemptsUsed < $attempt['attempts_allowed'] || $attempt['attempts
             navigator.clipboard.writeText(link).then(() => {
                 alert('Result link copied to clipboard!');
             });
+        }
+
+        // Retake course - reset progress
+        function retakeCourse() {
+            if (!confirm('This will reset all your progress in this course (PDF, video, and assessment attempts). Are you sure you want to continue?')) {
+                return;
+            }
+
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resetting...';
+
+            $.ajax({
+                url: window.location.href,
+                method: 'POST',
+                data: { reset_course: 1 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('success', 'Course progress and assessment attempts have been reset. Redirecting to course...');
+                        setTimeout(() => {
+                            const courseId = <?= $attempt['course_id'] ?>;
+                            window.location.href = `course_view.php?id=${courseId}`;
+                        }, 2000);
+                    } else {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        showAlert('danger', response.message || 'Failed to reset course');
+                    }
+                },
+                error: function() {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    showAlert('danger', 'Error resetting course. Please try again.');
+                }
+            });
+        }
+
+        // Alert helper function
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Insert at top of result container
+            const resultContainer = document.querySelector('.ar-result-container');
+            if (resultContainer) {
+                resultContainer.insertBefore(alertDiv, resultContainer.firstChild);
+                
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, 5000);
+            }
         }
     </script>
 </body>

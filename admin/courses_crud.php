@@ -6,8 +6,8 @@ require_login();
 
 // Only admins and proponents can access this page
 if (!is_admin() && !is_proponent() && !is_superadmin()) {
-    http_response_code(403);
-    exit('Access denied');
+http_response_code(403);
+exit('Access denied');
 }
 
 // Set maximum file upload size (in bytes)
@@ -66,8 +66,8 @@ $all_committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY nam
 $all_committees = $all_committees_stmt->fetchAll();
 
 /**
- * Calculate expiration date
- */
+* Calculate expiration date
+*/
 function calculateExpiry($expires_at, $valid_days) {
     if (!empty($valid_days) && is_numeric($valid_days) && $valid_days > 0) {
         return date('Y-m-d', strtotime("+{$valid_days} days"));
@@ -113,9 +113,9 @@ function uploadFile($input, $dir, $allowed = [], $max_size = MAX_FILE_SIZE) {
 }
 
 /**
- * Check if current user can edit/delete course
- * Returns true for admins OR if user owns the course
- */
+* Check if current user can edit/delete course
+* Returns true for admins OR if user owns the course
+*/
 function canModifyCourse($course_id, $pdo) {
     if (is_admin() || is_superadmin()) {
         return true; 
@@ -468,7 +468,7 @@ $max_post_size = ini_get('post_max_size');
 <body>
 
 <div class="lms-sidebar-container">
-    <?php include __DIR__ . '/../inc/sidebar.php'; ?>
+<?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
 
 <div class="modern-courses-wrapper">
@@ -824,6 +824,7 @@ $max_post_size = ini_get('post_max_size');
 
 </div>
 
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>

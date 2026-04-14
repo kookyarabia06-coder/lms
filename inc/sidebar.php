@@ -36,17 +36,37 @@ if (is_admin() || is_superadmin()) {
 }
 
 
+//get training pending requests count for notification badge
+$reqCount = 0;
 if (is_admin() || is_superadmin()) {
+    // Admins see all pending requests
     $stmt = $pdo->query("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
     $reqCount = $stmt->fetchColumn();
 } else {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE requester_id = ? AND status = 'approved'");
+    // Regular users see their own pending requests
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM training_requests WHERE requester_id = ? AND status = 'pending'");
     $stmt->execute([$_SESSION['user']['id']]);
     $reqCount = $stmt->fetchColumn();
 }
 
-// Get approved training requests 
-
+// Get PM Training requests pending count
+$pmTrainingCount = 0;
+if (is_admin() || is_superadmin()) {
+    // Admins see all pending/approved without PTR PM training requests
+    $stmt = $pdo->query("SELECT COUNT(*) FROM pm_training_requests WHERE status IN ('pending')");
+    $pmTrainingCount = $stmt->fetchColumn();
+} else {
+    // Regular users see their own approved requests without PTR (they need to upload PTR)
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pm_training_requests WHERE requester_id = ? AND status = 'approved' AND ptr_file IS NULL");
+    $stmt->execute([$_SESSION['user']['id']]);
+    $pmTrainingCount = $stmt->fetchColumn();
+}
+// get notifciation count for training list (for proponents to see new training requests)
+$training_listnotif = 0;
+if (is_proponent() || is_admin() || is_superadmin()) {
+    $stmt = $pdo->query("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
+    $training_listnotif = $stmt->fetchColumn();
+}
 
 ?>
 
@@ -184,28 +204,44 @@ if (is_admin() || is_superadmin()) {
                 <?php endif; ?>
 
 
-                <li class="nav-item">
-    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
-        <i class="fa fa-clipboard-list"></i> Training Request
-        <?php if ($reqCount > 0): ?>
-            <span class="notification-badge"><?= $reqCount ?></span>
-        <?php endif; ?>
-    </a>
-</li>
-
-      <a class="nav-link" href="<?= BASE_URL ?>/public/training_list.php">
-        <i class="fa fa-clipboard-list"></i> Training List
-            <span class="notification-badge"><?= $reqCount ?></span>
-    </a>
-                </li>
-
                 <!-- DIVIDER 2 -->
-                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-divider"></li>
+
+
+
+                <!-- TRAINING REQUESTS -->
+                <?php if($u && (is_student() || is_admin() || is_superadmin())): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/training_request.php">
+                        <i class="fa fa-clipboard-list"></i> Training Request
+                        <?php if ($reqCount > 0): ?>
+                            <span class="notification-badge"><?= $reqCount ?></span>
+                        <?php endif; ?>
+                    </a>
+                </li>
                 <?php endif; ?>
 
-              
-                
+              <!-- PM TRAINING REQUESTS -->
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/public/training_list.php">
+                            <i class="fa fa-graduation-cap"></i>  Training list
+                            <?php if ($training_listnotif > 0): ?>
+                                <span class="notification-badge"><?= $training_listnotif ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                <?php endif; ?>
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin() || is_student())): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?= BASE_URL ?>/public/pm_training_management.php">
+                            <i class="fa fa-graduation-cap"></i> PM Training Request
+                            <?php if ($pmTrainingCount > 0): ?>
+                                <span class="notification-badge"><?= $pmTrainingCount ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                <?php endif; ?>
 
                 <!-- News -->
                 <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>

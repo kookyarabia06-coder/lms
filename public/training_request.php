@@ -50,7 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) {
     header('Content-Type: application/json');
     try {
-        $training_type = trim($_POST['training_type'] ?? '');
+        // Force training type to External - this page only handles external training
+        $training_type = 'External';
         $title = trim($_POST['title'] ?? '');
         $date_start = $_POST['date_start'] ?? '';
         $date_end = $_POST['date_end'] ?? '';
@@ -62,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) 
         $remarks = trim($_POST['remarks'] ?? '');
         
         $errors = [];
-        if (empty($training_type)) $errors[] = "Training type is required";
         if (empty($title)) $errors[] = "Title is required";
     
         
@@ -138,9 +138,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
     header('Content-Type: application/json');
     try {
         $id = (int)$_POST['id'];
-        $training_type = trim($_POST['training_type'] ?? '');
+        // Force training type to External
+        $training_type = 'External';
         $title = trim($_POST['title'] ?? '');
         $location_type = trim($_POST['location_type'] ?? '');
+
         $hospital_id = trim($_POST['hospital_id'] ?? '');
         $amount = floatval($_POST['amount'] ?? 0);
         $late_filing = isset($_POST['late_filing']) ? 1 : 0;
@@ -149,7 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $approve_status = isset($_POST['approve_status']) ? 1 : 0;
         
         $errors = [];
-        if (empty($training_type)) $errors[] = "Training type is required";
         if (empty($title)) $errors[] = "Title is required";
         
         if (!empty($errors)) {
@@ -182,7 +183,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         
         $ptr_file = uploadTrainingFile('ptr_file');
         $coc_file = uploadTrainingFile('coc_file');
-        $coa_file = uploadTrainingFile('coa_file');
         $mom_file = uploadTrainingFile('mom_file');
         
         // Start building the update query - exclude date fields since they're disabled in form
@@ -199,10 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         if ($coc_file) {
             $sql .= ", coc_file = ?";
             $params[] = $coc_file;
-        }
-        if ($coa_file) {
-            $sql .= ", coa_file = ?";
-            $params[] = $coa_file;
         }
         if ($mom_file) {
             $sql .= ", mom_file = ?";
@@ -300,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data'])) {
         $dept_id = isset($_GET['dept_id']) && !empty($_GET['dept_id']) ? (int)$_GET['dept_id'] : null;
         $type = isset($_GET['type']) && !empty($_GET['type']) ? $_GET['type'] : null;
         
-        $where_clauses = ["tr.status = 'approved'"];
+        $where_clauses = ["tr.status = 'approved'", "tr.training_type = 'external'"];
         $params = [];
         
         if ($year) {
@@ -313,10 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data'])) {
             $params[] = $month;
         }
         
-        if ($type) {
-            $where_clauses[] = "tr.training_type = ?";
-            $params[] = $type;
-        }
+        // Note: Type filter removed - this page only shows external training
         
         if ($division_id) {
             $where_clauses[] = "d.id = ?";
@@ -397,8 +390,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_filter_options'])) 
 
 // Handle filter
 $filter_month = isset($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
+$filter_year = isset($_GET['filter_year']) && !empty($_GET['filter_year']) ? (int)$_GET['filter_year'] : '';
+$filter_type = isset($_GET['filter_type']) && !empty($_GET['filter_type']) ? $_GET['filter_type'] : '';
+$filter_status = isset($_GET['filter_status']) && !empty($_GET['filter_status']) ? $_GET['filter_status'] : '';
+$filter_division = isset($_GET['filter_division']) && !empty($_GET['filter_division']) ? (int)$_GET['filter_division'] : '';
+$filter_dept = isset($_GET['filter_dept']) && !empty($_GET['filter_dept']) ? (int)$_GET['filter_dept'] : '';
+
 $where_clause = [];
 $params = [];
+
+// Always filter for external training only
+$where_clause[] = "tr.training_type = 'external'";
 
 // Add user filter - regular users see only their requests, admins see all
 if (!is_admin() && !is_superadmin()) {
@@ -406,19 +408,47 @@ if (!is_admin() && !is_superadmin()) {
     $params[] = $current_user_id;
 }
 
+// Apply additional filters
+if (!empty($filter_year)) {
+    $where_clause[] = "YEAR(tr.date_start) = ?";
+    $params[] = $filter_year;
+}
+
 if (!empty($filter_month) && $filter_month >= 1 && $filter_month <= 12) {
-    $where_clause[] = "MONTH(tr.date_start) = ? AND YEAR(tr.date_start) = YEAR(CURDATE())";
+    $where_clause[] = "MONTH(tr.date_start) = ?";
     $params[] = $filter_month;
+}
+
+// Note: filter_type dropdown is removed - this page only shows external training
+
+if (!empty($filter_status)) {
+    $where_clause[] = "tr.status = ?";
+    $params[] = $filter_status;
+}
+
+if (!empty($filter_division)) {
+    $where_clause[] = "d.id = ?";
+    $params[] = $filter_division;
+}
+
+if (!empty($filter_dept)) {
+    $where_clause[] = "dept.id = ?";
+    $params[] = $filter_dept;
 }
 
 $where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
 
-// Fetch training requests
+// Fetch training requests with division/department joins
 $query = "SELECT 
     tr.*,
-    COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name
+    COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name,
+    d.name as division_name,
+    dept.name as department_name
     FROM training_requests tr
     LEFT JOIN users u ON tr.requester_id = u.id
+    LEFT JOIN user_departments ud ON ud.user_id = u.id
+    LEFT JOIN depts dept ON ud.dept_id = dept.id
+    LEFT JOIN departments d ON dept.department_id = d.id
     $where_sql
     ORDER BY tr.created_at DESC";
 
@@ -427,22 +457,49 @@ $stmt->execute($params);
 $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get statistics
-// Get statistics - respect user permissions
-$stats_where = "";
+// Get statistics - respect user permissions and filters
+$stats_where_clause = [];
 $stats_params = [];
 
 if (!is_admin() && !is_superadmin()) {
-    $stats_where = "AND requester_id = ?";
+    $stats_where_clause[] = "requester_id = ?";
     $stats_params[] = $current_user_id;
 }
 
+if (!empty($filter_year)) {
+    $stats_where_clause[] = "YEAR(date_start) = ?";
+    $stats_params[] = $filter_year;
+} else {
+    $stats_where_clause[] = "YEAR(date_start) = YEAR(CURDATE())";
+}
+
+if (!empty($filter_month)) {
+    $stats_where_clause[] = "MONTH(date_start) = ?";
+    $stats_params[] = $filter_month;
+}
+
+if (!empty($filter_type)) {
+    $stats_where_clause[] = "training_type = ?";
+    $stats_params[] = $filter_type;
+}
+
+if (!empty($filter_status)) {
+    $stats_where_clause[] = "status = ?";
+    $stats_params[] = $filter_status;
+}
+
+$stats_where_sql = !empty($stats_where_clause) ? "WHERE " . implode(" AND ", $stats_where_clause) : "";
+
 $stats_query = "SELECT 
     COUNT(*) as total,
-    SUM(CASE WHEN training_type = 'Internal' THEN 1 ELSE 0 END) as internal_count,
+   
     SUM(CASE WHEN training_type = 'External' THEN 1 ELSE 0 END) as external_count,
-    COALESCE(SUM(amount), 0) as total_amount
-    FROM training_requests
-    WHERE YEAR(date_start) = YEAR(CURDATE()) $stats_where";
+    COALESCE(SUM(amount), 0) as total_amount  
+    FROM training_requests tr 
+    LEFT JOIN user_departments ud ON ud.user_id = tr.requester_id
+    LEFT JOIN depts dept ON ud.dept_id = dept.id
+    LEFT JOIN departments d ON dept.department_id = d.id
+    $stats_where_sql";
 
 $stmt = $pdo->prepare($stats_query);
 $stmt->execute($stats_params);
@@ -499,7 +556,20 @@ if (!$stats) {
         <div class="filter-card">
             <form method="GET" action="" class="filter-row" id="filterForm">
                 <div class="filter-group">
-                    <label class="form-label">Filter by Month</label>
+                    <label class="form-label">Year</label>
+                    <select name="filter_year" class="form-select" id="filterYear">
+                        <option value="">All Years</option>
+                        <?php 
+                        $current_year = (int)date('Y');
+                        for ($i = $current_year; $i >= $current_year - 5; $i--): 
+                        ?>
+                            <option value="<?= $i ?>" <?= ($filter_year == $i) ? 'selected' : '' ?>><?= $i ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="form-label">Month</label>
                     <select name="filter_month" class="form-select" id="filterMonth">
                         <option value="">All Months</option>
                         <?php for ($i = 1; $i <= 12; $i++): ?>
@@ -509,10 +579,76 @@ if (!$stats) {
                         <?php endfor; ?>
                     </select>
                 </div>
+
+
+
+                <div class="filter-group">
+                    <label class="form-label">Status</label>
+                    <select name="filter_status" class="form-select" id="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="pending" <?= ($filter_status == 'pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="approved" <?= ($filter_status == 'approved') ? 'selected' : '' ?>>Approved</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="form-label">Division</label>
+                    <select name="filter_division" class="form-select" id="filterDivision" onchange="updateDepartmentFilter()">
+                        <option value="">All Divisions</option>
+                        <?php 
+                        try {
+                            $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
+                            $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($divisions as $div): 
+                        ?>
+                                <option value="<?= $div['id'] ?>" <?= ($filter_division == $div['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($div['name']) ?>
+                                </option>
+                        <?php 
+                            endforeach;
+                        } catch (Exception $e) {}
+                        ?>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="form-label">Department</label>
+                    <select name="filter_dept" class="form-select" id="filterDept">
+                        <option value="">All Departments</option>
+                        <?php 
+                        try {
+                            $stmt = $pdo->query("SELECT id, name, department_id FROM depts ORDER BY name");
+                            $all_departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($all_departments as $dept): 
+                        ?>
+                                <option value="<?= $dept['id'] ?>" 
+                                        data-division-id="<?= $dept['department_id'] ?>"
+                                        <?= ($filter_dept == $dept['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($dept['name']) ?>
+                                </option>
+                        <?php 
+                            endforeach;
+                        } catch (Exception $e) {}
+                        ?>
+                    </select>
+                </div>
+
                 <div class="search-group">
                     <label class="form-label">Search</label>
-                    <input type="text" id="searchInput" class="form-control" placeholder="Search by title, type, order no., remarks, or resched reason...">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search by title, type, order no., remarks...">
                 </div>
+
+                <div class="filter-group">
+                    <label class="form-label">Submission Status</label>
+                    <select class="form-select" id="nonSubmissionFilter">
+                        <option value="all">All</option>
+                        <option value="none">Submitted (No Alerts)</option>
+                        <option value="orange"><i class="fas fa-circle" style="color: #ffc107;"></i> Non Submission - Warning (45+ days)</option>
+                        <option value="red"><i class="fas fa-circle" style="color: #dc3545;"></i> Non Submission - Urgent (60+ days)</option>
+                        <option value="any">Non Submission - Any Alert</option>
+                    </select>
+                </div>
+
                 <div>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-filter me-1"></i> Filter
@@ -530,10 +666,7 @@ if (!$stats) {
                 <span class="stat-label">Total Training Requests:</span>
                 <span class="stat-number" id="totalCount"><?= number_format($stats['total'] ?? 0) ?></span>
             </div>
-            <div class="stat-item">
-                <span class="stat-label">Internal Training:</span>
-                <span class="stat-number"><?= number_format($stats['internal_count'] ?? 0) ?></span>
-            </div>
+           
             <div class="stat-item">
                 <span class="stat-label">External Training:</span>
                 <span class="stat-number"><?= number_format($stats['external_count'] ?? 0) ?></span>
@@ -560,7 +693,7 @@ if (!$stats) {
                 <table class="table" id="trainingTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                           
                             <th>Title</th>
                             <th>Type</th>
                             <th>From</th>
@@ -577,14 +710,55 @@ if (!$stats) {
                     <tbody id="trainingTableBody">
                         <?php if (!empty($training_requests)): ?>
                             <?php foreach ($training_requests as $request): ?>
+                                <?php 
+                                // Check if no attachments - determine reminder level based on days elapsed
+                                $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']);
+                                $end_date = new DateTime($request['date_end']);
+                                $current_date = new DateTime();
+                                $days_elapsed = $current_date->diff($end_date)->days;
+                                
+                                // Check if attachments are reviewed/complete (status is 'approved' and has attachments, or any final status)
+                                $attachments_reviewed = ($request['status'] === 'approved' && $has_attachments) || $request['status'] === 'complete';
+                                
+                                $reminder_level = 'none'; // none, orange, red
+                                $reminder_text = '';
+                                $bg_color = '';
+                                $border_color = '';
+                                $badge_class = '';
+                                
+                                if (!$has_attachments && !$attachments_reviewed) {
+                                    if ($days_elapsed >= 60) {
+                                        $reminder_level = 'red';
+                                        $reminder_text = "Warning: No attachments ({$days_elapsed}+ days)";
+                                        $bg_color = '#ffe6e6';
+                                        $border_color = '#dc3545';
+                                        $badge_class = 'badge-secondary';
+                                    } elseif ($days_elapsed >= 45) {
+                                        $reminder_level = 'orange';
+                                        $reminder_text = "Warning: No attachments ({$days_elapsed}+ days)";
+                                        $bg_color = '#fff3cd';
+                                        $border_color = '#ffc107';
+                                        $badge_class = 'badge-secondary';
+                                    }
+                                }
+                                ?>
                                 <tr data-id="<?= $request['id'] ?>"
                                     data-title="<?= strtolower(htmlspecialchars($request['title'])) ?>" 
                                     data-type="<?= strtolower(htmlspecialchars($request['training_type'])) ?>"
                                     data-order="<?= strtolower(htmlspecialchars($request['hospital_order_no'])) ?>"
                                     data-remarks="<?= strtolower(htmlspecialchars($request['remarks'] ?? '')) ?>"
-                                    data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>">
-                                    <td><?= $request['id'] ?></td>
-                                    <td><strong><?= htmlspecialchars($request['title']) ?></strong></td>
+                                    data-resched="<?= strtolower(htmlspecialchars($request['resched_reason'] ?? '')) ?>"
+                                    data-has-notification="<?= $reminder_level !== 'none' ? '1' : '0' ?>"
+                                    data-reminder-level="<?= $reminder_level ?>"
+                                    data-end-date="<?= $request['date_end'] ?>"
+                                    data-has-attachments="<?= $has_attachments ? '1' : '0' ?>">
+                                   
+                                    <td <?= $reminder_level !== 'none' ? "style=\"background-color: $bg_color; border-left: 4px solid $border_color;\"" : '' ?>>
+                                        <strong><?= htmlspecialchars($request['title']) ?></strong>
+                                        <?php if ($reminder_level !== 'none'): ?>
+                                        <br><span class="badge <?= $badge_class ?> training-warning-badge" title="<?= $reminder_text ?>"><i class="fas fa-exclamation-circle me-1"></i><?= $reminder_text ?></span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
                                             <?= htmlspecialchars($request['training_type']) ?>
@@ -611,11 +785,11 @@ if (!$stats) {
                                         ?>
                                       </td>
                                     <td>
-                                        <span class="status-badge status-<?= $request['status'] ?>">
-                                            <?= ucfirst($request['status']) ?>
+                                        <span class="status-badge status-<?= $request['status'] ?>" <?= $request['late_filing'] ? "style=\"background-color: #ff1493; color: white; border-radius: 4px; padding: 4px 8px;\"" : '' ?>>
+                                            <?= ucfirst($request['status']) ?><?= $request['late_filing'] ? ' (LATE FILING)' : '' ?>
                                         </span>
                                       </td>
-                                    <td class="action-buttons">
+                                    <td class="action-buttons" style="position: relative; z-index: 10; pointer-events: auto;">
                                         <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
                                             <i class="fas fa-edit"></i>
                                             <span>Edit</span>
@@ -628,7 +802,7 @@ if (!$stats) {
                                         <?php endif; ?>
                                         <?php 
                                         // Check if there are any attachments
-                                        $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']) || !empty($request['coa_file']) || !empty($request['mom_file']);
+                                        $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']);
                                         if ($has_attachments): 
                                         ?>
                                         <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(<?= $request['id'] ?>)" title="View Attachments">
@@ -673,11 +847,10 @@ if (!$stats) {
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Training Type <span class="text-danger">*</span></label>
-                            <select name="training_type" class="form-select" required>
-                                <option value="">--Select One--</option>
-                                <option value="Internal">Internal</option>
-                                <option value="External">External</option>
+                            <select name="training_type" class="form-select" required disabled>
+                                <option value="External" selected>External Training Only</option>
                             </select>
+                            <small class="text-muted">This form is for external training requests only</small>
                         </div>
                         
                         <div class="col-md-6">
@@ -760,15 +933,20 @@ if (!$stats) {
             <div class="modal-body">
                 <form id="editFormModal" enctype="multipart/form-data">
                     <input type="hidden" name="id" id="edit_id">
+                    <input type="hidden" id="edit_created_at">
+                    
+                    <!-- Attachment Reminder Alert -->
+                    <div id="attachmentReminderAlert" class="alert alert-dismissible fade show d-none" role="alert">
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                     
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Training Type <span class="text-danger">*</span></label>
-                            <select name="training_type" id="edit_training_type" class="form-select" required>
-                                <option value="">--Select One--</option>
-                                <option value="Internal">Internal</option>
-                                <option value="External">External</option>
+                            <select name="training_type" id="edit_training_type" class="form-select" required disabled>
+                                <option value="External" selected>External Training Only</option>
                             </select>
+                            <small class="text-muted">This form is for external training requests only</small>
                         </div>
                         
                         <div class="col-md-6">
@@ -850,14 +1028,9 @@ if (!$stats) {
                                     <div id="current_ptr" class="current-file"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">COC (Certificate of Completion)</label>
+                                    <label class="form-label">Certification (Attendance/Completion)</label>
                                     <input type="file" class="form-control" name="coc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                     <div id="current_coc" class="current-file"></div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">COA (Certificate of Attendance)</label>
-                                    <input type="file" class="form-control" name="coa_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-                                    <div id="current_coa" class="current-file"></div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">MOM (Minutes of the Meeting)</label>
@@ -1082,6 +1255,60 @@ if (!$stats) {
         }, 5000);
     }
     
+    // Update Department filter based on selected Division
+    function updateDepartmentFilter() {
+        const divisionId = document.getElementById('filterDivision').value;
+        const deptSelect = document.getElementById('filterDept');
+        const currentDeptValue = deptSelect.value;
+        
+        // Get all departments from data attributes
+        const allDepts = document.querySelectorAll('#filterDept option[data-division-id]');
+        
+        // Store currently selected value to restore if valid
+        let selectedOption = null;
+        if (currentDeptValue) {
+            selectedOption = Array.from(allDepts).find(opt => opt.value === currentDeptValue);
+        }
+        
+        // Clear current options (keep the "All Departments" option)
+        const allOption = deptSelect.querySelector('option:not([data-division-id])');
+        deptSelect.innerHTML = '';
+        deptSelect.appendChild(allOption);
+        
+        if (!divisionId) {
+            // Show all departments
+            allDepts.forEach(option => {
+                deptSelect.appendChild(option.cloneNode(true));
+            });
+            // Restore selection if it exists
+            if (selectedOption) {
+                deptSelect.value = currentDeptValue;
+            }
+        } else {
+            // Show only departments for selected division
+            allDepts.forEach(option => {
+                if (option.getAttribute('data-division-id') === divisionId) {
+                    deptSelect.appendChild(option.cloneNode(true));
+                }
+            });
+            // Restore selection only if it matches the new division filter
+            if (selectedOption && selectedOption.getAttribute('data-division-id') === divisionId) {
+                deptSelect.value = currentDeptValue;
+            } else {
+                deptSelect.value = '';
+            }
+        }
+    }
+    
+    // Initialize department filter on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterDivision = document.getElementById('filterDivision');
+        if (filterDivision) {
+            updateDepartmentFilter();
+            filterDivision.addEventListener('change', updateDepartmentFilter);
+        }
+    });
+    
 <?php if (is_admin() || is_superadmin()): ?>
 // Report Modal Functions
 let allDepartments = [];
@@ -1297,8 +1524,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     const request = data.request;
                     const files = [
                         { name: 'PTR (Post Training Report)', file: request.ptr_file, icon: 'fa-file-alt' },
-                        { name: 'COC (Certificate of Completion)', file: request.coc_file, icon: 'fa-file-pdf' },
-                        { name: 'COA (Certificate of Attendance)', file: request.coa_file, icon: 'fa-file-image' },
+                        { name: 'Certification (Attendance/Completion)', file: request.coc_file, icon: 'fa-file-pdf' },
                         { name: 'MOM (Minutes of the Meeting)', file: request.mom_file, icon: 'fa-file-word' }
                     ];
                     
@@ -1503,6 +1729,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                 if (data.success) {
                     const request = data.request;
                     document.getElementById('edit_id').value = request.id;
+                    document.getElementById('edit_created_at').value = request.created_at;
                     document.getElementById('edit_training_type').value = request.training_type;
                     document.getElementById('edit_title').value = request.title;
                     document.getElementById('edit_date_start').value = request.date_start;
@@ -1510,6 +1737,42 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     document.getElementById('edit_location_type').value = request.location_type || '';
                     document.getElementById('edit_hospital_id').value = request.hospital_order_no;
                     document.getElementById('edit_amount').value = request.amount;
+                    
+                    // Check if no attachments - determine reminder level
+                    const hasAttachments = request.ptr_file || request.coc_file;
+                    const endDate = new Date(request.date_end);
+                    const currentDate = new Date();
+                    const daysElapsed = Math.floor((currentDate - endDate) / (1000 * 60 * 60 * 24));
+                    
+                    const reminderAlert = document.getElementById('attachmentReminderAlert');
+                    let reminderLevel = 'none';
+                    let alertClass = 'alert-warning';
+                    let alertMessage = '';
+                    
+                    if (!hasAttachments) {
+                        if (daysElapsed >= 60) {
+                            reminderLevel = 'red';
+                            alertClass = 'alert-danger';
+                            alertMessage = '<strong>Urgent:</strong> No attachments in 60+ days. Please upload the required documents immediately (PTR, Certification, or MOM).';
+                        } else if (daysElapsed >= 45) {
+                            reminderLevel = 'orange';
+                            alertClass = 'alert-warning';
+                            alertMessage = '<strong>Reminder:</strong> No attachments in 45+ days. Please upload the required documents (PTR, Certification, or MOM).';
+                        }
+                    }
+                    
+                    if (reminderLevel !== 'none') {
+                        reminderAlert.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${alertMessage}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                        reminderAlert.className = `alert ${alertClass} alert-dismissible fade show d-none`;
+                        if (reminderLevel === 'red') {
+                            reminderAlert.className = reminderAlert.className.replace('d-none', '');
+                        } else if (reminderLevel === 'orange') {
+                            reminderAlert.className = reminderAlert.className.replace('d-none', '');
+                        }
+                        reminderAlert.classList.remove('d-none');
+                    } else {
+                        reminderAlert.classList.add('d-none');
+                    }
                     
                     // Only set checkbox values if elements exist (admin/superadmin only)
                     const lateFilingCheckbox = document.getElementById('edit_late_filing');
@@ -1520,6 +1783,18 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     }
                     if (officialBusinessCheckbox) {
                         officialBusinessCheckbox.checked = request.official_business == 1;
+                    }
+                    
+                    // Disable approve checkbox if status is already approved
+                    const approveCheckbox = document.getElementById('edit_approve_status');
+                    if (approveCheckbox) {
+                        if (request.status === 'approved') {
+                            approveCheckbox.disabled = true;
+                            approveCheckbox.checked = true;
+                        } else {
+                            approveCheckbox.disabled = false;
+                            approveCheckbox.checked = false;
+                        }
                     }
                     
                     document.getElementById('edit_remarks').value = request.remarks || '';
@@ -1534,11 +1809,6 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                         document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
                     } else {
                         document.getElementById('current_coc').innerHTML = '';
-                    }
-                    if (request.coa_file) {
-                        document.getElementById('current_coa').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coa_file}" target="_blank">Current COA File</a>`;
-                    } else {
-                        document.getElementById('current_coa').innerHTML = '';
                     }
                     if (request.mom_file) {
                         document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
@@ -1664,65 +1934,101 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
     
     // Real-time search functionality
     const searchInput = document.getElementById('searchInput');
+    const nonSubmissionFilter = document.getElementById('nonSubmissionFilter');
     const tableBody = document.getElementById('trainingTableBody');
     
-    if (searchInput) {
-        searchInput.addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase().trim();
-            let visibleCount = 0;
-            const rows = tableBody.querySelectorAll('tr:not(#emptyStateRow)');
+    // Combined filter function
+    function filterTableRows() {
+        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const filterType = nonSubmissionFilter ? nonSubmissionFilter.value : 'all';
+        let visibleCount = 0;
+        const rows = tableBody.querySelectorAll('tr:not(#emptyStateRow)');
+        
+        rows.forEach(row => {
+            const title = row.getAttribute('data-title') || '';
+            const type = row.getAttribute('data-type') || '';
+            const order = row.getAttribute('data-order') || '';
+            const remarks = row.getAttribute('data-remarks') || '';
+            const resched = row.getAttribute('data-resched') || '';
+            const reminderLevel = row.getAttribute('data-reminder-level') || 'none';
             
-            rows.forEach(row => {
-                const title = row.getAttribute('data-title') || '';
-                const type = row.getAttribute('data-type') || '';
-                const order = row.getAttribute('data-order') || '';
-                const remarks = row.getAttribute('data-remarks') || '';
-                const resched = row.getAttribute('data-resched') || '';
-                
-                if (title.includes(searchTerm) || 
-                    type.includes(searchTerm) || 
-                    order.includes(searchTerm) || 
-                    remarks.includes(searchTerm) ||
-                    resched.includes(searchTerm) ||
-                    searchTerm === '') {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
+            // Check search term match
+            const matchesSearch = searchTerm === '' || 
+                title.includes(searchTerm) || 
+                type.includes(searchTerm) || 
+                order.includes(searchTerm) || 
+                remarks.includes(searchTerm) ||
+                resched.includes(searchTerm);
             
-            const totalCountSpan = document.getElementById('totalCount');
-            if (totalCountSpan) {
-                totalCountSpan.textContent = visibleCount;
+            // Check submission status filter
+            let matchesSubmissionFilter = false;
+            switch(filterType) {
+                case 'all':
+                    matchesSubmissionFilter = true;
+                    break;
+                case 'none':
+                    matchesSubmissionFilter = reminderLevel === 'none';
+                    break;
+                case 'orange':
+                    matchesSubmissionFilter = reminderLevel === 'orange';
+                    break;
+                case 'red':
+                    matchesSubmissionFilter = reminderLevel === 'red';
+                    break;
+                case 'any':
+                    matchesSubmissionFilter = reminderLevel !== 'none';
+                    break;
+                default:
+                    matchesSubmissionFilter = true;
             }
             
-            const emptyStateRow = document.getElementById('emptyStateRow');
-            if (visibleCount === 0 && rows.length === 0 && !emptyStateRow) {
-                const emptyRow = document.createElement('tr');
-                emptyRow.id = 'emptyStateRow';
-                emptyRow.innerHTML = `
-                    <td colspan="13" class="text-center py-5">
-                        <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
-                        <p class="text-muted mb-0">No training requests found</p>
-                      </div>
-                `;
-                tableBody.appendChild(emptyRow);
-            } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
-                const noResultsRow = document.createElement('tr');
-                noResultsRow.className = 'no-results-row';
-                noResultsRow.innerHTML = `
-                    <td colspan="13" class="text-center py-5">
-                        <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
-                        <p class="text-muted mb-0">No matching training requests found</p>
-                      </div>
-                `;
-                tableBody.appendChild(noResultsRow);
-            } else if (visibleCount > 0) {
-                const noResultsRow = tableBody.querySelector('.no-results-row');
-                if (noResultsRow) noResultsRow.remove();
+            // Show row if both conditions match
+            if (matchesSearch && matchesSubmissionFilter) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
             }
         });
+        
+        const totalCountSpan = document.getElementById('totalCount');
+        if (totalCountSpan) {
+            totalCountSpan.textContent = visibleCount;
+        }
+        
+        const emptyStateRow = document.getElementById('emptyStateRow');
+        if (visibleCount === 0 && rows.length === 0 && !emptyStateRow) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.id = 'emptyStateRow';
+            emptyRow.innerHTML = `
+                <td colspan="13" class="text-center py-5">
+                    <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                    <p class="text-muted mb-0">No training requests found</p>
+                  </div>
+            `;
+            tableBody.appendChild(emptyRow);
+        } else if (visibleCount === 0 && rows.length > 0 && !document.querySelector('.no-results-row')) {
+            const noResultsRow = document.createElement('tr');
+            noResultsRow.className = 'no-results-row';
+            noResultsRow.innerHTML = `
+                <td colspan="13" class="text-center py-5">
+                    <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
+                    <p class="text-muted mb-0">No matching training requests found</p>
+                  </div>
+            `;
+            tableBody.appendChild(noResultsRow);
+        } else if (visibleCount > 0) {
+            const noResultsRow = tableBody.querySelector('.no-results-row');
+            if (noResultsRow) noResultsRow.remove();
+        }
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('keyup', filterTableRows);
+    }
+    
+    if (nonSubmissionFilter) {
+        nonSubmissionFilter.addEventListener('change', filterTableRows);
     }
     
     // Delete request via AJAX
@@ -1786,7 +2092,48 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
             buttons.forEach(btn => btn.disabled = false);
         });
     }
-</script>
 
-</body>
+    // Continuously update day counter for training requests
+    function updateDayCounters() {
+        const table = document.getElementById('trainingTableBody');
+        if (!table) return;
+        
+        const rows = table.querySelectorAll('tr[data-end-date]');
+        rows.forEach(row => {
+            const endDate = new Date(row.getAttribute('data-end-date'));
+            const currentDate = new Date();
+            const daysElapsed = Math.floor((currentDate - endDate) / (1000 * 60 * 60 * 24));
+            
+            const hasAttachments = row.getAttribute('data-has-attachments') === '1';
+            
+            // Find the warning badge in this row
+            const badge = row.querySelector('.training-warning-badge');
+            if (badge) {
+                if (!hasAttachments) {
+                    // Update the badge text with current days elapsed
+                    let reminderText = '';
+                    if (daysElapsed >= 60) {
+                        reminderText = `Warning: No attachments (${daysElapsed}+ days)`;
+                    } else if (daysElapsed >= 45) {
+                        reminderText = `Warning: No attachments (${daysElapsed}+ days)`;
+                    }
+                    
+                    if (reminderText && !badge.textContent.includes(reminderText.split('(')[1])) {
+                        // Update badge with new day count
+                        const iconSpan = badge.querySelector('i');
+                        badge.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i>${reminderText}`;
+                        badge.title = reminderText;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initialize day counter update on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateDayCounters();
+        // Update every hour (3600000 milliseconds)
+        setInterval(updateDayCounters, 3600000);
+    });
+</script>
 </html>

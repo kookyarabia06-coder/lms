@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS departments (
 
 -- user_departments junction table for many-to-many relationship
 CREATE TABLE IF NOT EXISTS user_departments (
-    user_id INT NOT NULL,
+    user_id INT NOT NULL AUTO_INCREMENT,
     department_id INT NOT NULL,
     PRIMARY KEY (user_id, department_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -123,4 +123,4 @@ INSERT INTO departments (name) VALUES
 ('Elderly Services Department'),
 ('Gastroenterology'),
 ('General Surgery'),
-('Gynecology');                         
+('Gynecology');                        

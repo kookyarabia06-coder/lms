@@ -204,14 +204,14 @@ function sendOTPEmail($recipientEmail, $recipientName, $otpCode) {
 
 // For testing/development, you can use a simpler version or just bura this and run main
 function sendOTPEmailSimple($email, $otp) {
-    // For local development without SMTP
-    if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['SERVER_NAME'] === 'localhost') {
-        // Just log it for local development 
-        error_log("Local dev - OTP for $email: $otp");
-        return ['success' => true, 'message' => 'OTP logged locally'];
-    }
-    
-    // Production - use actual email this is the MAIN
-    return sendOTPEmail($email, 'User', $otp);
+// For local development without SMTP
+if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['SERVER_NAME'] === 'localhost') {
+// Just log it for local development 
+error_log("Local dev - OTP for $email: $otp");
+return ['success' => true, 'message' => 'OTP logged locally'];
+}
+
+// Production - use actual email this is the MAIN
+return sendOTPEmail($email, 'User', $otp);
 }
 ?>

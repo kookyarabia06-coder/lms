@@ -35,9 +35,9 @@ function require_proponent() {
 }
 
 
-function require_superadmin() {
+function require_superadmin(){
     require_login();
     if (!is_superadmin()) {
-        die('Access denied: Superadmin only.');
+        die('Access denied: Super Admins only.');
     }
 }
