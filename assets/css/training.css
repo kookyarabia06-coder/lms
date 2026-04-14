@@ -246,17 +246,18 @@
 
     /* Column widths */
     .table th:nth-child(1), .table td:nth-child(1) { width: 4%; } /* ID */
-    .table th:nth-child(2), .table td:nth-child(2) { width: 12%; } /* Title */
-    .table th:nth-child(3), .table td:nth-child(3) { width: 6%; } /* Type */
-    .table th:nth-child(4), .table td:nth-child(4) { width: 8%; } /* From */
-    .table th:nth-child(5), .table td:nth-child(5) { width: 8%; } /* To */
-    .table th:nth-child(6), .table td:nth-child(6) { width: 8%; } /* Requester */
-    .table th:nth-child(7), .table td:nth-child(7) { width: 8%; } /* Hospital Order No */
-    .table th:nth-child(8), .table td:nth-child(8) { width: 6%; } /* Amount */
+    .table th:nth-child(2), .table td:nth-child(2) { width: 14%; } /* Title */
+    .table th:nth-child(3), .table td:nth-child(3) { width: 7%; } /* Type */
+    .table th:nth-child(4), .table td:nth-child(4) { width: 9%; } /* From */
+    .table th:nth-child(5), .table td:nth-child(5) { width: 9%; } /* To */
+    .table th:nth-child(6), .table td:nth-child(6) { width: 9%; } /* Requester */
+    .table th:nth-child(7), .table td:nth-child(7) { width: 9%; } /* Hospital Order No */
+    .table th:nth-child(8), .table td:nth-child(8) { width: 7%; } /* Amount */
     .table th:nth-child(9), .table td:nth-child(9) { width: 5%; } /* Is OB */
-    .table th:nth-child(10), .table td:nth-child(10) { width: 10%; } /* Remarks */
-    .table th:nth-child(11), .table td:nth-child(11) { width: 10%; } /* Resched Reason */
+    .table th:nth-child(10), .table td:nth-child(10) { width: 8%; } /* Remarks */
+    .table th:nth-child(11), .table td:nth-child(11) { width: 8%; } /* Resched Reason */
     .table th:nth-child(12), .table td:nth-child(12) { width: 7%; } /* Status */
+    .table th:nth-child(13), .table td:nth-child(13) { width: 12%; min-width: 140px; } /* Actions */
     /* Truncated cell with tooltip */
     .truncated-cell {
         cursor: help;
@@ -320,17 +321,17 @@
     /* Action Buttons */
     .action-buttons {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         align-items: center;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         justify-content: flex-start;
     }
-    
+
     .btn-action {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         padding: 0;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         font-weight: 500;
         border-radius: 6px;
         transition: all 0.2s;
@@ -340,13 +341,14 @@
         justify-content: center;
         border: none;
         cursor: pointer;
+        flex-shrink: 0;
     }
-    
+
     .btn-action i {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         margin: 0;
     }
-    
+
     .btn-action span {
         display: none;
     }
@@ -477,15 +479,15 @@
 
     /* Modal Styles */
     .modal-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         color: white;
         border: none;
     }
-    
+
     .modal-header .btn-close {
         filter: brightness(0) invert(1);
     }
-    
+
     .modal-title {
         font-weight: 600;
     }

@@ -310,7 +310,7 @@ unset($_SESSION['success'], $_SESSION['error']);
         }
         
         .btn-add {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
             border: none;
             padding: 8px 20px;
@@ -322,10 +322,10 @@ unset($_SESSION['success'], $_SESSION['error']);
             align-items: center;
             gap: 6px;
         }
-        
+
         .btn-add:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
             color: white;
         }
         
