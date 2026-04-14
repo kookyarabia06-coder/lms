@@ -192,6 +192,11 @@ if (is_admin() || is_superadmin()) {
         <?php endif; ?>
     </a>
 </li>
+
+      <a class="nav-link" href="<?= BASE_URL ?>/public/training_list.php">
+        <i class="fa fa-clipboard-list"></i> Training List
+            <span class="notification-badge"><?= $reqCount ?></span>
+    </a>
                 </li>
 
                 <!-- DIVIDER 2 -->
