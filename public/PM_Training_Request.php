@@ -566,7 +566,7 @@ if (!empty($search)) {
 
 $where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
 
-$query = "SELECT 
+$query = "SELECT
     tr.*,
     COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name,
     GROUP_CONCAT(DISTINCT d.name) as division_name,
@@ -803,14 +803,15 @@ $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <th>Location Type</th>
                             <th>Start Date</th>
                             <th>End Date</th>
-                            <th>Requester</th>
+                            <th>Program Manager</th>
                             <th>HO No.</th>
                             <th>Amount</th>
                             <th>Is OB</th>
                             <th>Remarks</th>
                             <th>Status</th>
                             <th>Actions</th>
-                        </thead>
+                        </tr>
+                    </thead>
                     <tbody>
                         <?php if (!empty($training_requests)): ?>
                             <?php foreach ($training_requests as $request): ?>
@@ -826,8 +827,8 @@ $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <td><?= htmlspecialchars($request['location_type'] ?? '-') ?></div>
                                     <td><?= date('M d, Y', strtotime($request['date_start'])) ?></div>
                                     <td><?= date('M d, Y', strtotime($request['date_end'])) ?></div>
-                                    <td><?= htmlspecialchars($request['requester_name']) ?></div>
-                                    <td><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></div>
+                                    <td><?= htmlspecialchars($request['requester_name']) ?></td>
+                                    <td><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></td>
                                     <td>₱<?= number_format($request['amount'], 2) ?></div>
                                     <td>
                                         <?= $request['official_business'] ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>' ?>
@@ -873,7 +874,7 @@ $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="11" class="text-center py-5">
+                                <td colspan="12" class="text-center py-5">
                                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                                     <p class="text-muted mb-0">No external training requests found</p>
                                 </div>
