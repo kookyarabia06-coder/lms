@@ -364,7 +364,7 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         <?php if (is_student()): ?>
-        // Module data
+        // Student mode with progress tracking
         const moduleData = {
             id: <?= $moduleId ?>,
             hasPdf: <?= $module['file_pdf'] ? 'true' : 'false' ?>,
@@ -377,7 +377,7 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
             videoPosition: <?= ($progress['video_position'] ?? 0) ?>
         };
 
-        // State management - only add video state if video exists
+        // State management
         let state = {
             pdfDoc: null,
             totalPages: moduleData.pdfTotalPages,
@@ -390,7 +390,6 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
             pageCache: {}
         };
         
-        // Only add video properties if video exists
         if (moduleData.hasVideo) {
             state.videoCompleted = moduleData.videoCompleted;
             state.videoProgress = moduleData.videoProgress;
@@ -572,20 +571,16 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
                 if (!state.viewedSet.has(pageNum)) {
                     state.viewedSet.add(pageNum);
                     
-                    // Calculate PDF progress percentage immediately
                     const pdfProgressPercent = Math.round((state.viewedSet.size / state.totalPages) * 100);
                     state.pdfProgress = pdfProgressPercent;
                     
-                    // Check if PDF is completed
                     if (pdfProgressPercent >= 100) {
                         state.pdfCompleted = true;
                     }
                     
-                    // Update UI immediately
                     updatePdfBadge();
                     updateOverallProgress();
                     
-                    // Send to server
                     $.ajax({
                         url: window.location.href,
                         method: 'POST',
@@ -659,14 +654,13 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
             });
         }
 
-        // Video Player - Only initialize if video exists
+        // Video Player
         <?php if ($module['file_video'] && $videoExists): ?>
         videojs('moduleVideo').ready(function() {
             const player = this;
             let completionReported = state.videoCompleted;
             let saveTimeout = null;
 
-            // Set initial video position if saved
             if (moduleData.videoPosition > 0 && !state.videoCompleted) {
                 player.currentTime(moduleData.videoPosition);
             }
@@ -709,12 +703,10 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
                 
                 const percent = Math.round((position / duration) * 100);
                 
-                // Update UI immediately
                 state.videoProgress = percent;
                 updateVideoBadge();
                 updateOverallProgress();
                 
-                // Mark as completed at 95%
                 if (percent >= 95 && !completionReported) {
                     completionReported = true;
                     state.videoCompleted = true;
@@ -724,7 +716,6 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
                     
                     saveVideoProgress(position, duration, 1);
                 } else {
-                    // Debounce save - save every 5 seconds
                     if (saveTimeout) clearTimeout(saveTimeout);
                     saveTimeout = setTimeout(function() {
                         if (!completionReported && !state.videoCompleted) {
@@ -734,7 +725,6 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
                 }
             });
 
-            // Handle video end
             player.on('ended', function() {
                 if (!completionReported && !state.videoCompleted) {
                     completionReported = true;
@@ -820,6 +810,175 @@ $videoExists = $module['file_video'] && file_exists($videoPath);
         updateVideoBadge();
         <?php endif; ?>
         updateOverallProgress();
+        
+        <?php else: ?>
+        // Non-student mode - view only, no progress tracking
+        const moduleData = {
+            hasPdf: <?= $module['file_pdf'] ? 'true' : 'false' ?>,
+            hasVideo: <?= $module['file_video'] ? 'true' : 'false' ?>
+        };
+
+        // DOM Elements for non-student
+        const elements = {
+            pagesContainer: document.getElementById('pdfPagesContainer'),
+            fullscreenBtn: document.getElementById('fullscreenPdfBtn'),
+            pdfCard: document.getElementById('pdfMaterialCard'),
+            fullscreenHint: document.getElementById('fullscreenHint')
+        };
+
+        // Simple state for non-student
+        let state = {
+            pdfDoc: null,
+            totalPages: 0,
+            isFullscreen: false,
+            currentPage: 1,
+            pageCache: {}
+        };
+
+        // PDF Viewer (view only, no tracking)
+        if (elements.pagesContainer && <?= $pdfExists ? 'true' : 'false' ?>) {
+            const pdfUrl = '<?= BASE_URL ?>/uploads/pdf/<?= htmlspecialchars(basename($module['file_pdf'])) ?>';
+            
+            pdfjsLib.getDocument(pdfUrl).promise
+                .then(function(pdf) {
+                    state.pdfDoc = pdf;
+                    state.totalPages = pdf.numPages;
+                    elements.pagesContainer.innerHTML = '';
+
+                    for (let num = 1; num <= Math.min(3, pdf.numPages); num++) {
+                        renderPage(num);
+                    }
+
+                    setTimeout(() => {
+                        for (let num = 4; num <= pdf.numPages; num++) {
+                            renderPage(num);
+                        }
+                    }, 500);
+                })
+                .catch(function(error) {
+                    console.error('Error loading PDF:', error);
+                    elements.pagesContainer.innerHTML = '<div class="alert alert-danger m-3">Error loading PDF. Please try again.</div>';
+                });
+
+            function renderPage(num) {
+                if (state.pageCache[num]) {
+                    const pageWrapper = state.pageCache[num].cloneNode(true);
+                    elements.pagesContainer.appendChild(pageWrapper);
+                    return;
+                }
+
+                state.pdfDoc.getPage(num).then(function(page) {
+                    const container = document.getElementById('pdfViewerContainer');
+                    const containerWidth = container ? container.clientWidth - 60 : 800;
+                    const viewport = page.getViewport({ scale: 1 });
+                    const scale = containerWidth / viewport.width;
+                    const scaledViewport = page.getViewport({ scale: scale });
+
+                    const pageWrapper = document.createElement('div');
+                    pageWrapper.className = 'pdf-page-wrapper';
+                    pageWrapper.id = `pdf-page-${num}`;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'pdf-page-canvas';
+                    canvas.height = scaledViewport.height;
+                    canvas.width = scaledViewport.width;
+                    pageWrapper.appendChild(canvas);
+
+                    elements.pagesContainer.appendChild(pageWrapper);
+
+                    page.render({
+                        canvasContext: canvas.getContext('2d'),
+                        viewport: scaledViewport
+                    });
+
+                    state.pageCache[num] = pageWrapper.cloneNode(true);
+                });
+            }
+
+            // Update current page on scroll for keyboard navigation
+            let scrollTimeout;
+            document.getElementById('pdfViewerContainer')?.addEventListener('scroll', function() {
+                if (!scrollTimeout) {
+                    scrollTimeout = setTimeout(function() {
+                        const container = document.getElementById('pdfViewerContainer');
+                        if (!container) return;
+                        
+                        const containerRect = container.getBoundingClientRect();
+                        for (let num = 1; num <= state.totalPages; num++) {
+                            const pageElement = document.getElementById(`pdf-page-${num}`);
+                            if (!pageElement) continue;
+                            
+                            const pageRect = pageElement.getBoundingClientRect();
+                            const isVisible = (
+                                pageRect.top < containerRect.bottom &&
+                                pageRect.bottom > containerRect.top
+                            );
+                            
+                            if (isVisible) {
+                                state.currentPage = num;
+                                break;
+                            }
+                        }
+                        scrollTimeout = null;
+                    }, 200);
+                }
+            });
+        }
+
+        // Video Player (view only, no tracking)
+        <?php if ($module['file_video'] && $videoExists): ?>
+        videojs('moduleVideo').ready(function() {
+            const player = this;
+            // No progress tracking for non-students
+        });
+        <?php endif; ?>
+
+        // Fullscreen Toggle
+        if (elements.fullscreenBtn && elements.pdfCard) {
+            elements.fullscreenBtn.addEventListener('click', function() {
+                state.isFullscreen = !state.isFullscreen;
+
+                if (state.isFullscreen) {
+                    elements.pdfCard.classList.add('pdf-fullscreen-mode');
+                    elements.fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+                    if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'block';
+
+                    setTimeout(() => {
+                        if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
+                    }, 3000);
+                } else {
+                    elements.pdfCard.classList.remove('pdf-fullscreen-mode');
+                    elements.fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                    if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
+                }
+
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+            });
+        }
+
+        // Keyboard shortcuts for fullscreen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && state.isFullscreen) {
+                state.isFullscreen = false;
+                if (elements.pdfCard) elements.pdfCard.classList.remove('pdf-fullscreen-mode');
+                if (elements.fullscreenBtn) elements.fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                if (elements.fullscreenHint) elements.fullscreenHint.style.display = 'none';
+            }
+
+            if (state.isFullscreen && moduleData.hasPdf) {
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (state.currentPage < state.totalPages) {
+                        document.getElementById(`pdf-page-${state.currentPage + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (state.currentPage > 1) {
+                        document.getElementById(`pdf-page-${state.currentPage - 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+        });
         <?php endif; ?>
     </script>
 

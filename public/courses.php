@@ -29,7 +29,7 @@ $hasReachedCourseLimit = $ongoingCount >= MAX_CONCURRENT_COURSES;
 $availableSlots = MAX_CONCURRENT_COURSES - $ongoingCount;
 
 // Build the WHERE clause based on filter
-$whereConditions = ["c.is_active = 1", "c.status = 'approved'"]; // Only show approved courses
+$whereConditions = ["c.is_active = 1", "c.status = 'approve'"]; // Only show approved courses
 $params = [$userId];
 
 if ($filter !== 'all') {

@@ -755,6 +755,19 @@ $max_post_size = ini_get('post_max_size');
                     <div class="modern-card-title">
                         <h6>
                             <?= htmlspecialchars($c['title']) ?>
+                                <?php if ($c['status'] == 'pending'): ?>
+                                    <span class="badge bg-warning text-dark ms-2" style="font-size: 10px;">
+                                        <i class="fas fa-clock"></i> Pending
+                                    </span>
+                                <?php elseif ($c['status'] == 'approve'): ?>
+                                    <span class="badge bg-success ms-2" style="font-size: 10px;">
+                                        <i class="fas fa-check-circle"></i> Approved
+                                    </span>
+                                <?php elseif ($c['status'] == 'reject'): ?>
+                                    <span class="badge bg-danger ms-2" style="font-size: 10px;">
+                                        <i class="fas fa-times-circle"></i> Rejected
+                                    </span>
+                                <?php endif; ?>
                         </h6>
                     </div>
                     <p><?= htmlspecialchars(substr($c['description'], 0, 100)) ?>...</p>

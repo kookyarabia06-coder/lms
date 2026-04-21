@@ -15,6 +15,50 @@ $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 if (!$course) die('Course not found');
 
+/**
+ * Calculate and update overall progress for an enrollment
+ * Progress = (Completed Materials / Total Available Materials) × 100
+ */
+function updateOverallProgress($pdo, $enrollmentId, $courseId) {
+    // Get course materials
+    $stmt = $pdo->prepare("SELECT file_pdf, file_video FROM courses WHERE id = ?");
+    $stmt->execute([$courseId]);
+    $course = $stmt->fetch();
+    
+    // Get current enrollment status
+    $stmt = $pdo->prepare("SELECT pdf_completed, video_completed FROM enrollments WHERE id = ?");
+    $stmt->execute([$enrollmentId]);
+    $enrollment = $stmt->fetch();
+    
+    $totalMaterials = 0;
+    $completedMaterials = 0;
+    
+    // Check PDF
+    if ($course['file_pdf']) {
+        $totalMaterials++;
+        if ($enrollment['pdf_completed'] == 1) {
+            $completedMaterials++;
+        }
+    }
+    
+    // Check Video
+    if ($course['file_video']) {
+        $totalMaterials++;
+        if ($enrollment['video_completed'] == 1) {
+            $completedMaterials++;
+        }
+    }
+    
+    // Calculate progress percentage
+    $progress = $totalMaterials > 0 ? round(($completedMaterials / $totalMaterials) * 100, 2) : 0;
+    
+    // Update the overall progress in enrollments table
+    $stmt = $pdo->prepare("UPDATE enrollments SET progress = ? WHERE id = ?");
+    $stmt->execute([$progress, $enrollmentId]);
+    
+    return $progress;
+}
+
 // Only students need enrollment tracking
 $enrollment = null;
 $pdfProgress = [];
@@ -117,6 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pdf_page']) && is_stu
         if ($pdfCompleted != $currentEnrollment['pdf_completed']) {
             $stmt = $pdo->prepare('UPDATE enrollments SET pdf_completed = ? WHERE id = ?');
             $stmt->execute([$pdfCompleted, $enrollment['id']]);
+            
+            // Update overall progress when PDF completion status changes
+            updateOverallProgress($pdo, $enrollment['id'], $courseId);
         }
 
         $pdo->commit();
@@ -153,6 +200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_position']) && 
         if ($completed == 1) {
             $stmt = $pdo->prepare('UPDATE enrollments SET video_completed = 1 WHERE id = ?');
             $stmt->execute([$enrollment['id']]);
+            
+            // Update overall progress when video completion status changes
+            updateOverallProgress($pdo, $enrollment['id'], $courseId);
         }
 
         $pdo->commit();
@@ -856,7 +906,8 @@ if (is_student() && $enrollment) {
             videoCompleted: courseData.videoCompleted,
             isFullscreen: false,
             currentPage: 1,
-            pageCache: {}
+            pageCache: {},
+            pageViewTimers: {} // Track 10-second viewing timers for each page
         };
 
         // DOM Elements
@@ -1059,15 +1110,27 @@ if (is_student() && $enrollment) {
                     const observer = new IntersectionObserver((entries) => {
                         entries.forEach(entry => {
                             if (entry.isIntersecting && !state.viewedSet.has(num) && !state.pdfCompleted) {
-                                trackPageView(num);
+                                // Start 10-second timer if not already running
+                                if (!state.pageViewTimers[num]) {
+                                    state.pageViewTimers[num] = setTimeout(() => {
+                                        trackPageView(num);
 
-                                if (!document.getElementById(`page-badge-${num}`)) {
-                                    const badge = document.createElement('div');
-                                    badge.className = 'page-viewed-badge';
-                                    badge.id = `page-badge-${num}`;
-                                    badge.innerHTML = '<i class="fas fa-check"></i>';
-                                    pageWrapper.appendChild(badge);
+                                        if (!document.getElementById(`page-badge-${num}`)) {
+                                            const badge = document.createElement('div');
+                                            badge.className = 'page-viewed-badge';
+                                            badge.id = `page-badge-${num}`;
+                                            badge.innerHTML = '<i class="fas fa-check"></i>';
+                                            pageWrapper.appendChild(badge);
+                                        }
+
+                                        // Clear timer after completion
+                                        delete state.pageViewTimers[num];
+                                    }, 5000); // 5 seconds requirement
                                 }
+                            } else if (!entry.isIntersecting && state.pageViewTimers[num]) {
+                                // Clear timer if page leaves viewport before 10 seconds
+                                clearTimeout(state.pageViewTimers[num]);
+                                delete state.pageViewTimers[num];
                             }
                         });
                     }, { threshold: 0.5 });
@@ -1123,15 +1186,27 @@ if (is_student() && $enrollment) {
                     );
 
                     if (isVisible && !state.viewedSet.has(num) && !state.serverConfirmed.has(num) && !state.pdfCompleted) {
-                        trackPageView(num);
+                        // Start 10-second timer if not already running
+                        if (!state.pageViewTimers[num]) {
+                            state.pageViewTimers[num] = setTimeout(() => {
+                                trackPageView(num);
 
-                        if (!document.getElementById(`page-badge-${num}`)) {
-                            const badge = document.createElement('div');
-                            badge.className = 'page-viewed-badge';
-                            badge.id = `page-badge-${num}`;
-                            badge.innerHTML = '<i class="fas fa-check"></i>';
-                            pageElement.appendChild(badge);
+                                if (!document.getElementById(`page-badge-${num}`)) {
+                                    const badge = document.createElement('div');
+                                    badge.className = 'page-viewed-badge';
+                                    badge.id = `page-badge-${num}`;
+                                    badge.innerHTML = '<i class="fas fa-check"></i>';
+                                    pageElement.appendChild(badge);
+                                }
+
+                                // Clear timer after completion
+                                delete state.pageViewTimers[num];
+                            }, 5000); // 5 seconds requirement
                         }
+                    } else if (!isVisible && state.pageViewTimers[num]) {
+                        // Clear timer if page leaves viewport before 5 seconds
+                        clearTimeout(state.pageViewTimers[num]);
+                        delete state.pageViewTimers[num];
                     } else if (isVisible) {
                         state.currentPage = num;
                     }

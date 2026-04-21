@@ -15,7 +15,7 @@ if (isset($_GET['approve']) && isset($_GET['id'])) {
     $course_id = (int)$_GET['id'];
     
     try {
-        $stmt = $pdo->prepare("UPDATE courses SET status = 'approved', updated_at = NOW() WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE courses SET status = 'approve', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$course_id]);
         
         // Get course details for notification
@@ -40,7 +40,7 @@ if (isset($_GET['approve']) && isset($_GET['id'])) {
         $_SESSION['error_message'] = "Error approving course: " . $e->getMessage();
     }
     
-    header('Location: course_approval.php');
+    header('Location: pending_courses.php');
     exit;
 }
 
@@ -49,7 +49,7 @@ if (isset($_GET['reject']) && isset($_GET['id'])) {
     $course_id = (int)$_GET['id'];
     
     try {
-        $stmt = $pdo->prepare("UPDATE courses SET status = 'rejected', updated_at = NOW() WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE courses SET status = 'reject', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$course_id]);
         
         // Get course details for notification
@@ -74,7 +74,7 @@ if (isset($_GET['reject']) && isset($_GET['id'])) {
         $_SESSION['error_message'] = "Error rejecting course: " . $e->getMessage();
     }
     
-    header('Location: course_approval.php');
+    header('Location: pending_courses.php');
     exit;
 }
 
@@ -92,7 +92,7 @@ $approvedCourses = $pdo->query("
     SELECT c.*, u.username, u.fname, u.lname, u.email 
     FROM courses c 
     LEFT JOIN users u ON c.proponent_id = u.id 
-    WHERE c.status = 'approved' 
+    WHERE c.status = 'approve' 
     ORDER BY c.updated_at DESC, c.created_at DESC
     LIMIT 10
 ")->fetchAll(PDO::FETCH_ASSOC);
@@ -102,7 +102,7 @@ $rejectedCourses = $pdo->query("
     SELECT c.*, u.username, u.fname, u.lname, u.email 
     FROM courses c 
     LEFT JOIN users u ON c.proponent_id = u.id 
-    WHERE c.status = 'rejected' 
+    WHERE c.status = 'reject' 
     ORDER BY c.updated_at DESC, c.created_at DESC
     LIMIT 10
 ")->fetchAll(PDO::FETCH_ASSOC);

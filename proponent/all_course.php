@@ -27,7 +27,7 @@ $stmt = $pdo->query("
     SELECT c.*, u.username 
     FROM courses c 
     LEFT JOIN users u ON c.proponent_id = u.id 
-    WHERE c.status = 'approved'
+    WHERE c.status = 'approve'
     ORDER BY c.updated_at DESC, c.created_at DESC
 ");
 $courses = $stmt->fetchAll();
