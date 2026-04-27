@@ -378,22 +378,6 @@ if ($u['role'] === 'user') {
                     echo 'Unknown';
                 }
                 ?>
-
-                <p>Departments:</p>
-                <ul>
-                    <?php
-                    $stmt->execute([$u['id']]);
-                    $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    if ($departments) {
-                        foreach ($departments as $dept) {
-                            echo '<TH> <BR>' . htmlspecialchars($dept['name']) . '</TH>';
-                        }
-                    } else {
-                        echo '<li>No departments assigned</li>';
-                    }
-                    ?>
-
-
             </p>
 
             <!-- Assignments Section -->

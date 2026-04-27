@@ -1,6 +1,3 @@
-
-
-
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
@@ -14,21 +11,48 @@ $current_user_id = $_SESSION['user']['id'];
 $success_message = '';
 $error_message = '';
 
-// Handle AJAX Get Users for Attendance (Lazy Loading)
+// Helper function to check if training end date has passed
+function isTrainingDatePassed($end_date) {
+    $today = new DateTime();
+    $end = new DateTime($end_date);
+    $end->setTime(23, 59, 59);
+    return $today > $end;
+}
+
+// Handle AJAX Get Users for Attendance (Lazy Loading) - EXCLUDES already added users
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_users_for_attendance'])) {
     header('Content-Type: application/json');
     try {
         $search = trim($_GET['search'] ?? '');
+        $request_id = isset($_GET['request_id']) ? (int)$_GET['request_id'] : 0;
+        
+        // Get already added user IDs
+        $existing_user_ids = [];
+        if ($request_id > 0) {
+            $stmt = $pdo->prepare("SELECT user_id FROM pm_training_attendance WHERE pm_training_request_id = ?");
+            $stmt->execute([$request_id]);
+            $existing_user_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
         
         $query = "SELECT id, username, CONCAT(fname, ' ', lname) as fullname 
                   FROM users 
                   WHERE role NOT IN ('admin', 'superadmin', 'proponent')";
         
         $params = [];
+        
+        // Exclude already added users
+        if (!empty($existing_user_ids)) {
+            $placeholders = implode(',', array_fill(0, count($existing_user_ids), '?'));
+            $query .= " AND id NOT IN ($placeholders)";
+            $params = array_merge($params, $existing_user_ids);
+        }
+        
         if (!empty($search)) {
             $query .= " AND (fname LIKE ? OR lname LIKE ? OR username LIKE ?)";
             $search_param = "%$search%";
-            $params = [$search_param, $search_param, $search_param];
+            $params[] = $search_param;
+            $params[] = $search_param;
+            $params[] = $search_param;
         }
         
         $query .= " ORDER BY fname, lname LIMIT 100";
@@ -51,7 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_pm_request']))
     try {
         $id = (int)$_POST['id'];
         
-        // Check permission
         $stmt = $pdo->prepare("SELECT requester_id FROM pm_training_requests WHERE id = ?");
         $stmt->execute([$id]);
         $request = $stmt->fetch();
@@ -89,8 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_request_ajax']
         $time_end = $_POST['time_end'] ?? NULL;
         $hospital_order_no = trim($_POST['hospital_order_no'] ?? '');
         $amount = floatval($_POST['amount'] ?? 0);
+        $committee_id = !empty($_POST['committee_id']) ? (int)$_POST['committee_id'] : NULL;
         $late_filing = isset($_POST['late_filing']) ? 1 : 0;
-        $remarks = trim($_POST['remarks'] ?? '');
+        $remarks_input = trim($_POST['remarks'] ?? '');
         $attendees = isset($_POST['attendees']) ? json_decode($_POST['attendees'], true) : [];
         
         $errors = [];
@@ -129,11 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_request_ajax']
         $user = $stmt->fetch();
         $requester_name = $user['fullname'] ?: ($user['username'] ?? 'Unknown');
         
+        // Store only the text in remarks, committee_id is separate now
+        $remarks_to_store = $remarks_input;
+        
         // Insert training request
         $stmt = $pdo->prepare("INSERT INTO pm_training_requests (
             title, venue, date_start, time_start, date_end, time_end, hospital_order_no,
-            amount, late_filing, remarks, requester_id, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())");
+            amount, late_filing, remarks, requester_id, committee_id, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())");
         
         $stmt->execute([
             $title,
@@ -145,8 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_request_ajax']
             $hospital_order_no,
             $amount,
             $late_filing,
-            $remarks,
-            $requester_id
+            $remarks_to_store,
+            $requester_id,
+            $committee_id
         ]);
         
         $new_id = $pdo->lastInsertId();
@@ -174,7 +202,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_request_ajax']
                 'requester_name' => $requester_name,
                 'hospital_order_no' => $hospital_order_no,
                 'amount' => $amount,
-                'remarks' => $remarks,
+                'committee_id' => $committee_id,
+                'remarks' => $remarks_input,
                 'status' => 'pending'
             ]
         ]);
@@ -204,8 +233,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         $venue = trim($_POST['venue'] ?? '');
         $hospital_order_no = trim($_POST['hospital_order_no'] ?? '');
         $amount = floatval($_POST['amount'] ?? 0);
+        $committee_id = !empty($_POST['committee_id']) ? (int)$_POST['committee_id'] : NULL;
         $late_filing = isset($_POST['late_filing']) ? 1 : 0;
-        $remarks = trim($_POST['remarks'] ?? '');
+        $remarks_input = trim($_POST['remarks'] ?? '');
         
         // Handle file uploads
         $upload_dir = __DIR__ . '/../uploads/pm_training/';
@@ -233,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         $ptr_file = uploadPmTrainingFile('ptr_file');
         $attendance_file = uploadPmTrainingFile('attendance_file');
         
-        // Build update query - only update fields that are provided
+        // Build update query
         $sql = "UPDATE pm_training_requests SET";
         $params = [];
         $updates = [];
@@ -258,7 +288,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         $params[] = $late_filing;
         
         $updates[] = "remarks = ?";
-        $params[] = $remarks;
+        $params[] = $remarks_input;
+        
+        $updates[] = "committee_id = ?";
+        $params[] = $committee_id;
         
         if ($ptr_file) {
             $updates[] = "ptr_file = ?";
@@ -302,8 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_pm_request_a
         
         $id = (int)$_POST['id'];
         
-        // Check if request exists and is approved
-        $stmt = $pdo->prepare("SELECT status FROM pm_training_requests WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT status, ptr_file, date_end FROM pm_training_requests WHERE id = ?");
         $stmt->execute([$id]);
         $request = $stmt->fetch();
         
@@ -317,7 +349,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_pm_request_a
             exit;
         }
         
-        // Update status to complete
+        $today = new DateTime();
+        $endDate = new DateTime($request['date_end']);
+        $endDate->setTime(23, 59, 59);
+        
+        if ($today <= $endDate) {
+            echo json_encode(['success' => false, 'message' => 'Training cannot be marked as complete until the end date has passed.']);
+            exit;
+        }
+        
+        if (empty($request['ptr_file'])) {
+            echo json_encode(['success' => false, 'message' => 'PTR file is required before marking as complete. Please upload PTR first.']);
+            exit;
+        }
+        
         $stmt = $pdo->prepare("UPDATE pm_training_requests SET status = 'complete', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$id]);
         
@@ -329,14 +374,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_pm_request_a
     }
 }
 
-// Handle AJAX Get Request Data
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_request'])) {
+// Handle AJAX Get Request Data for View
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_request_view'])) {
     header('Content-Type: application/json');
     try {
         $id = (int)$_GET['id'];
         
-        // Get the request
-        $stmt = $pdo->prepare("SELECT * FROM pm_training_requests WHERE id = ?");
+        $stmt = $pdo->prepare("
+            SELECT 
+                ptr.*,
+                c.name as committee_name
+            FROM pm_training_requests ptr
+            LEFT JOIN committees c ON ptr.committee_id = c.id
+            WHERE ptr.id = ?
+        ");
         $stmt->execute([$id]);
         $request = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -345,7 +396,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_request'])) {
             exit;
         }
         
-        // Check permission - user can only view their own requests, admins can view all
+        // Get requester name
+        $stmt = $pdo->prepare("SELECT CONCAT(fname, ' ', lname) as fullname, username FROM users WHERE id = ?");
+        $stmt->execute([$request['requester_id']]);
+        $user = $stmt->fetch();
+        $request['requester_name'] = $user['fullname'] ?: ($user['username'] ?? 'Unknown');
+        
+        // Get attendees
+        $stmt = $pdo->prepare("
+            SELECT pta.user_id, pta.attended, u.username, CONCAT(u.fname, ' ', u.lname) as fullname
+            FROM pm_training_attendance pta
+            LEFT JOIN users u ON pta.user_id = u.id
+            WHERE pta.pm_training_request_id = ?
+            ORDER BY u.fname, u.lname
+        ");
+        $stmt->execute([$id]);
+        $attendees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $request['attendees'] = $attendees;
+        
+        echo json_encode(['success' => true, 'request' => $request]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Request Data for Edit
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_request'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_GET['id'];
+        
+        $stmt = $pdo->prepare("
+            SELECT 
+                ptr.*,
+                c.name as committee_name
+            FROM pm_training_requests ptr
+            LEFT JOIN committees c ON ptr.committee_id = c.id
+            WHERE ptr.id = ?
+        ");
+        $stmt->execute([$id]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$request) {
+            echo json_encode(['success' => false, 'message' => 'Request not found']);
+            exit;
+        }
+        
+        // Check permission
         $currentUserId = $_SESSION['user']['id'];
         $userRole = $_SESSION['user']['role'] ?? '';
         
@@ -364,7 +463,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_request'])) {
         ");
         $stmt->execute([$id]);
         $attendees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
         $request['attendees'] = $attendees;
         
         echo json_encode(['success' => true, 'request' => $request]);
@@ -381,7 +479,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_attendees'])) {
     try {
         $id = (int)$_GET['id'];
         
-        // Get all attendees with their attendance status
+        $stmt = $pdo->prepare("SELECT requester_id, date_end FROM pm_training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        $request = $stmt->fetch();
+        $requestRequesterId = $request ? $request['requester_id'] : 0;
+        $date_end = $request ? $request['date_end'] : null;
+        
+        $isPastEndDate = false;
+        if ($date_end) {
+            $today = new DateTime();
+            $endDate = new DateTime($date_end);
+            $endDate->setTime(23, 59, 59);
+            $isPastEndDate = $today > $endDate;
+        }
+        
         $stmt = $pdo->prepare("
             SELECT pta.user_id, u.username, CONCAT(u.fname, ' ', u.lname) as fullname, pta.attended
             FROM pm_training_attendance pta
@@ -392,7 +503,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_attendees'])) {
         $stmt->execute([$id]);
         $attendees = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        echo json_encode(['success' => true, 'attendees' => $attendees]);
+        echo json_encode([
+            'success' => true, 
+            'attendees' => $attendees,
+            'requestRequesterId' => $requestRequesterId,
+            'isPastEndDate' => $isPastEndDate
+        ]);
         exit;
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -400,20 +516,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_attendees'])) {
     }
 }
 
-// Handle AJAX Update Attendance (Regular Users Only)
+// Handle AJAX Update Attendance
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pm_attendance'])) {
     header('Content-Type: application/json');
     try {
-        // Only regular users can update attendance
-        if (is_admin() || is_superadmin()) {
-            echo json_encode(['success' => false, 'message' => 'Admins cannot update attendance']);
-            exit;
-        }
-
         $pm_request_id = (int)$_POST['pm_request_id'];
+        
+        $stmt = $pdo->prepare("SELECT date_end FROM pm_training_requests WHERE id = ?");
+        $stmt->execute([$pm_request_id]);
+        $training = $stmt->fetch();
+        
+        if ($training) {
+            $today = new DateTime();
+            $endDate = new DateTime($training['date_end']);
+            $endDate->setTime(23, 59, 59);
+            
+            if ($today <= $endDate) {
+                echo json_encode(['success' => false, 'message' => 'Attendance checklist can only be updated after the training end date has passed.']);
+                exit;
+            }
+        }
+        
         $attendees = isset($_POST['attendees']) ? json_decode($_POST['attendees'], true) : [];
 
-        // Update attendance status
         foreach ($attendees as $user_id => $attended) {
             $stmt = $pdo->prepare("UPDATE pm_training_attendance SET attended = ? WHERE pm_training_request_id = ? AND user_id = ?");
             $stmt->execute([$attended ? 1 : 0, $pm_request_id, $user_id]);
@@ -427,45 +552,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pm_attendance'
     }
 }
 
-// Handle AJAX Add Attendee (Admin Only)
+// Handle AJAX Add Multiple Attendees
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_multiple_pm_attendees'])) {
+    header('Content-Type: application/json');
+    try {
+        $pm_request_id = (int)$_POST['pm_request_id'];
+        
+        $stmt = $pdo->prepare("SELECT date_end FROM pm_training_requests WHERE id = ?");
+        $stmt->execute([$pm_request_id]);
+        $training = $stmt->fetch();
+        
+        if ($training) {
+            $today = new DateTime();
+            $endDate = new DateTime($training['date_end']);
+            $endDate->setTime(23, 59, 59);
+            
+            if ($today > $endDate) {
+                echo json_encode(['success' => false, 'message' => 'Attendees can only be added or removed before the training end date has passed.']);
+                exit;
+            }
+        }
+        
+        $user_ids = isset($_POST['user_ids']) ? json_decode($_POST['user_ids'], true) : [];
+        
+        if (empty($user_ids)) {
+            echo json_encode(['success' => false, 'message' => 'No users selected']);
+            exit;
+        }
+        
+        $added_count = 0;
+        $stmt = $pdo->prepare("INSERT INTO pm_training_attendance (pm_training_request_id, user_id, attended) VALUES (?, ?, 0)");
+        
+        foreach ($user_ids as $user_id) {
+            $check_stmt = $pdo->prepare("SELECT id FROM pm_training_attendance WHERE pm_training_request_id = ? AND user_id = ?");
+            $check_stmt->execute([$pm_request_id, (int)$user_id]);
+            if (!$check_stmt->fetch()) {
+                $stmt->execute([$pm_request_id, (int)$user_id]);
+                $added_count++;
+            }
+        }
+
+        echo json_encode(['success' => true, 'message' => $added_count . ' attendee(s) added successfully']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Add Single Attendee
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_attendee'])) {
     header('Content-Type: application/json');
     try {
-        // Only admins can add attendees
-        if (!is_admin() && !is_superadmin()) {
-            echo json_encode(['success' => false, 'message' => 'Only admins can add attendees']);
-            exit;
-        }
-
         $pm_request_id = (int)$_POST['pm_request_id'];
-        $user_search = trim($_POST['user_search']);
-
-        if (empty($user_search)) {
-            echo json_encode(['success' => false, 'message' => 'User search term is required']);
-            exit;
+        
+        $stmt = $pdo->prepare("SELECT date_end FROM pm_training_requests WHERE id = ?");
+        $stmt->execute([$pm_request_id]);
+        $training = $stmt->fetch();
+        
+        if ($training) {
+            $today = new DateTime();
+            $endDate = new DateTime($training['date_end']);
+            $endDate->setTime(23, 59, 59);
+            
+            if ($today > $endDate) {
+                echo json_encode(['success' => false, 'message' => 'Attendees can only be added or removed before the training end date has passed.']);
+                exit;
+            }
         }
+        
+        $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
 
-        // Search for user by name or username
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE CONCAT(fname, ' ', lname) LIKE ? OR username LIKE ? LIMIT 1");
-        $stmt->execute(["%$user_search%", "%$user_search%"]);
-        $user = $stmt->fetch();
-
-        if (!$user) {
-            echo json_encode(['success' => false, 'message' => 'User not found']);
-            exit;
-        }
-
-        // Check if already exists
         $stmt = $pdo->prepare("SELECT id FROM pm_training_attendance WHERE pm_training_request_id = ? AND user_id = ?");
-        $stmt->execute([$pm_request_id, $user['id']]);
+        $stmt->execute([$pm_request_id, $user_id]);
         if ($stmt->fetch()) {
             echo json_encode(['success' => false, 'message' => 'User is already in the attendance list']);
             exit;
         }
 
-        // Add attendee
         $stmt = $pdo->prepare("INSERT INTO pm_training_attendance (pm_training_request_id, user_id, attended) VALUES (?, ?, 0)");
-        $stmt->execute([$pm_request_id, $user['id']]);
+        $stmt->execute([$pm_request_id, $user_id]);
 
         echo json_encode(['success' => true, 'message' => 'Attendee added successfully']);
         exit;
@@ -475,64 +641,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_pm_attendee'])) {
     }
 }
 
-// Handle AJAX Edit Attendee (Admin Only)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_attendee'])) {
-    header('Content-Type: application/json');
-    try {
-        // Only admins can edit attendees
-        if (!is_admin() && !is_superadmin()) {
-            echo json_encode(['success' => false, 'message' => 'Only admins can edit attendees']);
-            exit;
-        }
-
-        $pm_request_id = (int)$_POST['pm_request_id'];
-        $user_id = (int)$_POST['user_id'];
-        $new_user_search = trim($_POST['new_user_search']);
-
-        if (empty($new_user_search)) {
-            echo json_encode(['success' => false, 'message' => 'User search term is required']);
-            exit;
-        }
-
-        // Search for new user
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE CONCAT(fname, ' ', lname) LIKE ? OR username LIKE ? LIMIT 1");
-        $stmt->execute(["%$new_user_search%", "%$new_user_search%"]);
-        $new_user = $stmt->fetch();
-
-        if (!$new_user) {
-            echo json_encode(['success' => false, 'message' => 'User not found']);
-            exit;
-        }
-
-        // Remove old attendee and add new one
-        $stmt = $pdo->prepare("DELETE FROM pm_training_attendance WHERE pm_training_request_id = ? AND user_id = ?");
-        $stmt->execute([$pm_request_id, $user_id]);
-
-        $stmt = $pdo->prepare("INSERT INTO pm_training_attendance (pm_training_request_id, user_id, attended) VALUES (?, ?, 0)");
-        $stmt->execute([$pm_request_id, $new_user['id']]);
-
-        echo json_encode(['success' => true, 'message' => 'Attendee updated successfully']);
-        exit;
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-        exit;
-    }
-}
-
-// Handle AJAX Delete Attendee (Admin Only)
+// Handle AJAX Delete Attendee
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_pm_attendee'])) {
     header('Content-Type: application/json');
     try {
-        // Only admins can delete attendees
-        if (!is_admin() && !is_superadmin()) {
-            echo json_encode(['success' => false, 'message' => 'Only admins can delete attendees']);
-            exit;
-        }
-
         $pm_request_id = (int)$_POST['pm_request_id'];
+        
+        $stmt = $pdo->prepare("SELECT date_end FROM pm_training_requests WHERE id = ?");
+        $stmt->execute([$pm_request_id]);
+        $training = $stmt->fetch();
+        
+        if ($training) {
+            $today = new DateTime();
+            $endDate = new DateTime($training['date_end']);
+            $endDate->setTime(23, 59, 59);
+            
+            if ($today > $endDate) {
+                echo json_encode(['success' => false, 'message' => 'Attendees can only be added or removed before the training end date has passed.']);
+                exit;
+            }
+        }
+        
         $user_id = (int)$_POST['user_id'];
 
-        // Delete attendee
         $stmt = $pdo->prepare("DELETE FROM pm_training_attendance WHERE pm_training_request_id = ? AND user_id = ?");
         $stmt->execute([$pm_request_id, $user_id]);
 
@@ -570,7 +701,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_pm_request
             exit;
         }
         
-        // Check permission
         $stmt = $pdo->prepare("SELECT requester_id FROM pm_training_requests WHERE id = ?");
         $stmt->execute([$id]);
         $request = $stmt->fetch();
@@ -585,7 +715,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_pm_request
             exit;
         }
         
-        // Update dates and store reason
         $stmt = $pdo->prepare("UPDATE pm_training_requests SET
             date_start = ?, date_end = ?, remarks = CONCAT(COALESCE(remarks, ''), '\n[Rescheduled: ', ?, ']'), status = 'pending', updated_at = NOW()
             WHERE id = ?");
@@ -599,7 +728,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_pm_request
     }
 }
 
-// Handle AJAX Get Report Data (Admin Only) - Only show COMPLETED status
+// Handle AJAX Get Report Data (Admin Only)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_report_data'])) {
     header('Content-Type: application/json');
     try {
@@ -611,7 +740,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_report_data'])) 
         $year = isset($_GET['year']) && !empty($_GET['year']) ? (int)$_GET['year'] : null;
         $month = isset($_GET['month']) && !empty($_GET['month']) ? (int)$_GET['month'] : null;
         
-        // Only show COMPLETED status
         $where_clauses = ["ptr.status = 'complete'"];
         $params = [];
         
@@ -627,7 +755,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_report_data'])) 
         
         $where_sql = "WHERE " . implode(" AND ", $where_clauses);
         
-        // OPTIMIZED REPORT QUERY - Using a single subquery instead of multiple
         $query = "
             SELECT 
                 ptr.id,
@@ -679,8 +806,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_filter_options']
             exit;
         }
         
-        // Get available years
-        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM pm_training_requests ORDER BY year DESC");
+        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM pm_training_requests WHERE status = 'complete' ORDER BY year DESC");
         $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
         echo json_encode([
@@ -694,7 +820,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_filter_options']
     }
 }
 
-// Fetch venues for dropdown (with caching)
+// Fetch venues for dropdown
 $cache_key = 'pm_training_venues';
 $venues = $_SESSION[$cache_key] ?? null;
 
@@ -702,12 +828,10 @@ if ($venues === null) {
     $stmt = $pdo->prepare("SELECT DISTINCT venue FROM pm_training_requests WHERE venue IS NOT NULL ORDER BY venue");
     $stmt->execute();
     $venues = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    $_SESSION[$cache_key] = $venues; // Cache for current session
+    $_SESSION[$cache_key] = $venues;
 }
 
-// REMOVED: All users query - now loaded via AJAX on demand
-
-// Check for incomplete PTR uploads (approved requests without PTR file) - only for regular users
+// Check for incomplete PTR uploads
 $incomplete_ptr_requests = [];
 if (!is_admin() && !is_superadmin()) {
     $stmt = $pdo->prepare("SELECT id, title, date_end FROM pm_training_requests WHERE requester_id = ? AND status IN ('approved', 'pending') AND ptr_file IS NULL");
@@ -719,7 +843,6 @@ if (!is_admin() && !is_superadmin()) {
 $filter_status = isset($_GET['filter_status']) ? $_GET['filter_status'] : '';
 $filter_year = isset($_GET['filter_year']) && !empty($_GET['filter_year']) ? (int)$_GET['filter_year'] : '';
 $filter_month = isset($_GET['filter_month']) && !empty($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
-// REMOVED: Division and Department filters
 $filter_committee = isset($_GET['filter_committee']) && !empty($_GET['filter_committee']) ? (int)$_GET['filter_committee'] : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
@@ -728,9 +851,7 @@ $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $per_page = 25;
 $offset = ($page - 1) * $per_page;
 
-// REMOVED: Get divisions and departments queries - no longer needed
-
-// Build WHERE clause for both queries
+// Build WHERE clause
 $where_clause = [];
 $main_params = [];
 $count_where_clause = [];
@@ -772,10 +893,16 @@ if (!empty($search)) {
     $count_where_clause[] = "(ptr.title LIKE ? OR ptr.venue LIKE ? OR ptr.hospital_order_no LIKE ? OR ptr.remarks LIKE ? OR CONCAT(u.fname, ' ', u.lname) LIKE ? OR u.username LIKE ?)";
 }
 
+if (!empty($filter_committee)) {
+    $where_clause[] = "ptr.committee_id = ?";
+    $main_params[] = $filter_committee;
+    $count_where_clause[] = "ptr.committee_id = ?";
+}
+
 $where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
 $count_where_sql = !empty($count_where_clause) ? "WHERE " . implode(" AND ", $count_where_clause) : "";
 
-// Build count parameters array separately
+// Build count parameters array
 $count_params = [];
 if (!is_admin() && !is_superadmin()) {
     $count_params[] = $current_user_id;
@@ -798,21 +925,9 @@ if (!empty($search)) {
     $count_params[] = $search_param;
     $count_params[] = $search_param;
 }
-
-// REMOVED: Division and department filter conditions
-
 if (!empty($filter_committee)) {
-    $where_clause[] = "EXISTS (SELECT 1 FROM user_departments ud
-                             WHERE ud.user_id = ptr.requester_id AND ud.committee_id = ?)";
-    $main_params[] = $filter_committee;
-    $count_where_clause[] = "EXISTS (SELECT 1 FROM user_departments ud
-                             WHERE ud.user_id = ptr.requester_id AND ud.committee_id = ?)";
     $count_params[] = $filter_committee;
 }
-
-// Rebuild WHERE SQL after adding filters
-$where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
-$count_where_sql = !empty($count_where_clause) ? "WHERE " . implode(" AND ", $count_where_clause) : "";
 
 // Get total count for pagination
 $count_query = "SELECT COUNT(DISTINCT ptr.id) FROM pm_training_requests ptr LEFT JOIN users u ON ptr.requester_id = u.id $count_where_sql";
@@ -821,15 +936,14 @@ $count_stmt->execute($count_params);
 $total_records = $count_stmt->fetchColumn();
 $total_pages = ceil($total_records / $per_page);
 
-// OPTIMIZED MAIN QUERY with pagination
+// Main query with pagination
 $query = "SELECT
     ptr.*,
     COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name,
-    GROUP_CONCAT(DISTINCT com.name) as committee_name
+    c.name as committee_name
     FROM pm_training_requests ptr
     LEFT JOIN users u ON ptr.requester_id = u.id
-    LEFT JOIN user_departments ud ON ud.user_id = ptr.requester_id
-    LEFT JOIN committees com ON ud.committee_id = com.id
+    LEFT JOIN committees c ON ptr.committee_id = c.id
     $where_sql
     GROUP BY ptr.id
     ORDER BY ptr.created_at DESC
@@ -855,283 +969,207 @@ if (!empty($filter_committee)) $active_filters++;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PM Training Request Management - LMS</title>
-    <link href="<?= BASE_URL ?>/assets/css/training.css" rel="stylesheet">
+    <link href="<?= BASE_URL ?>/assets/css/training_request.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .btn-action.btn-view {
-            background-color: #6c757d;
-            color: white;
-        }
-        .btn-action.btn-view:hover {
-            background-color: #5a6268;
-            color: white;
-        }
-        .pagination {
-            margin-top: 20px;
-            justify-content: center;
-        }
-        .page-info {
-            text-align: center;
-            margin: 10px 0;
-            color: #6c757d;
-        }
-        .loading-spinner {
+        .days-badge {
             display: inline-block;
-            width: 1rem;
-            height: 1rem;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .days-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
         }
+
+        .days-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+            animation: pulse-warning 1.5s infinite;
+        }
+
+        .days-normal {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .table tbody tr.warning-row {
+            background-color: #fff3cd !important;
+        }
+
+        .table tbody tr.danger-row {
+            background-color: #f8d7da !important;
+        }
+
+        .table tbody tr.warning-row:hover {
+            background-color: #ffe69c !important;
+        }
+
+        .table tbody tr.danger-row:hover {
+            background-color: #f5c2c7 !important;
+        }
+
+        .late-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .late-yes {
+            background: #ff69b4;
+            color: white;
+        }
+
+        .late-no {
+            background: #808080;
+            color: white;
+        }
+        
+        .add-attendee-search-results {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        
+        .btn-disabled-date {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+        
+        .attendee-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background: #fff;
+        }
+        
         .attendee-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            transition: background-color 0.2s;
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
         }
-        .attendee-item:hover {
-            background-color: #f8f9fa;
-        }
+        
         .attendee-item:last-child {
             border-bottom: none;
         }
-        .attendee-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
+        
+        .attendee-item:hover {
+            background: #f8f9fa;
         }
+        
         .attendee-info {
             flex: 1;
         }
-        .btn-attendee {
-            padding: 4px 8px;
-            font-size: 0.85rem;
+        
+        .attendee-actions {
+            display: flex;
+            gap: 8px;
         }
         
-        /* PM Training Requests Table Improvements */
-        .table-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            margin-bottom: 2rem;
-            overflow: hidden;
+        .btn-attendee {
+            padding: 5px 10px;
+            font-size: 12px;
         }
-        .table-card-header {
-            padding: 1.5rem;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .table-card-header h4 {
-            margin: 0;
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: #1e293b;
-        }
-        .table-card .table-responsive {
-            max-height: 600px;
-            overflow-y: auto;
-            overflow-x: auto;
-        }
-        .table-card .table-responsive::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        .table-card .table-responsive::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        .table-card .table-responsive::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        .table-card .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-        .table-card table.table {
-            margin-bottom: 0;
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-        .table-card table.table thead th {
-            background: #f8fafc;
-            border-bottom: 2px solid #e2e8f0;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #475569;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 1rem 0.75rem;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .table-card table.table tbody td {
-            padding: 1rem 0.75rem;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.875rem;
-            vertical-align: middle;
-        }
-        .table-card table.table tbody tr:hover {
-            background-color: #f8fafc;
-        }
-        .table-card table.table tbody tr:last-child td {
-            border-bottom: none;
-        }
-        .status-badge {
+        
+        .loading-spinner {
             display: inline-block;
-            padding: 0.375rem 0.875rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            text-transform: capitalize;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e9ecef;
+            border-top-color: #007bff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
         }
-        .status-badge.status-pending {
-            background: #fef3c7;
-            color: #92400e;
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
-        .status-badge.status-approved {
-            background: #dbeafe;
-            color: #1e40af;
+        
+        .attendance-status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
         }
-        .status-badge.status-rejected {
-            background: #fee2e2;
-            color: #991b1b;
+        
+        .attendance-yes {
+            background: #d4edda;
+            color: #155724;
         }
-        .status-badge.status-complete {
-            background: #dcfce7;
-            color: #166534;
+        
+        .attendance-no {
+            background: #f8d7da;
+            color: #721c24;
         }
-        .btn-action {
-            width: 32px;
-            height: 32px;
-            padding: 0;
-            display: inline-flex;
+        
+        .user-list-item {
+            display: flex;
             align-items: center;
-            justify-content: center;
-            border: none;
-            border-radius: 6px;
-            transition: all 0.2s;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
             cursor: pointer;
         }
-        .btn-action.btn-edit {
-            background-color: #f59e0b;
-            color: white;
+        
+        .user-list-item:hover {
+            background-color: #f8f9fa;
         }
-        .btn-action.btn-edit:hover {
-            background-color: #d97706;
-            transform: translateY(-2px);
-            box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+        
+        .user-list-item input[type="checkbox"] {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
         }
-        .btn-action.btn-reschedule {
-            background-color: #3b82f6;
-            color: white;
+        
+        .user-list-item .user-info {
+            flex: 1;
         }
-        .btn-action.btn-reschedule:hover {
-            background-color: #2563eb;
-            transform: translateY(-2px);
-            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        
+        .user-list-item .user-name {
+            font-weight: 500;
+            margin-bottom: 2px;
         }
-        .btn-action.btn-delete {
-            background-color: #ef4444;
-            color: white;
+        
+        .user-list-item .user-username {
+            font-size: 0.8rem;
+            color: #6c757d;
         }
-        .btn-action.btn-delete:hover {
-            background-color: #dc2626;
-            transform: translateY(-2px);
-            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        
+        .select-all-checkbox {
+            margin-right: 10px;
         }
-
-        /* Report Modal Improvements */
-        #pmReportModal .modal-body {
-            padding: 1.5rem;
-        }
-        #pmReportModal .alert-info {
-            background: #f0f4ff;
-            border: 1px solid #bfdbfe;
-            color: #1e40af;
+        
+        .bulk-actions-bar {
+            background: #f8f9fa;
+            padding: 10px 15px;
             border-radius: 8px;
-            font-size: 0.875rem;
-        }
-        #pmReportModal .form-select,
-        #pmReportModal .form-control {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 0.875rem;
-        }
-        #pmReportModal .form-select:focus,
-        #pmReportModal .form-control:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-        #pmReportModal .form-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.025em;
-            margin-bottom: 0.5rem;
-        }
-        #pmReportTable {
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-        #pmReportTable thead th {
-            background: #f8fafc;
-            border-bottom: 2px solid #e2e8f0;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #475569;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 0.75rem;
-            white-space: nowrap;
-        }
-        #pmReportTable tbody td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.875rem;
-            vertical-align: middle;
-        }
-        #pmReportTable tbody tr:hover {
-            background-color: #f8fafc;
-        }
-        #pmReportTable tbody tr:last-child td {
-            border-bottom: none;
-        }
-        #exportPmReportBtn {
-            background: #2563eb;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            padding: 0.5rem 1rem;
-            transition: all 0.2s;
-        }
-        #exportPmReportBtn:hover {
-            background: #1e40af;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.15);
-        }
-        #pmReportTable .amount-cell {
-            font-weight: 600;
-            color: #059669;
-        }
-        #pmReportTable .badge-status {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            background: #dcfce7;
-            color: #166534;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
     </style>
 </head>
@@ -1146,7 +1184,7 @@ if (!empty($filter_committee)) $active_filters++;
         <!-- Header -->
         <div class="pm-training-container d-flex justify-content-between align-items-center">
             <div>
-                <h3 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>PM Training Request Management</h3>
+                <h3 class="mb-0">PM Training Request Management</h3>
             </div>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPmTrainingModal" <?= !empty($incomplete_ptr_requests) ? 'disabled' : '' ?>>
                 <i class="fas fa-plus me-2"></i>New Training Request
@@ -1228,7 +1266,7 @@ if (!empty($filter_committee)) $active_filters++;
                         <select name="filter_committee" class="form-select">
                             <option value="">All Committees</option>
                             <?php 
-                            $committees_stmt = $pdo->query("SELECT DISTINCT ud.committee_id, c.id, c.name FROM user_departments ud LEFT JOIN committees c ON ud.committee_id = c.id WHERE ud.committee_id IS NOT NULL ORDER BY c.name");
+                            $committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
                             $filter_committees = $committees_stmt->fetchAll(PDO::FETCH_ASSOC);
                             foreach ($filter_committees as $comm): 
                             ?>
@@ -1305,6 +1343,7 @@ if (!empty($filter_committee)) $active_filters++;
                             <th>Committee</th>
                             <th>HO No.</th>
                             <th>Amount</th>
+                            <th>Late Filing</th>
                             <th>Remarks</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -1314,38 +1353,52 @@ if (!empty($filter_committee)) $active_filters++;
                         <?php if (!empty($pm_requests)): ?>
                             <?php foreach ($pm_requests as $request): ?>
                                 <?php
-                                // Calculate days elapsed since training end date
                                 $end_date = new DateTime($request['date_end']);
                                 $current_date = new DateTime();
-                                $days_elapsed = $current_date->diff($end_date)->days;
-                                
-                                // Check if PTR file exists
+                                $interval = $current_date->diff($end_date);
+                                $days_elapsed = $interval->days;
+                                $is_past = $current_date > $end_date;
                                 $has_ptr = !empty($request['ptr_file']);
-                                
-                                // Check if attachments are reviewed/complete
-                                $attachments_reviewed = ($request['status'] === 'complete') || ($request['status'] === 'approved' && $has_ptr);
-                                
-                                // Determine row background color
-                                $row_bg_style = '';
-                                if (!$has_ptr && !$attachments_reviewed) {
-                                    if ($days_elapsed >= 1 && $days_elapsed <= 28) {
-                                        $row_bg_style = 'style="background-color: #fff3cd;"';
-                                    } elseif ($days_elapsed >= 29) {
-                                        $row_bg_style = 'style="background-color: #ffe6e6;"';
+                                $is_complete = ($request['status'] === 'complete');
+                                $row_class = '';
+                                if (!$has_ptr && $is_past && $request['status'] !== 'complete') {
+                                    if ($days_elapsed >= 20 && $days_elapsed < 30) {
+                                        $row_class = 'warning-row';
+                                    } elseif ($days_elapsed >= 30) {
+                                        $row_class = 'danger-row';
                                     }
                                 }
                                 ?>
-                                <tr>
-                                    <td <?= $row_bg_style ?>><strong><?= htmlspecialchars($request['title']) ?></strong></td>
-                                    <td <?= $row_bg_style ?>><?= htmlspecialchars($request['venue']) ?></td>
-                                    <td <?= $row_bg_style ?>><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
-                                    <td <?= $row_bg_style ?>><?= !empty($request['time_start']) ? date('H:i', strtotime($request['time_start'])) : '-' ?></td>
-                                    <td <?= $row_bg_style ?>><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
-                                    <td <?= $row_bg_style ?>><?= htmlspecialchars($request['requester_name']) ?></td>
-                                    <td <?= $row_bg_style ?>><?= !empty($request['committee_name']) ? htmlspecialchars($request['committee_name']) : '-' ?></td>
-                                    <td <?= $row_bg_style ?>><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></td>
-                                    <td <?= $row_bg_style ?>>₱<?= number_format($request['amount'], 2) ?></td>
-                                    <td <?= $row_bg_style ?>>
+                                <tr class="<?= $row_class ?>">
+                                    <td>
+                                        <strong><?= htmlspecialchars($request['title']) ?></strong>
+                                        <?php if (!$has_ptr && $is_past && $request['status'] !== 'complete'): ?>
+                                            <br>
+                                            <?php if ($days_elapsed >= 20 && $days_elapsed < 30): ?>
+                                                <span class="days-badge days-warning"><?= $days_elapsed ?> days overdue</span>
+                                            <?php elseif ($days_elapsed >= 30): ?>
+                                                <span class="days-badge days-danger"><?= $days_elapsed ?> days overdue</span>
+                                            <?php else: ?>
+                                                <span class="days-badge days-normal"><?= $days_elapsed ?> days</span>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= htmlspecialchars($request['venue']) ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
+                                    <td><?= !empty($request['time_start']) ? date('H:i', strtotime($request['time_start'])) : '-' ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
+                                    <td><?= htmlspecialchars($request['requester_name']) ?></td>
+                                    <td><?= !empty($request['committee_name']) ? htmlspecialchars($request['committee_name']) : '-' ?></td>
+                                    <td><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></td>
+                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
+                                    <td>
+                                        <?php if ($request['late_filing'] == 1): ?>
+                                            <span class="late-badge late-yes">Yes</span>
+                                        <?php else: ?>
+                                            <span class="late-badge late-no">No</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <span title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
                                             <?php 
                                             $remarks = $request['remarks'] ?? '';
@@ -1353,14 +1406,14 @@ if (!empty($filter_committee)) $active_filters++;
                                             ?>
                                         </span>
                                     </td>
-                                    <td <?= $row_bg_style ?>>
+                                    <td>
                                         <span class="status-badge status-<?= $request['status'] ?>">
                                             <?= ucfirst($request['status']) ?>
                                         </span>
                                     </td>
-                                    <td <?= $row_bg_style ?>>
+                                    <td>
                                         <div style="display: flex; flex-direction: row; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                            <?php if ($request['status'] === 'complete'): ?>
+                                            <?php if ($is_complete): ?>
                                                 <button class="btn-action btn-view" onclick="openViewPmModal(<?= $request['id'] ?>)" title="View">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
@@ -1368,20 +1421,20 @@ if (!empty($filter_committee)) $active_filters++;
                                                 <button class="btn-action btn-edit" onclick="openEditPmModal(<?= $request['id'] ?>)" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
+                                                <button class="btn-action btn-reschedule" onclick="openReschedulePmModal(<?= $request['id'] ?>)" title="Reschedule">
+                                                    <i class="fas fa-calendar-alt"></i>
+                                                </button>
+                                                <button class="btn-action btn-delete" onclick="deletePmRequest(<?= $request['id'] ?>)" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
                                             <?php endif; ?>
-                                            <button class="btn-action btn-reschedule" onclick="openReschedulePmModal(<?= $request['id'] ?>)" title="Reschedule">
-                                                <i class="fas fa-calendar-alt"></i>
-                                            </button>
-                                            <button class="btn-action btn-delete" onclick="deletePmRequest(<?= $request['id'] ?>)" title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
                                         </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="12" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                                     <p class="text-muted mb-0">No PM training requests found</p>
                                 </td>
@@ -1400,7 +1453,6 @@ if (!empty($filter_committee)) $active_filters++;
                 <nav aria-label="Page navigation">
                     <ul class="pagination">
                         <?php
-                        // Build pagination URL with existing filters
                         $pagination_url = $_SERVER['PHP_SELF'] . '?';
                         $params = $_GET;
                         unset($params['page']);
@@ -1519,6 +1571,20 @@ if (!empty($filter_committee)) $active_filters++;
                         </div>
 
                         <div class="col-md-6">
+                            <label class="form-label">Committee</label>
+                            <select name="committee_id" class="form-select" id="add_committee_id">
+                                <option value="">-- Select Committee --</option>
+                                <?php
+                                $committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+                                $all_committees = $committees_stmt->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($all_committees as $comm): 
+                                ?>
+                                    <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
                             <label class="form-label">Amount (PHP)</label>
                             <input type="number" class="form-control" name="amount" step="0.01" placeholder="0.00">
                         </div>
@@ -1581,7 +1647,7 @@ if (!empty($filter_committee)) $active_filters++;
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="editPmTrainingForm">
+                <form id="editPmTrainingForm" enctype="multipart/form-data">
                     <input type="hidden" name="id" id="edit_pm_id">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -1607,6 +1673,20 @@ if (!empty($filter_committee)) $active_filters++;
                         <div class="col-md-6">
                             <label class="form-label">Hospital Order No.</label>
                             <input type="text" class="form-control" name="hospital_order_no" id="edit_pm_hospital_order_no">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Committee</label>
+                            <select name="committee_id" class="form-select" id="edit_pm_committee">
+                                <option value="">-- Select Committee --</option>
+                                <?php
+                                $committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+                                $all_committees = $committees_stmt->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($all_committees as $comm): 
+                                ?>
+                                    <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div class="col-md-6">
@@ -1659,7 +1739,7 @@ if (!empty($filter_committee)) $active_filters++;
                                 <button type="button" class="btn btn-success" id="markCompleteBtn">
                                     <i class="fas fa-check-circle me-1"></i>Mark as Complete
                                 </button>
-                                <small class="text-muted d-block mt-2">Clicking this will allow the requester to submit new training requests.</small>
+                                <small class="text-muted d-block mt-2" id="completeHelpText">Clicking this will allow the requester to submit new training requests.</small>
                             </div>
                         </div>
                         <?php endif; ?>
@@ -1679,13 +1759,13 @@ if (!empty($filter_committee)) $active_filters++;
     </div>
 </div>
 
-<!-- View PM Training Request Modal (Read-only for completed requests) -->
+<!-- View PM Training Request Modal -->
 <div class="modal fade" id="viewPmTrainingModal" tabindex="-1" aria-labelledby="viewPmTrainingLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-secondary text-white">
                 <h5 class="modal-title" id="viewPmTrainingLabel">
-                    <i class="fas fa-eye me-2"></i>View PM Training Request (Completed)
+                    <i class="fas fa-eye me-2"></i>View PM Training Request
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1717,8 +1797,23 @@ if (!empty($filter_committee)) $active_filters++;
                     </div>
 
                     <div class="col-md-6">
+                        <label class="form-label fw-bold">Committee</label>
+                        <p class="form-control-static" id="view_pm_committee">-</p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Program Manager</label>
+                        <p class="form-control-static" id="view_pm_requester">-</p>
+                    </div>
+
+                    <div class="col-md-6">
                         <label class="form-label fw-bold">Amount (PHP)</label>
                         <p class="form-control-static" id="view_pm_amount">-</p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Late Filing</label>
+                        <p class="form-control-static" id="view_pm_late_filing">-</p>
                     </div>
 
                     <div class="col-12">
@@ -1739,7 +1834,6 @@ if (!empty($filter_committee)) $active_filters++;
                     <div class="col-12">
                         <label class="form-label fw-bold">Attendees (Confirmed Attendance)</label>
                         <div id="view_pm_attendees" style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #dee2e6;">
-                            <!-- Loaded dynamically -->
                         </div>
                     </div>
                 </div>
@@ -1764,29 +1858,64 @@ if (!empty($filter_committee)) $active_filters++;
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3" id="attendanceHeaderActions">
                     <div class="attendance-search flex-grow-1 me-3">
                         <input type="text" class="form-control" id="attendanceListSearch" placeholder="Search attendees...">
                     </div>
-                    <?php if (is_admin() || is_superadmin()): ?>
-                    <button class="btn btn-primary btn-sm" onclick="openAddAttendeeModal()">
-                        <i class="fas fa-user-plus me-1"></i>Add Attendee
-                    </button>
-                    <?php endif; ?>
+                    <div id="addAttendeeButtonContainer"></div>
                 </div>
-                <div class="attendee-list" id="attendanceCheckList">
-                    <!-- Loaded dynamically -->
+                <div id="attendeeListContainer" class="attendee-list">
                 </div>
             </div>
             <div class="modal-footer">
-                <?php if (!is_admin() && !is_superadmin()): ?>
-                <button type="button" class="btn btn-success" id="saveAttendanceBtn">
-                    <i class="fas fa-save me-1"></i>Save Attendance
-                </button>
-                <?php endif; ?>
+                <div id="saveAttendanceButtonContainer"></div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-times me-1"></i>Close
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Multiple Attendees Modal -->
+<div class="modal fade" id="addMultipleAttendeesModal" tabindex="-1" aria-labelledby="addMultipleAttendeesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addMultipleAttendeesLabel">
+                    <i class="fas fa-users me-2"></i>Add Attendees
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="addMultipleAttendeeSearch" placeholder="Search users by name or username...">
+                        <button class="btn btn-outline-secondary" id="clearSearchBtn" type="button">Clear</button>
+                    </div>
+                    <small class="text-muted">Type at least 2 characters to search, or leave empty to see all available users</small>
+                </div>
+                
+                <div class="bulk-actions-bar">
+                    <div>
+                        <input type="checkbox" id="selectAllUsers" class="select-all-checkbox">
+                        <label for="selectAllUsers" class="mb-0">Select All</label>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-success" id="addSelectedUsersBtn">
+                            <i class="fas fa-user-plus me-1"></i> Add Selected
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="userSearchResults" class="add-attendee-search-results">
+                    <div class="text-center py-3">
+                        <span class="loading-spinner"></span> Loading users...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -1806,13 +1935,12 @@ if (!empty($filter_committee)) $active_filters++;
                 <div class="mb-3">
                     <label class="form-label">Current PTR File</label>
                     <div id="currentPtrDisplay" style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #dee2e6; min-height: 60px; display: flex; align-items: center;">
-                        <!-- Loaded dynamically -->
                     </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Upload New PTR File</label>
                     <input type="file" class="form-control" id="ptrFileInput" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-                    <small class="text-muted d-block mt-2">Accepted formats: PDF, JPG, JPEG, PNG, DOC, DOCX</small>
+                    <small class="text-muted d-block mt-2" id="ptrUploadHelpText">Accepted formats: PDF, JPG, JPEG, PNG, DOC, DOCX</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1898,30 +2026,21 @@ if (!empty($filter_committee)) $active_filters++;
                         <label class="form-label">Month</label>
                         <select id="reportMonth" class="form-select">
                             <option value="">All Months</option>
-                            <option value="1">January</option>
-                            <option value="2">February</option>
-                            <option value="3">March</option>
-                            <option value="4">April</option>
-                            <option value="5">May</option>
-                            <option value="6">June</option>
-                            <option value="7">July</option>
-                            <option value="8">August</option>
-                            <option value="9">September</option>
-                            <option value="10">October</option>
-                            <option value="11">November</option>
-                            <option value="12">December</option>
+                            <?php for ($i = 1; $i <= 12; $i++): ?>
+                                <option value="<?= $i ?>"><?= date('F', mktime(0, 0, 0, $i, 1)) ?></option>
+                            <?php endfor; ?>
                         </select>
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
-                        <button id="exportPmReportBtn">
+                        <button id="exportPmReportBtn" class="btn btn-success">
                             <i class="fas fa-download me-1"></i> Export CSV
                         </button>
                     </div>
                 </div>
 
                 <div class="table-responsive">
-                    <table id="pmReportTable">
-                        <thead>
+                    <table class="table table-bordered table-hover" id="pmReportTable">
+                        <thead class="table-light">
                             <tr>
                                 <th>Title</th>
                                 <th>Venue</th>
@@ -1930,7 +2049,7 @@ if (!empty($filter_committee)) $active_filters++;
                                 <th>Program Manager</th>
                                 <th>Hospital Order No.</th>
                                 <th>Amount</th>
-                                <th>Attended</th>
+                                <th>Attnd</th>
                                 <th>PTR</th>
                             </tr>
                         </thead>
@@ -1939,10 +2058,11 @@ if (!empty($filter_committee)) $active_filters++;
                                 <td colspan="9" class="text-center py-5">
                                     <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
                                     <p>Loading data...</p>
-                                </td>
-                            </tr>
+                                </div>
+                             </div>
+                            </div>
                         </tbody>
-                    </table>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1959,8 +2079,8 @@ if (!empty($filter_committee)) $active_filters++;
 <script>
     let currentPmRequestId = null;
     let attendeeSearchTimeout = null;
+    let isPastEndDateForAttendance = false;
 
-    // Toast notification function
     function showToast(message, type = 'success') {
         const toast = document.createElement('div');
         toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
@@ -1976,26 +2096,145 @@ if (!empty($filter_committee)) $active_filters++;
         setTimeout(() => toast.remove(), 5000);
     }
 
-    // Escape HTML function
     function escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, m => map[m]);
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
-    // Format date function
     function formatDate(dateString) {
         if (!dateString) return '-';
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
-    // Load users for attendance (Lazy loading)
+    // Load initial available users for Add Attendee Modal
+    function loadInitialAvailableUsers() {
+        const resultsDiv = document.getElementById('userSearchResults');
+        resultsDiv.innerHTML = '<div class="text-center py-3"><span class="loading-spinner"></span> Loading users...</div>';
+        
+        const url = new URL(window.location.href);
+        url.searchParams.set('get_users_for_attendance', '1');
+        url.searchParams.set('request_id', currentPmRequestId);
+        
+        fetch(url.toString())
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.users.length > 0) {
+                        resultsDiv.innerHTML = '';
+                        let userCheckboxes = [];
+                        
+                        data.users.forEach(user => {
+                            const div = document.createElement('div');
+                            div.className = 'user-list-item';
+                            div.innerHTML = `
+                                <input type="checkbox" class="user-checkbox" value="${user.id}" data-name="${escapeHtml(user.fullname)}">
+                                <div class="user-info">
+                                    <div class="user-name">${escapeHtml(user.fullname)}</div>
+                                    <div class="user-username">${escapeHtml(user.username)}</div>
+                                </div>
+                            `;
+                            resultsDiv.appendChild(div);
+                            userCheckboxes.push(div.querySelector('.user-checkbox'));
+                        });
+                        
+                        const selectAllCheckbox = document.getElementById('selectAllUsers');
+                        if (selectAllCheckbox) {
+                            selectAllCheckbox.onchange = function() {
+                                userCheckboxes.forEach(cb => {
+                                    cb.checked = this.checked;
+                                });
+                            };
+                            
+                            userCheckboxes.forEach(cb => {
+                                cb.onchange = function() {
+                                    const allChecked = userCheckboxes.every(c => c.checked);
+                                    selectAllCheckbox.checked = allChecked;
+                                    const someChecked = userCheckboxes.some(c => c.checked);
+                                    selectAllCheckbox.indeterminate = !allChecked && someChecked;
+                                };
+                            });
+                        }
+                    } else {
+                        resultsDiv.innerHTML = '<div class="text-center py-3 text-muted">No users available to add</div>';
+                    }
+                } else {
+                    resultsDiv.innerHTML = '<div class="text-center py-3 text-danger">Error loading users</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = '<div class="text-center py-3 text-danger">Error loading users</div>';
+            });
+    }
+
+    // Load users for search in Add Modal
+    function loadUsersForAddModal(search = '') {
+        const resultsDiv = document.getElementById('userSearchResults');
+        resultsDiv.innerHTML = '<div class="text-center py-3"><span class="loading-spinner"></span> Searching...</div>';
+        
+        const url = new URL(window.location.href);
+        url.searchParams.set('get_users_for_attendance', '1');
+        url.searchParams.set('request_id', currentPmRequestId);
+        if (search) {
+            url.searchParams.set('search', search);
+        }
+        
+        fetch(url.toString())
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.users.length > 0) {
+                        resultsDiv.innerHTML = '';
+                        let userCheckboxes = [];
+                        
+                        data.users.forEach(user => {
+                            const div = document.createElement('div');
+                            div.className = 'user-list-item';
+                            div.innerHTML = `
+                                <input type="checkbox" class="user-checkbox" value="${user.id}" data-name="${escapeHtml(user.fullname)}">
+                                <div class="user-info">
+                                    <div class="user-name">${escapeHtml(user.fullname)}</div>
+                                    <div class="user-username">${escapeHtml(user.username)}</div>
+                                </div>
+                            `;
+                            resultsDiv.appendChild(div);
+                            userCheckboxes.push(div.querySelector('.user-checkbox'));
+                        });
+                        
+                        const selectAllCheckbox = document.getElementById('selectAllUsers');
+                        if (selectAllCheckbox) {
+                            selectAllCheckbox.onchange = function() {
+                                userCheckboxes.forEach(cb => {
+                                    cb.checked = this.checked;
+                                });
+                            };
+                            
+                            userCheckboxes.forEach(cb => {
+                                cb.onchange = function() {
+                                    const allChecked = userCheckboxes.every(c => c.checked);
+                                    selectAllCheckbox.checked = allChecked;
+                                    const someChecked = userCheckboxes.some(c => c.checked);
+                                    selectAllCheckbox.indeterminate = !allChecked && someChecked;
+                                };
+                            });
+                        }
+                    } else {
+                        resultsDiv.innerHTML = '<div class="text-center py-3 text-muted">No users found</div>';
+                    }
+                } else {
+                    resultsDiv.innerHTML = '<div class="text-center py-3 text-danger">Error loading users</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = '<div class="text-center py-3 text-danger">Error loading users</div>';
+            });
+    }
+
+    // Load users for attendance in Add Modal
     function loadUsersForAttendance(search = '') {
         const attendeeList = document.getElementById('addAttendeeList');
         attendeeList.innerHTML = '<div class="text-center py-3"><span class="loading-spinner"></span> Loading users...</div>';
@@ -2041,7 +2280,6 @@ if (!empty($filter_committee)) $active_filters++;
     // Setup attendee search with debounce
     const addAttendeeSearch = document.getElementById('addAttendeeSearch');
     if (addAttendeeSearch) {
-        // Load initial users when modal opens
         document.getElementById('addPmTrainingModal').addEventListener('show.bs.modal', function() {
             loadUsersForAttendance('');
         });
@@ -2058,7 +2296,7 @@ if (!empty($filter_committee)) $active_filters++;
         });
     }
 
-    // Venue dropdown - add new venue
+    // Venue dropdown
     document.querySelector('[name="venue"]')?.addEventListener('change', function() {
         const newVenueInput = document.getElementById('newVenueInput');
         if (this.value === 'new') {
@@ -2072,7 +2310,7 @@ if (!empty($filter_committee)) $active_filters++;
     });
 
     // Add PM Training Form Submit
-    document.getElementById('addPmTrainingForm').addEventListener('submit', function(e) {
+    document.getElementById('addPmTrainingForm')?.addEventListener('submit', function(e) {
         e.preventDefault();
 
         const venue = document.querySelector('[name="venue"]').value;
@@ -2088,7 +2326,6 @@ if (!empty($filter_committee)) $active_filters++;
         formData.set('venue', finalVenue);
         formData.append('add_pm_request_ajax', '1');
 
-        // Get selected attendees
         const attendees = Array.from(document.querySelectorAll('#addAttendeeList input[name="attendees"]:checked'))
             .map(cb => cb.value);
         
@@ -2157,6 +2394,11 @@ if (!empty($filter_committee)) $active_filters++;
                     document.getElementById('edit_pm_hospital_order_no').value = req.hospital_order_no || '';
                     document.getElementById('edit_pm_amount').value = req.amount || 0;
                     
+                    const committeeSelect = document.getElementById('edit_pm_committee');
+                    if (committeeSelect && req.committee_id) {
+                        committeeSelect.value = req.committee_id;
+                    }
+                    
                     const lateFilingCheckbox = document.getElementById('edit_pm_late_filing');
                     if (lateFilingCheckbox) {
                         lateFilingCheckbox.checked = req.late_filing == 1;
@@ -2164,18 +2406,92 @@ if (!empty($filter_committee)) $active_filters++;
                     
                     document.getElementById('edit_pm_remarks').value = req.remarks || '';
 
-                    // Handle approval section for admins
-                    const isApproved = req.status === 'approved';
+                    const today = new Date();
+                    const endDate = new Date(req.date_end);
+                    endDate.setHours(23, 59, 59);
+                    const isPastEndDate = today > endDate;
+                    
+                    const ptrFileInput = document.getElementById('ptrFileInput');
+                    const ptrUploadHelpText = document.getElementById('ptrUploadHelpText');
+                    const attendanceBtn = document.getElementById('editAttendanceListBtn');
+                    
+                    if (ptrFileInput) {
+                        if (!isPastEndDate) {
+                            ptrFileInput.disabled = true;
+                            ptrFileInput.classList.add('btn-disabled-date');
+                            if (ptrUploadHelpText) {
+                                ptrUploadHelpText.innerHTML = '<i class="fas fa-clock me-1 text-warning"></i>PTR can only be uploaded after the training end date (' + new Date(req.date_end).toLocaleDateString() + ') has passed.';
+                                ptrUploadHelpText.classList.add('text-warning');
+                            }
+                        } else {
+                            ptrFileInput.disabled = false;
+                            ptrFileInput.classList.remove('btn-disabled-date');
+                            if (ptrUploadHelpText) {
+                                ptrUploadHelpText.innerHTML = 'Accepted formats: PDF, JPG, JPEG, PNG, DOC, DOCX';
+                                ptrUploadHelpText.classList.remove('text-warning');
+                            }
+                        }
+                    }
+                    
+                    if (attendanceBtn) {
+                        if (!isPastEndDate) {
+                            attendanceBtn.disabled = false;
+                            attendanceBtn.classList.remove('btn-disabled-date');
+                            attendanceBtn.title = 'Manage attendees (add/remove) - available until end date';
+                        } else {
+                            attendanceBtn.disabled = false;
+                            attendanceBtn.classList.remove('btn-disabled-date');
+                            attendanceBtn.title = 'Mark attendance (check who attended) - available after end date';
+                        }
+                    }
+
                     const shouldShowCompleteButton = req.status === 'approved';
 
                     const approvalSection = document.getElementById('approvalSection');
                     if (approvalSection) {
                         const approveSection = document.getElementById('approveCheckboxSection');
                         const completeSection = document.getElementById('completeButtonSection');
+                        const completeHelpText = document.getElementById('completeHelpText');
+                        const markCompleteBtn = document.getElementById('markCompleteBtn');
                         
                         if (shouldShowCompleteButton) {
                             if (approveSection) approveSection.style.display = 'none';
                             if (completeSection) completeSection.style.display = 'block';
+                            
+                            const hasPtr = !!req.ptr_file;
+                            
+                            if (markCompleteBtn) {
+                                if (!hasPtr || !isPastEndDate) {
+                                    markCompleteBtn.disabled = true;
+                                    markCompleteBtn.classList.add('btn-secondary');
+                                    markCompleteBtn.classList.remove('btn-success');
+                                    
+                                    if (!hasPtr && isPastEndDate) {
+                                        if (completeHelpText) {
+                                            completeHelpText.innerHTML = '<i class="fas fa-exclamation-circle me-1 text-danger"></i>PTR file is required before marking as complete. Please upload PTR first.';
+                                            completeHelpText.classList.add('text-danger');
+                                        }
+                                    } else if (!isPastEndDate) {
+                                        if (completeHelpText) {
+                                            completeHelpText.innerHTML = '<i class="fas fa-calendar-day me-1 text-warning"></i>Training cannot be marked as complete until the end date (' + new Date(req.date_end).toLocaleDateString() + ') has passed.';
+                                            completeHelpText.classList.add('text-warning');
+                                        }
+                                    } else {
+                                        if (completeHelpText) {
+                                            completeHelpText.innerHTML = 'Clicking this will allow the requester to submit new training requests.';
+                                            completeHelpText.classList.remove('text-danger', 'text-warning');
+                                        }
+                                    }
+                                } else {
+                                    markCompleteBtn.disabled = false;
+                                    markCompleteBtn.classList.remove('btn-secondary');
+                                    markCompleteBtn.classList.add('btn-success');
+                                    if (completeHelpText) {
+                                        completeHelpText.innerHTML = 'Click to mark this training as complete. This will allow the requester to submit new requests.';
+                                        completeHelpText.classList.remove('text-danger', 'text-warning');
+                                    }
+                                }
+                            }
                         } else {
                             if (approveSection) approveSection.style.display = 'block';
                             if (completeSection) completeSection.style.display = 'none';
@@ -2186,9 +2502,9 @@ if (!empty($filter_committee)) $active_filters++;
 
                     window.currentEditPmRequestId = req.id;
                     
-                    const attendanceBtn = document.getElementById('editAttendanceListBtn');
-                    if (attendanceBtn) {
-                        attendanceBtn.onclick = function() {
+                    const attendanceBtnClick = document.getElementById('editAttendanceListBtn');
+                    if (attendanceBtnClick) {
+                        attendanceBtnClick.onclick = function() {
                             openAttendanceModal(req.id);
                         };
                     }
@@ -2212,7 +2528,7 @@ if (!empty($filter_committee)) $active_filters++;
             });
     }
 
-    // Open View Modal (Read-only for completed requests)
+    // Open View Modal
     function openViewPmModal(id) {
         const url = new URL(window.location.href);
         url.searchParams.delete('page');
@@ -2221,7 +2537,7 @@ if (!empty($filter_committee)) $active_filters++;
         url.searchParams.delete('filter_month');
         url.searchParams.delete('filter_committee');
         url.searchParams.delete('search');
-        url.searchParams.set('get_pm_request', '1');
+        url.searchParams.set('get_pm_request_view', '1');
         url.searchParams.set('id', id);
         
         fetch(url.toString())
@@ -2235,7 +2551,13 @@ if (!empty($filter_committee)) $active_filters++;
                     document.getElementById('view_pm_date_start').innerHTML = formatDate(req.date_start);
                     document.getElementById('view_pm_date_end').innerHTML = formatDate(req.date_end);
                     document.getElementById('view_pm_hospital_order_no').innerHTML = escapeHtml(req.hospital_order_no || '-');
+                    
+                    const committeeDisplay = req.committee_name || '-';
+                    document.getElementById('view_pm_committee').innerHTML = escapeHtml(committeeDisplay);
+                    
+                    document.getElementById('view_pm_requester').innerHTML = escapeHtml(req.requester_name || 'Unknown');
                     document.getElementById('view_pm_amount').innerHTML = '₱' + parseFloat(req.amount).toLocaleString('en-US', { minimumFractionDigits: 2 });
+                    document.getElementById('view_pm_late_filing').innerHTML = req.late_filing == 1 ? '<span class="late-badge late-yes">Yes</span>' : '<span class="late-badge late-no">No</span>';
                     document.getElementById('view_pm_remarks').innerHTML = escapeHtml(req.remarks || '-');
                     
                     const statusBadge = `<span class="status-badge status-${req.status}">${req.status.charAt(0).toUpperCase() + req.status.slice(1)}</span>`;
@@ -2275,12 +2597,12 @@ if (!empty($filter_committee)) $active_filters++;
             })
             .catch(error => {
                 console.error('Error:', error);
-                showToast('Error loading request data', 'danger');
+                showToast('Error loading request data: ' + error.message, 'danger');
             });
     }
 
     // Edit Form Submit
-    document.getElementById('editPmTrainingForm').addEventListener('submit', function(e) {
+    document.getElementById('editPmTrainingForm')?.addEventListener('submit', function(e) {
         e.preventDefault();
 
         const formData = new FormData(this);
@@ -2335,69 +2657,107 @@ if (!empty($filter_committee)) $active_filters++;
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const attendeeList = document.getElementById('attendanceCheckList');
-                    attendeeList.innerHTML = '';
-
-                    <?php if (is_admin() || is_superadmin()): ?>
-                    // Admin view - read-only with action buttons
-                    data.attendees.forEach(attendee => {
-                        const div = document.createElement('div');
-                        div.className = 'attendee-item';
-                        const attendedIcon = attendee.attended ?
-                            '<i class="fas fa-check-circle text-success me-2"></i>' :
-                            '<i class="fas fa-times-circle text-danger me-2"></i>';
-                        div.innerHTML = `
-                            <div class="attendee-info">
-                                <div class="d-flex align-items-center">
-                                    ${attendedIcon}
-                                    <div>
-                                        <strong>${escapeHtml(attendee.fullname || attendee.username)}</strong>
-                                        <div class="small text-muted">${escapeHtml(attendee.username)}</div>
+                    const attendeeListContainer = document.getElementById('attendeeListContainer');
+                    attendeeListContainer.innerHTML = '';
+                    
+                    isPastEndDateForAttendance = data.isPastEndDate;
+                    
+                    const isRequester = <?= $current_user_id ?> === data.requestRequesterId;
+                    const isAdminUser = <?= json_encode(is_admin() || is_superadmin()) ?>;
+                    const canEdit = isRequester || isAdminUser;
+                    
+                    const canAddDeleteAttendees = !data.isPastEndDate && canEdit;
+                    const canMarkAttendance = data.isPastEndDate && canEdit;
+                    
+                    const addButtonContainer = document.getElementById('addAttendeeButtonContainer');
+                    if (addButtonContainer) {
+                        if (canAddDeleteAttendees) {
+                            addButtonContainer.innerHTML = '<button class="btn btn-primary btn-sm" onclick="openAddMultipleAttendeesModal()"><i class="fas fa-user-plus me-1"></i>Add Attendees</button>';
+                        } else {
+                            addButtonContainer.innerHTML = '';
+                        }
+                    }
+                    
+                    const saveButtonContainer = document.getElementById('saveAttendanceButtonContainer');
+                    if (saveButtonContainer) {
+                        if (canMarkAttendance) {
+                            saveButtonContainer.innerHTML = '<button class="btn btn-success" id="saveAttendanceBtn"><i class="fas fa-save me-1"></i>Save Attendance</button>';
+                            setTimeout(() => {
+                                document.getElementById('saveAttendanceBtn')?.addEventListener('click', saveAttendance);
+                            }, 100);
+                        } else {
+                            saveButtonContainer.innerHTML = '';
+                        }
+                    }
+                    
+                    if (data.attendees.length > 0) {
+                        data.attendees.forEach(attendee => {
+                            const div = document.createElement('div');
+                            div.className = 'attendee-item';
+                            
+                            if (canMarkAttendance) {
+                                div.innerHTML = `
+                                    <div class="attendee-info">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input attendance-checkbox"
+                                                data-user-id="${attendee.user_id}"
+                                                ${attendee.attended ? 'checked' : ''}>
+                                            <label class="form-check-label">
+                                                <strong>${escapeHtml(attendee.fullname || attendee.username)}</strong>
+                                                <div class="small text-muted">${escapeHtml(attendee.username)}</div>
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            <div class="attendee-actions">
-                                <button class="btn btn-sm btn-warning btn-attendee" onclick="editAttendee('${attendee.user_id}', '${escapeHtml(attendee.fullname || attendee.username)}')" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger btn-attendee" onclick="deleteAttendee('${attendee.user_id}', '${escapeHtml(attendee.fullname || attendee.username)}')" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        `;
-                        attendeeList.appendChild(div);
-                    });
-                    <?php else: ?>
-                    // Regular user view - editable
-                    data.attendees.forEach(attendee => {
-                        const div = document.createElement('div');
-                        div.className = 'attendee-item';
-                        div.innerHTML = `
-                            <div class="attendee-info">
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input attendee-checkbox"
-                                        data-user-id="${attendee.user_id}"
-                                        ${attendee.attended ? 'checked' : ''}>
-                                    <label class="form-check-label">
-                                        <strong>${escapeHtml(attendee.fullname || attendee.username)}</strong>
-                                        <div class="small text-muted">${escapeHtml(attendee.username)}</div>
-                                    </label>
-                                </div>
-                            </div>
-                        `;
-                        attendeeList.appendChild(div);
-                    });
-                    <?php endif; ?>
-
-                    // Setup search for attendance modal
-                    document.getElementById('attendanceListSearch').addEventListener('keyup', function() {
-                        const searchTerm = this.value.toLowerCase();
-                        const items = document.querySelectorAll('#attendanceCheckList .attendee-item');
-                        items.forEach(item => {
-                            const text = item.textContent.toLowerCase();
-                            item.style.display = text.includes(searchTerm) ? '' : 'none';
+                                `;
+                            } else if (canAddDeleteAttendees) {
+                                div.innerHTML = `
+                                    <div class="attendee-info">
+                                        <div>
+                                            <strong>${escapeHtml(attendee.fullname || attendee.username)}</strong>
+                                            <div class="small text-muted">${escapeHtml(attendee.username)}</div>
+                                            ${attendee.attended ? '<span class="attendance-status-badge attendance-yes ms-2">Attended</span>' : ''}
+                                        </div>
+                                    </div>
+                                    <div class="attendee-actions">
+                                        <button class="btn btn-sm btn-danger btn-attendee" onclick="deleteAttendee('${attendee.user_id}', '${escapeHtml(attendee.fullname || attendee.username)}')" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                `;
+                            } else {
+                                const attendedIcon = attendee.attended ?
+                                    '<i class="fas fa-check-circle text-success me-2"></i>' :
+                                    '<i class="fas fa-times-circle text-danger me-2"></i>';
+                                div.innerHTML = `
+                                    <div class="attendee-info">
+                                        <div class="d-flex align-items-center">
+                                            ${attendedIcon}
+                                            <div>
+                                                <strong>${escapeHtml(attendee.fullname || attendee.username)}</strong>
+                                                <div class="small text-muted">${escapeHtml(attendee.username)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            attendeeListContainer.appendChild(div);
                         });
-                    });
+                    } else {
+                        attendeeListContainer.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-users fa-2x mb-2"></i><p>No attendees added yet.</p></div>';
+                    }
+
+                    const searchInput = document.getElementById('attendanceListSearch');
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.onkeyup = function() {
+                            const searchTerm = this.value.toLowerCase();
+                            const items = document.querySelectorAll('#attendeeListContainer .attendee-item');
+                            items.forEach(item => {
+                                const text = item.textContent.toLowerCase();
+                                item.style.display = text.includes(searchTerm) ? '' : 'none';
+                            });
+                        };
+                    }
 
                     const modal = new bootstrap.Modal(document.getElementById('attendanceCheckModal'));
                     modal.show();
@@ -2411,19 +2771,20 @@ if (!empty($filter_committee)) $active_filters++;
             });
     }
 
-    // Save Attendance (Regular Users Only)
-    <?php if (!is_admin() && !is_superadmin()): ?>
-    document.getElementById('saveAttendanceBtn')?.addEventListener('click', function() {
+    // Save Attendance function
+    function saveAttendance() {
         if (!currentPmRequestId) return;
 
         const attendees = {};
-        document.querySelectorAll('#attendanceCheckList input.attendee-checkbox').forEach(cb => {
-            attendees[cb.dataset.userId] = cb.checked;
+        document.querySelectorAll('#attendeeListContainer input.attendance-checkbox').forEach(cb => {
+            attendees[cb.dataset.userId] = cb.checked ? 1 : 0;
         });
 
-        const btn = this;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+        const btn = document.getElementById('saveAttendanceBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+        }
 
         const formData = new FormData();
         formData.append('update_pm_attendance', '1');
@@ -2450,81 +2811,96 @@ if (!empty($filter_committee)) $active_filters++;
             showToast('An error occurred. Please try again.', 'danger');
         })
         .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Attendance';
+            }
+        });
+    }
+
+    // Open Add Multiple Attendees Modal
+    function openAddMultipleAttendeesModal() {
+        if (!currentPmRequestId) {
+            showToast('No training request selected', 'danger');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('addMultipleAttendeesModal'));
+        modal.show();
+        
+        // Clear search input
+        document.getElementById('addMultipleAttendeeSearch').value = '';
+        document.getElementById('selectAllUsers').checked = false;
+        
+        // Load initial users immediately
+        loadInitialAvailableUsers();
+    }
+
+    // Search for users to add (multiple selection)
+    let multipleAttendeeSearchTimeout;
+    document.getElementById('addMultipleAttendeeSearch')?.addEventListener('input', function() {
+        clearTimeout(multipleAttendeeSearchTimeout);
+        const searchTerm = this.value.trim();
+        
+        if (searchTerm.length >= 2) {
+            multipleAttendeeSearchTimeout = setTimeout(() => {
+                loadUsersForAddModal(searchTerm);
+            }, 300);
+        } else if (searchTerm.length === 0) {
+            loadInitialAvailableUsers();
+        }
+    });
+
+    // Clear search button
+    document.getElementById('clearSearchBtn')?.addEventListener('click', function() {
+        document.getElementById('addMultipleAttendeeSearch').value = '';
+        document.getElementById('selectAllUsers').checked = false;
+        loadInitialAvailableUsers();
+    });
+
+    // Add selected users to attendance
+    document.getElementById('addSelectedUsersBtn')?.addEventListener('click', function() {
+        const selectedUsers = Array.from(document.querySelectorAll('#userSearchResults .user-checkbox:checked'))
+            .map(cb => cb.value);
+        
+        if (selectedUsers.length === 0) {
+            showToast('Please select at least one user to add', 'warning');
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Adding...';
+
+        const formData = new FormData();
+        formData.append('add_multiple_pm_attendees', '1');
+        formData.append('pm_request_id', currentPmRequestId);
+        formData.append('user_ids', JSON.stringify(selectedUsers));
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addMultipleAttendeesModal'));
+                modal.hide();
+                openAttendanceModal(currentPmRequestId);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error adding attendees', 'danger');
+        })
+        .finally(() => {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Attendance';
+            btn.innerHTML = '<i class="fas fa-user-plus me-1"></i> Add Selected';
         });
     });
-    <?php endif; ?>
-
-    // Open Add Attendee Modal
-    function openAddAttendeeModal() {
-        const attendeeName = prompt('Enter attendee name or username:');
-        if (!attendeeName) return;
-
-        if (!currentPmRequestId) {
-            showToast('No training request selected', 'danger');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('add_pm_attendee', '1');
-        formData.append('pm_request_id', currentPmRequestId);
-        formData.append('user_search', attendeeName);
-
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Attendee added successfully', 'success');
-                // Reload the attendance list
-                openAttendanceModal(currentPmRequestId);
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error adding attendee', 'danger');
-        });
-    }
-
-    // Edit Attendee
-    function editAttendee(userId, userName) {
-        if (!currentPmRequestId) {
-            showToast('No training request selected', 'danger');
-            return;
-        }
-
-        const newAction = prompt(`Edit attendee "${userName}". Enter new name/username:`, userName);
-        if (!newAction || newAction === userName) return;
-
-        const formData = new FormData();
-        formData.append('edit_pm_attendee', '1');
-        formData.append('pm_request_id', currentPmRequestId);
-        formData.append('user_id', userId);
-        formData.append('new_user_search', newAction);
-
-        fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Attendee updated successfully', 'success');
-                openAttendanceModal(currentPmRequestId);
-            } else {
-                showToast(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error updating attendee', 'danger');
-        });
-    }
 
     // Delete Attendee
     function deleteAttendee(userId, userName) {
@@ -2610,7 +2986,7 @@ if (!empty($filter_committee)) $active_filters++;
     }
 
     // Save PTR Attachment
-    document.getElementById('savePtrAttachmentBtn').addEventListener('click', function() {
+    document.getElementById('savePtrAttachmentBtn')?.addEventListener('click', function() {
         if (!window.currentPtrRequestId) return;
 
         const fileInput = document.getElementById('ptrFileInput');
@@ -2688,7 +3064,7 @@ if (!empty($filter_committee)) $active_filters++;
     }
 
     // Reschedule Form Submit
-    document.getElementById('reschedulePmForm').addEventListener('submit', function(e) {
+    document.getElementById('reschedulePmForm')?.addEventListener('submit', function(e) {
         e.preventDefault();
 
         const startDate = document.getElementById('reschedule_pm_date_start').value;
@@ -2831,30 +3207,30 @@ if (!empty($filter_committee)) $active_filters++;
                 if (data.success && data.reports.length > 0) {
                     tbody.innerHTML = '';
                     data.reports.forEach(report => {
-                        const ptrLink = report.ptr_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${report.ptr_file}" target="_blank"><i class="fas fa-download"></i></a>` : '—';
+                        const ptrLink = report.ptr_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${report.ptr_file}" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-download"></i></a>` : '—';
 
                         tbody.innerHTML += `
                             <tr>
                                 <td><strong>${escapeHtml(report.title)}</strong></td>
-                                <td>${escapeHtml(report.venue)}</td>
-                                <td>${escapeHtml(report.date_start)}</td>
-                                <td>${escapeHtml(report.date_end)}</td>
-                                <td>${escapeHtml(report.requester_name)}</td>
-                                <td>${escapeHtml(report.hospital_order_no || '—')}</td>
-                                <td class="amount-cell">₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                                <td><span class="badge-status">${report.attended_count} / ${report.total_attendees}</span></td>
-                                <td>${ptrLink}</td>
+                                <td>${escapeHtml(report.venue)}</div>
+                                <td>${escapeHtml(report.date_start)}</div>
+                                <td>${escapeHtml(report.date_end)}</div>
+                                <td>${escapeHtml(report.requester_name)}</div>
+                                <td>${escapeHtml(report.hospital_order_no || '—')}</div>
+                                <td class="amount-cell">₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                                <td><span class="badge-status">${report.attended_count} / ${report.total_attendees}</span></div>
+                                <td>${ptrLink}</div>
                             </tr>
                         `;
                     });
                 } else {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center" style="padding: 3rem 1rem;">
-                                <i class="fas fa-inbox fa-2x mb-2" style="color: #cbd5e1;"></i>
-                                <p style="color: #64748b; margin: 0;">No completed training requests found</p>
-                            </td>
-                        </tr>
+                            <td colspan="9" class="text-center py-5">
+                                <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
+                                <p class="text-muted mb-0">No completed training requests found</p>
+                            </div>
+                        </table>
                     `;
                 }
             })
@@ -2862,10 +3238,10 @@ if (!empty($filter_committee)) $active_filters++;
                 console.error('Error loading report data:', error);
                 document.getElementById('pmReportTableBody').innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-center" style="padding: 3rem 1rem;">
-                            <i class="fas fa-exclamation-triangle fa-2x mb-2" style="color: #ef4444;"></i>
-                            <p style="color: #64748b; margin: 0;">Error loading data. Please try again.</p>
-                        </td>
+                        <td colspan="9" class="text-center py-5 text-danger">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                            <p>Error loading data. Please try again.</p>
+                        </div>
                     </tr>
                 `;
             });
@@ -2925,6 +3301,12 @@ if (!empty($filter_committee)) $active_filters++;
     });
     
     <?php endif; ?>
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Any additional initialization can go here
+    });
+    
 </script>
 
 </body>

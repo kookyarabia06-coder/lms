@@ -10,8 +10,6 @@
         padding: 20px 20px 20px 270px;
     }
 
-   
-
     /* Sidebar adjustment */
     .lms-sidebar-container {
         position: fixed;
@@ -57,7 +55,6 @@
     }
 
     /* Card Styles */
-
     .form-card, .filter-card, .table-card {
         background: white;
         border-radius: 12px;
@@ -221,7 +218,7 @@
 
     .table thead th {
         background: #f8f9fa;
-        padding: 8px 1px;
+        padding: 8px 10px;
         font-weight: 600;
         color: #495057;
         border-bottom: 1px solid #e9ecef;
@@ -248,17 +245,19 @@
 
     /* Column widths */
 
-    .table th:nth-child(1), .table td:nth-child(1) { width: 12%; } /* Title */
-    .table th:nth-child(2), .table td:nth-child(2) { width: 6%; } /* Type */
-    .table th:nth-child(3), .table td:nth-child(3) { width: 8%; } /* From */
-    .table th:nth-child(4), .table td:nth-child(4) { width: 8%; } /* To */
+    .table th:nth-child(1), .table td:nth-child(1) { width: 15%; } /* Title */
+    .table th:nth-child(2), .table td:nth-child(2) { width: 5%; } /* Type */
+    .table th:nth-child(3), .table td:nth-child(3) { width: 6%; } /* From */
+    .table th:nth-child(4), .table td:nth-child(4) { width: 6%; } /* To */
     .table th:nth-child(5), .table td:nth-child(5) { width: 8%; } /* Requester */
     .table th:nth-child(6), .table td:nth-child(6) { width: 8%; } /* Hospital Order No */
-    .table th:nth-child(7), .table td:nth-child(7) { width: 6%; } /* Amount */
-    .table th:nth-child(8), .table td:nth-child(8) { width: 5%; } /* Is OB */
-    .table th:nth-child(9), .table td:nth-child(9) { width: 10%; } /* Remarks */
-    .table th:nth-child(10), .table td:nth-child(10) { width: 10%; } /* Resched Reason */
-    .table th:nth-child(11), .table td:nth-child(11) { width: 7%; } /* Status */
+    .table th:nth-child(7), .table td:nth-child(7) { width: 7%; } /* Amount */
+    .table th:nth-child(8), .table td:nth-child(8) { width: 4%; } /* Is OB */
+    .table th:nth-child(9), .table td:nth-child(9) { width: 4%; } /* Late Filing */
+    .table th:nth-child(10), .table td:nth-child(10) { width: 8%; } /* Remarks */
+    .table th:nth-child(11), .table td:nth-child(11) { width: 8%; } /* Resched */
+    .table th:nth-child(12), .table td:nth-child(12) { width: 6%; } /* PTR Status */
+    .table th:nth-child(13), .table td:nth-child(13) { width: 6%; } /* Status */
     /* Truncated cell with tooltip */
     .truncated-cell {
         cursor: help;
@@ -324,18 +323,14 @@
         color: #000;
     }
 
-
-/* Action Buttons */
-
-.action-buttons {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-}
-
-
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+    }
     
     .btn-action {
         width: 28px;
@@ -725,3 +720,64 @@
             padding: 10px 12px;
         }
     }
+
+/* Fix for Report Modal - keeps content inside modal */
+#trainingReportModal {
+    display: none !important;
+    visibility: hidden !important;
+    position: fixed !important;
+    z-index: -1 !important;
+}
+
+#trainingReportModal.show {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed !important;
+    z-index: 1050 !important;
+}
+
+#trainingReportModal.fade {
+    transition: opacity .15s linear;
+}
+
+#trainingReportModal.show.fade {
+    opacity: 1;
+}
+
+#trainingReportModal:not(.show) {
+    outline: 0;
+}
+
+#trainingReportModal .modal-dialog {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#trainingReportModal .modal-content {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#trainingReportModal .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+#trainingReportModal .modal-footer {
+    flex-shrink: 0;
+}
+
+
+/* Ensure modal stays within viewport */
+.modal {
+    overflow-y: auto !important;
+}
+
+.modal-open .modal {
+    overflow-x: hidden;
+    overflow-y: auto !important;
+}

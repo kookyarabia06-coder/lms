@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Don't rewrite existing files, directories, or symbolic links
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-l
+
+# Handle AJAX/POST requests properly
+RewriteCond %{REQUEST_METHOD} !^POST$ [OR]
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^\.]+)$ $1.php [NC,L]
+
+# Redirect .php to non-.php URL (only for GET requests)
+RewriteCond %{REQUEST_METHOD} ^GET$
+RewriteCond %{THE_REQUEST} \s/+(.+?)\.php[\s?] [NC]
+RewriteRule ^ /%1 [NE,L,R=301]
+</IfModule>

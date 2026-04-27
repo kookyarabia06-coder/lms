@@ -6,3 +6,12 @@ RewriteRule ^course/([0-9]+)/?$ course_view.php?id=$1 [L]
 # Clean login/register URLs
 RewriteRule ^login/?$ login.php [L]
 RewriteRule ^register/?$ register.php [L]
+
+# Hide .php extension - remove .php from URLs
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^([^\.]+)$ $1.php [NC,L]
+
+# Redirect .php to non-.php URL
+RewriteCond %{THE_REQUEST} \s/+(.+?)\.php[\s?] [NC]
+RewriteRule ^ /%1 [NE,L,R=301]

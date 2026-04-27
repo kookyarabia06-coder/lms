@@ -6,8 +6,8 @@ require_login();
 
 // Only admins and proponents can access this page
 if (!is_admin() && !is_proponent() && !is_superadmin()) {
-http_response_code(403);
-exit('Access denied');
+    http_response_code(403);
+    exit('Access denied');
 }
 
 // Set maximum file upload size (in bytes)
@@ -66,8 +66,8 @@ $all_committees_stmt = $pdo->query("SELECT id, name FROM committees ORDER BY nam
 $all_committees = $all_committees_stmt->fetchAll();
 
 /**
-* Calculate expiration date
-*/
+ * Calculate expiration date
+ */
 function calculateExpiry($expires_at, $valid_days) {
     if (!empty($valid_days) && is_numeric($valid_days) && $valid_days > 0) {
         return date('Y-m-d', strtotime("+{$valid_days} days"));
@@ -113,9 +113,9 @@ function uploadFile($input, $dir, $allowed = [], $max_size = MAX_FILE_SIZE) {
 }
 
 /**
-* Check if current user can edit/delete course
-* Returns true for admins OR if user owns the course
-*/
+ * Check if current user can edit/delete course
+ * Returns true for admins OR if user owns the course
+ */
 function canModifyCourse($course_id, $pdo) {
     if (is_admin() || is_superadmin()) {
         return true; 
@@ -201,7 +201,7 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdf = uploadFile('file_pdf', 'pdf', ['pdf']);
         $video = uploadFile('file_video', 'video', ['mp4','webm']);
 
-        $stmt->execute([
+        $params = [
             ':title'         => $_POST['title'],
             ':description'   => $_POST['description'],
             ':summary'       => $_POST['summary'],
@@ -210,7 +210,9 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':video'         => $video,
             ':proponent_id'  => $_SESSION['user']['id'],
             ':expires_at'    => $expires_at
-        ]);
+        ];
+
+        $stmt->execute($params);
 
         $course_id = $pdo->lastInsertId();
 
@@ -238,6 +240,13 @@ if ($act === 'addform' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Handle EDIT COURSE
 if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // Validate that ID exists
+    if (!$id) {
+        $_SESSION['error_message'] = 'Invalid course ID';
+        header('Location: courses_crud.php');
+        exit;
+    }
 
     // Fetch the course to verify it exists
     $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id");
@@ -285,41 +294,68 @@ if ($act === 'edit' && $id && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdf = uploadFile('file_pdf', 'pdf', ['pdf']);
     $video = uploadFile('file_video', 'video', ['mp4','webm']);
 
-    $stmt = $pdo->prepare("
-        UPDATE courses SET
-            title       = :title,
-            description = :description,
-            summary     = :summary,
-            expires_at  = :expires_at,
-            thumbnail   = COALESCE(:thumbnail, thumbnail),
-            file_pdf    = COALESCE(:pdf, file_pdf),
-            file_video  = COALESCE(:video, file_video),
-            updated_at  = NOW()
-        WHERE id = :id
-    ");
-
-    $stmt->execute([
-        ':title'       => $_POST['title'],
-        ':description' => $_POST['description'],
-        ':summary'     => $_POST['summary'],
-        ':expires_at'  => $expires_at,
-        ':thumbnail'   => $thumbnail,
-        ':pdf'         => $pdf,
-        ':video'       => $video,
-        ':id'          => $id
-    ]);
-
-    // Save committee associations
-    if (isset($_POST['committees']) && is_array($_POST['committees'])) {
-        saveCourseCommittees($id, $_POST['committees'], $pdo);
-    } else {
-        // If no committees selected, remove all associations
-        saveCourseCommittees($id, [], $pdo);
+    // Determine if status should be updated
+    // If course is rejected, change status back to pending when updated
+    // If course is approved, keep it approved
+    $statusUpdate = '';
+    $statusParam = [];
+    
+    if ($edit_course['status'] == 'reject') {
+        $statusUpdate = ', status = :status';
+        $statusParam = [':status' => 'pending'];
     }
 
-    $_SESSION['success_message'] = 'Course updated successfully!';
-    header('Location: courses_crud.php');
-    exit;
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE courses SET
+                title       = :title,
+                description = :description,
+                summary     = :summary,
+                expires_at  = :expires_at,
+                thumbnail   = COALESCE(:thumbnail, thumbnail),
+                file_pdf    = COALESCE(:pdf, file_pdf),
+                file_video  = COALESCE(:video, file_video),
+                updated_at  = NOW()
+                $statusUpdate
+            WHERE id = :id
+        ");
+
+        $params = [
+            ':title'       => $_POST['title'],
+            ':description' => $_POST['description'],
+            ':summary'     => $_POST['summary'],
+            ':expires_at'  => $expires_at,
+            ':thumbnail'   => $thumbnail,
+            ':pdf'         => $pdf,
+            ':video'       => $video,
+            ':id'          => $id
+        ];
+        
+        // Merge status param if exists
+        if (!empty($statusParam)) {
+            $params = array_merge($params, $statusParam);
+        }
+
+        $stmt->execute($params);
+
+        // Save committee associations
+        if (isset($_POST['committees']) && is_array($_POST['committees'])) {
+            saveCourseCommittees($id, $_POST['committees'], $pdo);
+        } else {
+            // If no committees selected, remove all associations
+            saveCourseCommittees($id, [], $pdo);
+        }
+
+        $_SESSION['success_message'] = 'Course updated successfully!';
+        header('Location: courses_crud.php');
+        exit;
+        
+    } catch (PDOException $e) {
+        $_SESSION['error_message'] = 'Database error: ' . $e->getMessage();
+        $_SESSION['form_data'] = $_POST;
+        header('Location: ?act=edit&id=' . $id);
+        exit;
+    }
 }
 
 // Handle DELETE COURSE
@@ -332,7 +368,7 @@ if ($act === 'delete' && $id) {
 
     // Get file names to delete
     $stmt = $pdo->prepare("SELECT thumbnail, file_pdf, file_video FROM courses WHERE id = :id");
-    $stmt->execute([$id]);
+    $stmt->execute([':id' => $id]);
     $files = $stmt->fetch();
 
     // Delete files from server
@@ -349,7 +385,7 @@ if ($act === 'delete' && $id) {
     }
 
     $stmt = $pdo->prepare("DELETE FROM courses WHERE id = :id");
-    $stmt->execute([$id]);
+    $stmt->execute([':id' => $id]);
     
     $_SESSION['success_message'] = 'Course deleted successfully!';
     header('Location: courses_crud.php');

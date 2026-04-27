@@ -64,8 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) 
         
         $errors = [];
         if (empty($title)) $errors[] = "Title is required";
-    
-        
         
         if (!empty($date_start) && !empty($date_end)) {
             if (strtotime($date_end) < strtotime($date_start)) {
@@ -122,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) 
                 'hospital_order_no' => $hospital_id,
                 'amount' => $amount,
                 'official_business' => $official_business,
+                'late_filing' => $late_filing,
                 'remarks' => $remarks,
                 'status' => 'pending'
             ]
@@ -142,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $training_type = 'External';
         $title = trim($_POST['title'] ?? '');
         $location_type = trim($_POST['location_type'] ?? '');
-
         $hospital_id = trim($_POST['hospital_id'] ?? '');
         $amount = floatval($_POST['amount'] ?? 0);
         $late_filing = isset($_POST['late_filing']) ? 1 : 0;
@@ -157,6 +155,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             echo json_encode(['success' => false, 'message' => implode(", ", $errors)]);
             exit;
         }
+        
+        // Check if training has ended before allowing file uploads
+        $stmt = $pdo->prepare("SELECT date_end, status FROM training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        $training_data = $stmt->fetch();
+        $current_date = new DateTime();
+        $end_date = new DateTime($training_data['date_end']);
+        $has_training_ended = $current_date >= $end_date;
         
         // Handle file uploads
         $upload_dir = __DIR__ . '/../uploads/training/';
@@ -181,11 +187,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             return null;
         }
         
-        $ptr_file = uploadTrainingFile('ptr_file');
-        $coc_file = uploadTrainingFile('coc_file');
-        $mom_file = uploadTrainingFile('mom_file');
+        $ptr_file = null;
+        $coc_file = null;
+        $mom_file = null;
         
-        // Start building the update query - exclude date fields since they're disabled in form
+        // Only allow file uploads if training has ended
+        if ($has_training_ended) {
+            $ptr_file = uploadTrainingFile('ptr_file');
+            $coc_file = uploadTrainingFile('coc_file');
+            $mom_file = uploadTrainingFile('mom_file');
+        }
+        
+        // Check if any file was uploaded
+        $has_new_attachments = ($ptr_file !== null || $coc_file !== null || $mom_file !== null);
+        
+        // Start building the update query
         $sql = "UPDATE training_requests SET 
             training_type = ?, title = ?, 
             location_type = ?, hospital_order_no = ?, amount = ?, 
@@ -203,6 +219,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         if ($mom_file) {
             $sql .= ", mom_file = ?";
             $params[] = $mom_file;
+        }
+        
+        // If files were uploaded AND status is 'pending', change to 'submitted'
+        if ($has_new_attachments) {
+            // First check current status
+            $check_stmt = $pdo->prepare("SELECT status FROM training_requests WHERE id = ?");
+            $check_stmt->execute([$id]);
+            $current_status = $check_stmt->fetchColumn();
+            
+            // If current status is 'pending' and user uploaded files, change to 'submitted'
+            if ($current_status === 'pending') {
+                $sql .= ", status = 'submitted'";
+            }
         }
         
         // Update status if approved (only admin/superadmin can approve)
@@ -264,6 +293,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_request_aj
     }
 }
 
+// Handle AJAX Mark Request as Complete (requires BOTH PTR and COC)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complete_ajax'])) {
+    header('Content-Type: application/json');
+    try {
+        $id = (int)$_POST['id'];
+        
+        // Only admin/superadmin can mark as complete
+        if (!is_admin() && !is_superadmin()) {
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to mark requests as complete']);
+            exit;
+        }
+        
+        // Check if request exists, has attachments, and has valid status
+        $stmt = $pdo->prepare("SELECT status, ptr_file, coc_file, mom_file, date_end FROM training_requests WHERE id = ?");
+        $stmt->execute([$id]);
+        $request = $stmt->fetch();
+        
+        if (!$request) {
+            echo json_encode(['success' => false, 'message' => 'Request not found']);
+            exit;
+        }
+        
+        // Check if training end date has passed
+        $current_date = new DateTime();
+        $end_date = new DateTime($request['date_end']);
+        
+        if ($current_date < $end_date) {
+            echo json_encode(['success' => false, 'message' => 'Cannot mark as complete: Training end date has not yet passed.']);
+            exit;
+        }
+        
+        // Check if request is submitted or approved
+        if ($request['status'] !== 'approved' && $request['status'] !== 'submitted') {
+            echo json_encode(['success' => false, 'message' => 'Only approved or submitted requests can be marked as complete']);
+            exit;
+        }
+        
+        // BOTH PTR and COC must be uploaded
+        if (empty($request['ptr_file'])) {
+            echo json_encode(['success' => false, 'message' => 'PTR (Post Training Report) is required. Please upload the PTR file before marking as complete.']);
+            exit;
+        }
+        
+        if (empty($request['coc_file'])) {
+            echo json_encode(['success' => false, 'message' => 'COC (Certificate of Completion) is required. Please upload the COC file before marking as complete.']);
+            exit;
+        }
+        
+        // Update status to complete
+        $stmt = $pdo->prepare("UPDATE training_requests SET status = 'complete', updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Training request marked as complete successfully!']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
 // Handle AJAX Get Request Data for Edit
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_request'])) {
     header('Content-Type: application/json');
@@ -308,8 +397,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data'])) {
             $where_clauses[] = "MONTH(tr.date_start) = ?";
             $params[] = $month;
         }
-        
-        // Note: Type filter removed - this page only shows external training
         
         if ($division_id) {
             $where_clauses[] = "d.id = ?";
@@ -419,8 +506,6 @@ if (!empty($filter_month) && $filter_month >= 1 && $filter_month <= 12) {
     $params[] = $filter_month;
 }
 
-// Note: filter_type dropdown is removed - this page only shows external training
-
 if (!empty($filter_status)) {
     $where_clause[] = "tr.status = ?";
     $params[] = $filter_status;
@@ -457,7 +542,6 @@ $stmt->execute($params);
 $training_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get statistics
-// Get statistics - respect user permissions and filters
 $stats_where_clause = [];
 $stats_params = [];
 
@@ -492,7 +576,6 @@ $stats_where_sql = !empty($stats_where_clause) ? "WHERE " . implode(" AND ", $st
 
 $stats_query = "SELECT 
     COUNT(*) as total,
-   
     SUM(CASE WHEN training_type = 'External' THEN 1 ELSE 0 END) as external_count,
     COALESCE(SUM(amount), 0) as total_amount  
     FROM training_requests tr 
@@ -519,7 +602,70 @@ if (!$stats) {
     <link href="<?= BASE_URL ?>/assets/css/training.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
+    <style>
+        .btn-view {
+            background-color: #049925;
+            color: white;
+        }
+        .btn-view:hover {
+            background-color: #026818;
+            color: white;
+        }
+        .view-details-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .view-details-card h6 {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .view-details-card p, .view-details-card div {
+            font-size: 1rem;
+            margin-bottom: 15px;
+            word-break: break-word;
+        }
+        .attachment-list-view {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .attachment-item-view {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.2s;
+        }
+        .attachment-item-view:hover {
+            background: #f8f9fa;
+            border-color: #cbd5e0;
+        }
+        .attachment-item-view i {
+            font-size: 1.5rem;
+            color: #17a2b8;
+        }
+        .attachment-item-view .file-info {
+            flex: 1;
+        }
+        .attachment-item-view .file-name {
+            font-weight: 500;
+            margin-bottom: 0;
+        }
+        .attachment-item-view .file-size {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+    </style>
 </head>
 <body>
 
@@ -580,14 +726,14 @@ if (!$stats) {
                     </select>
                 </div>
 
-
-
                 <div class="filter-group">
                     <label class="form-label">Status</label>
                     <select name="filter_status" class="form-select" id="filterStatus">
                         <option value="">All Status</option>
                         <option value="pending" <?= ($filter_status == 'pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="submitted" <?= ($filter_status == 'submitted') ? 'selected' : '' ?>>Submitted</option>
                         <option value="approved" <?= ($filter_status == 'approved') ? 'selected' : '' ?>>Approved</option>
+                        <option value="complete" <?= ($filter_status == 'complete') ? 'selected' : '' ?>>Complete</option>
                     </select>
                 </div>
 
@@ -639,7 +785,7 @@ if (!$stats) {
                 </div>
 
                 <div class="filter-group">
-                    <label class="form-label">Submission Status</label>
+                    <label class="form-label">PTR STATUS</label>
                     <select class="form-select" id="nonSubmissionFilter">
                         <option value="all">All</option>
                         <option value="none">Submitted (No Alerts)</option>
@@ -693,7 +839,6 @@ if (!$stats) {
                 <table class="table" id="trainingTable">
                     <thead>
                         <tr>
-                           
                             <th>Title</th>
                             <th>Type</th>
                             <th>From</th>
@@ -702,8 +847,10 @@ if (!$stats) {
                             <th>Hospital Order No.</th>
                             <th>Amount</th>
                             <th>Is OB</th>
+                            <th>Late Filing</th>
                             <th>Remarks</th>
                             <th>Resched Reason</th>
+                            <th>PTR Status</th>
                             <th>Status</th>
                             <th>Actions</th>
                          </thead>
@@ -711,22 +858,28 @@ if (!$stats) {
                         <?php if (!empty($training_requests)): ?>
                             <?php foreach ($training_requests as $request): ?>
                                 <?php 
-                                // Check if no attachments - determine reminder level based on days elapsed
-                                $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']);
+                                // Check if attachments exist
+                                $has_ptr = !empty($request['ptr_file']);
+                                $has_coc = !empty($request['coc_file']);
+                                $has_mom = !empty($request['mom_file']);
+                                $has_attachments = $has_ptr || $has_coc || $has_mom;
+                                $has_both_ptr_coc = $has_ptr && $has_coc;
+                                $is_completed = $request['status'] === 'complete';
+                                
                                 $end_date = new DateTime($request['date_end']);
                                 $current_date = new DateTime();
                                 $days_elapsed = $current_date->diff($end_date)->days;
                                 
-                                // Check if attachments are reviewed/complete (status is 'approved' and has attachments, or any final status)
-                                $attachments_reviewed = ($request['status'] === 'approved' && $has_attachments) || $request['status'] === 'complete';
+                                // Check if attachments are reviewed/complete
+                                $attachments_reviewed = ($request['status'] === 'approved' && $has_attachments) || $is_completed;
                                 
-                                $reminder_level = 'none'; // none, orange, red
+                                $reminder_level = 'none';
                                 $reminder_text = '';
                                 $bg_color = '';
                                 $border_color = '';
                                 $badge_class = '';
                                 
-                                if (!$has_attachments && !$attachments_reviewed) {
+                                if (!$has_attachments && !$attachments_reviewed && !$is_completed) {
                                     if ($days_elapsed >= 60) {
                                         $reminder_level = 'red';
                                         $reminder_text = "Warning: No attachments ({$days_elapsed}+ days)";
@@ -751,82 +904,134 @@ if (!$stats) {
                                     data-has-notification="<?= $reminder_level !== 'none' ? '1' : '0' ?>"
                                     data-reminder-level="<?= $reminder_level ?>"
                                     data-end-date="<?= $request['date_end'] ?>"
-                                    data-has-attachments="<?= $has_attachments ? '1' : '0' ?>">
+                                    data-has-attachments="<?= $has_attachments ? '1' : '0' ?>"
+                                    data-has-ptr="<?= $has_ptr ? '1' : '0' ?>"
+                                    data-has-coc="<?= $has_coc ? '1' : '0' ?>"
+                                    data-status="<?= $request['status'] ?>">
                                    
                                     <td <?= $reminder_level !== 'none' ? "style=\"background-color: $bg_color; border-left: 4px solid $border_color;\"" : '' ?>>
                                         <strong><?= htmlspecialchars($request['title']) ?></strong>
                                         <?php if ($reminder_level !== 'none'): ?>
                                         <br><span class="badge <?= $badge_class ?> training-warning-badge" title="<?= $reminder_text ?>"><i class="fas fa-exclamation-circle me-1"></i><?= $reminder_text ?></span>
                                         <?php endif; ?>
-                                    </td>
+                                     </div>
                                     <td>
                                         <span class="badge <?= $request['training_type'] == 'Internal' ? 'badge-info' : 'badge-warning' ?>">
                                             <?= htmlspecialchars($request['training_type']) ?>
                                         </span>
-                                      </td>
-                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
-                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
-                                    <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($request['hospital_order_no']) ?></td>
-                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
+                                      </div>
+                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></div>
+                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></div>
+                                    <td><?= htmlspecialchars($request['requester_name'] ?? 'N/A') ?></div>
+                                    <td><?= htmlspecialchars($request['hospital_order_no']) ?></div>
+                                    <td>₱<?= number_format($request['amount'], 2) ?></div>
                                     <td>
                                         <?= $request['official_business'] ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>' ?>
-                                      </td>
+                                      </div>
+                                    <td>
+                                        <?php if ($request['late_filing']): ?>
+                                            <span class="badge" style="background-color: #ff69b4; color: white; border-radius: 4px; padding: 3px 5px;">
+                                                Yes
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge" style="background-color: #6c757d; color: white; border-radius: 4px; padding: 3px 5px;">
+                                                No
+                                            </span>
+                                        <?php endif; ?>
+                                      </div>
                                     <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
                                         <?php 
                                         $remarks = $request['remarks'] ?? '';
                                         echo htmlspecialchars(strlen($remarks) > 30 ? substr($remarks, 0, 30) . '...' : $remarks);
                                         ?>
-                                      </td>
+                                      </div>
                                     <td class="truncated-cell" title="<?= htmlspecialchars($request['resched_reason'] ?? '') ?>">
                                         <?php 
                                         $resched_reason = $request['resched_reason'] ?? '';
                                         echo htmlspecialchars(strlen($resched_reason) > 30 ? substr($resched_reason, 0, 30) . '...' : $resched_reason);
                                         ?>
-                                      </td>
+                                      </div>
                                     <td>
-                                        <span class="status-badge status-<?= $request['status'] ?>" <?= $request['late_filing'] ? "style=\"background-color: #ff1493; color: white; border-radius: 4px; padding: 4px 8px;\"" : '' ?>>
-                                            <?= ucfirst($request['status']) ?><?= $request['late_filing'] ? ' (LATE FILING)' : '' ?>
+                                        <?php
+                                        // Determine PTR status based on attachments
+                                        if ($is_completed) {
+                                            $ptr_status = 'Completed';
+                                            $ptr_badge_class = 'badge-success';
+                                            $ptr_icon = 'fa-check-circle';
+                                        } elseif ($has_ptr && $has_coc) {
+                                            $ptr_status = 'PTR/COC';
+                                            $ptr_badge_class = 'badge-success';
+                                            $ptr_icon = 'fa-check-circle';
+                                        } elseif ($has_ptr) {
+                                            $ptr_status = 'PTR Only';
+                                            $ptr_badge_class = 'badge-info';
+                                            $ptr_icon = 'fa-upload';
+                                        } elseif ($has_coc) {
+                                            $ptr_status = 'COC Only';
+                                            $ptr_badge_class = 'badge-info';
+                                            $ptr_icon = 'fa-upload';
+                                        } elseif ($request['status'] === 'rejected') {
+                                            $ptr_status = 'Rejected';
+                                            $ptr_badge_class = 'badge-danger';
+                                            $ptr_icon = 'fa-times-circle';
+                                        } else {
+                                            $ptr_status = 'Pending';
+                                            $ptr_badge_class = 'badge-warning';
+                                            $ptr_icon = 'fa-hourglass-half';
+                                        }
+                                        ?>
+                                        <span class="badge <?= $ptr_badge_class ?>">
+                                            <i class="fas <?= $ptr_icon ?> me-1"></i><?= $ptr_status ?>
                                         </span>
-                                      </td>
+                                      </div>
+                                    <td>
+                                        <span class="status-badge status-<?= $request['status'] ?>">
+                                            <?= ucfirst($request['status']) ?>
+                                        </span>
+                                      </div>
                                     <td class="action-buttons" style="position: relative; z-index: 10; pointer-events: auto;">
-                                        <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
-                                            <i class="fas fa-edit"></i>
-                                            <span>Edit</span>
-                                        </button>
-                                        <?php if((is_admin() || is_superadmin())): ?>
+                                        <?php if ($is_completed): ?>
+                                            <button class="btn-action btn-view" onclick="openViewModal(<?= $request['id'] ?>)" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                                <span>View</span>
+                                            </button>
+                                        <?php else: ?>
+                                            <button class="btn-action btn-edit" onclick="openEditModal(<?= $request['id'] ?>)" title="Edit Request">
+                                                <i class="fas fa-edit"></i>
+                                                <span>Edit</span>
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if((is_admin() || is_superadmin()) && !$is_completed): ?>
                                         <button class="btn-action btn-reschedule" onclick="openRescheduleModal(<?= $request['id'] ?>)" title="Reschedule Request">
                                             <i class="fas fa-calendar-alt"></i>
                                             <span>Reschedule</span>
                                         </button>
                                         <?php endif; ?>
-                                        <?php 
-                                        // Check if there are any attachments
-                                        $has_attachments = !empty($request['ptr_file']) || !empty($request['coc_file']);
-                                        if ($has_attachments): 
-                                        ?>
+                                        <?php if ($has_attachments): ?>
                                         <button class="btn-action btn-view-attachment" onclick="openAttachmentModal(<?= $request['id'] ?>)" title="View Attachments">
                                             <i class="fas fa-paperclip"></i>
                                             <span>View Attachments</span>
                                         </button>
                                         <?php endif; ?>
+                                        <?php if (!$is_completed): ?>
                                         <button class="btn-action btn-delete" onclick="deleteRequest(<?= $request['id'] ?>, this)" title="Delete Request">
                                             <i class="fas fa-trash"></i>
                                             <span>Delete</span>
                                         </button>
-                                    </td>
-                                 </tr>
+                                        <?php endif; ?>
+                                      </div>
+                                  </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr id="emptyStateRow">
-                                <td colspan="13" class="text-center py-5">
+                                <td colspan="14" class="text-center py-5">
                                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                                     <p class="text-muted mb-0">No training requests found</p>
-                                </td>
-                             </tr>
+                                  </div>
+                              </tr>
                         <?php endif; ?>
                     </tbody>
-                 </table>
+                </table>
             </div>
         </div>
     </div>
@@ -956,7 +1161,7 @@ if (!$stats) {
                         
                         <div class="col-md-6">
                             <label class="form-label">Date Start <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="date_start" id="edit_date_start" required  disabled style="background-color: #babdc1;">
+                            <input type="date" class="form-control" name="date_start" id="edit_date_start" required disabled style="background-color: #babdc1;">
                         </div>
                         
                         <div class="col-md-6">
@@ -1011,6 +1216,16 @@ if (!$stats) {
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Mark as Complete Button (only visible when approved or submitted AND training has ended AND both PTR and COC exist) -->
+                        <div class="col-12" id="markCompleteContainer" style="display: none;">
+                            <div class="card bg-success bg-opacity-10 border-success p-3">
+                                <button type="button" class="btn btn-success" id="markCompleteBtn">
+                                    <i class="fas fa-check-circle me-2"></i> Mark as Complete
+                                </button>
+                                <small class="d-block mt-2 text-muted completion-help-text"></small>
+                            </div>
+                        </div>
                         <?php endif; ?>
 
                          <div class="col-12">
@@ -1019,22 +1234,26 @@ if (!$stats) {
                         </div>
                         
                         <!-- Attachments Section -->
-                        <div class="col-12">
+                        <div class="col-12" id="attachmentsSection">
                             <h6 class="mt-3 mb-3"><i class="fas fa-paperclip me-2"></i>Attachments</h6>
+                            <div class="alert alert-info mb-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Note:</strong> Both PTR (Post Training Report) and COC (Certificate of Completion) are required to mark this training as complete.
+                            </div>
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">PTR (Post Training Report)</label>
-                                    <input type="file" class="form-control" name="ptr_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <label class="form-label">PTR (Post Training Report) <span class="text-danger">*Required for completion</span></label>
+                                    <input type="file" class="form-control attachment-input" name="ptr_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                     <div id="current_ptr" class="current-file"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Certification (Attendance/Completion)</label>
-                                    <input type="file" class="form-control" name="coc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <label class="form-label">Certificates (Attendance/Completion) <span class="text-danger">*Required for completion</span></label>
+                                    <input type="file" class="form-control attachment-input" name="coc_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                     <div id="current_coc" class="current-file"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">MOM (Minutes of the Meeting)</label>
-                                    <input type="file" class="form-control" name="mom_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <label class="form-label">MOM (Minutes of the Meeting) <span class="text-muted">(Optional)</span></label>
+                                    <input type="file" class="form-control attachment-input" name="mom_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                     <div id="current_mom" class="current-file"></div>
                                 </div>
                             </div>
@@ -1050,6 +1269,31 @@ if (!$stats) {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Training Request Modal (Read-Only) -->
+<div class="modal fade" id="viewRequestModal" tabindex="-1" aria-labelledby="viewRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="viewRequestModalLabel">
+                    <i class="fas fa-eye me-2"></i>Training Request Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewModalBody">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Loading details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Close
+                </button>
             </div>
         </div>
     </div>
@@ -1147,18 +1391,9 @@ if (!$stats) {
                         <label class="form-label">Month</label>
                         <select id="reportMonth" class="form-select">
                             <option value="">All Months</option>
-                            <option value="1">January</option>
-                            <option value="2">February</option>
-                            <option value="3">March</option>
-                            <option value="4">April</option>
-                            <option value="5">May</option>
-                            <option value="6">June</option>
-                            <option value="7">July</option>
-                            <option value="8">August</option>
-                            <option value="9">September</option>
-                            <option value="10">October</option>
-                            <option value="11">November</option>
-                            <option value="12">December</option>
+                            <?php for ($i = 1; $i <= 12; $i++): ?>
+                                <option value="<?= $i ?>"><?= date('F', mktime(0, 0, 0, $i, 1)) ?></option>
+                            <?php endfor; ?>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -1209,8 +1444,8 @@ if (!$stats) {
                                     <td colspan="10" class="text-center py-5">
                                         <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
                                         <p>Loading data...</p>
-                                     </div>
-                                 </tr>
+                                    </td>
+                                  </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1309,6 +1544,159 @@ if (!$stats) {
         }
     });
     
+    // Open View Modal (Read-Only for Completed Requests)
+    function openViewModal(id) {
+        const modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
+        const modalBody = document.getElementById('viewModalBody');
+        
+        modalBody.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p class="mt-2">Loading details...</p>
+            </div>
+        `;
+        
+        modal.show();
+        
+        fetch(`${window.location.href}?get_request=1&id=${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const r = data.request;
+                    const hasPtr = !!r.ptr_file;
+                    const hasCoc = !!r.coc_file;
+                    const hasMom = !!r.mom_file;
+                    
+                    let attachmentsHtml = '';
+                    if (hasPtr || hasCoc || hasMom) {
+                        attachmentsHtml = '<div class="view-details-card"><h6><i class="fas fa-paperclip me-2"></i>Attachments</h6><div class="attachment-list-view">';
+                        
+                        if (hasPtr) {
+                            const fileUrl = `<?= BASE_URL ?>/uploads/training/${r.ptr_file}`;
+                            attachmentsHtml += `
+                                <div class="attachment-item-view">
+                                    <i class="fas fa-file-alt"></i>
+                                    <div class="file-info">
+                                        <p class="file-name">PTR (Post Training Report)</p>
+                                        <p class="file-size">${r.ptr_file}</p>
+                                    </div>
+                                    <a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download>
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                            `;
+                        }
+                        
+                        if (hasCoc) {
+                            const fileUrl = `<?= BASE_URL ?>/uploads/training/${r.coc_file}`;
+                            attachmentsHtml += `
+                                <div class="attachment-item-view">
+                                    <i class="fas fa-file-pdf"></i>
+                                    <div class="file-info">
+                                        <p class="file-name">COC (Certificate of Completion)</p>
+                                        <p class="file-size">${r.coc_file}</p>
+                                    </div>
+                                    <a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download>
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                            `;
+                        }
+                        
+                        if (hasMom) {
+                            const fileUrl = `<?= BASE_URL ?>/uploads/training/${r.mom_file}`;
+                            attachmentsHtml += `
+                                <div class="attachment-item-view">
+                                    <i class="fas fa-file-word"></i>
+                                    <div class="file-info">
+                                        <p class="file-name">MOM (Minutes of the Meeting)</p>
+                                        <p class="file-size">${r.mom_file}</p>
+                                    </div>
+                                    <a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download>
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                            `;
+                        }
+                        
+                        attachmentsHtml += '</div></div>';
+                    } else {
+                        attachmentsHtml = '<div class="view-details-card"><h6><i class="fas fa-paperclip me-2"></i>Attachments</h6><p class="text-muted">No attachments uploaded</p></div>';
+                    }
+                    
+                    modalBody.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-tag me-2"></i>Training Information</h6>
+                                    <p><strong>Title:</strong> ${escapeHtml(r.title)}</p>
+                                    <p><strong>Type:</strong> <span class="badge badge-warning">${escapeHtml(r.training_type)}</span></p>
+                                    <p><strong>Location Type:</strong> ${escapeHtml(r.location_type || 'N/A')}</p>
+                                    <p><strong>Hospital Order No.:</strong> ${escapeHtml(r.hospital_order_no || 'N/A')}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-calendar me-2"></i>Schedule</h6>
+                                    <p><strong>Date Start:</strong> ${new Date(r.date_start).toLocaleDateString()}</p>
+                                    <p><strong>Date End:</strong> ${new Date(r.date_end).toLocaleDateString()}</p>
+                                    <p><strong>Amount:</strong> ₱${parseFloat(r.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-user me-2"></i>Requester Information</h6>
+                                    <p><strong>Requester:</strong> ${escapeHtml(r.requester_name || 'N/A')}</p>
+                                    <p><strong>Status:</strong> <span class="badge status-badge-complete">Complete</span></p>
+                                    <p><strong>Created:</strong> ${new Date(r.created_at).toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-flag me-2"></i>Flags</h6>
+                                    <p><strong>Official Business:</strong> ${r.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}</p>
+                                    <p><strong>Late Filing:</strong> ${r.late_filing ? '<span class="badge" style="background-color: #ff69b4;">Yes</span>' : '<span class="badge badge-secondary">No</span>'}</p>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-comment me-2"></i>Remarks</h6>
+                                    <p>${escapeHtml(r.remarks) || '<em>No remarks</em>'}</p>
+                                </div>
+                            </div>
+                            ${r.resched_reason ? `
+                            <div class="col-12">
+                                <div class="view-details-card">
+                                    <h6><i class="fas fa-calendar-alt me-2"></i>Reschedule Reason</h6>
+                                    <p>${escapeHtml(r.resched_reason)}</p>
+                                </div>
+                            </div>
+                            ` : ''}
+                            <div class="col-12">
+                                ${attachmentsHtml}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    modalBody.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'Error loading request details'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                modalBody.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error loading request details. Please try again.
+                    </div>
+                `;
+            });
+    }
+    
 <?php if (is_admin() || is_superadmin()): ?>
 // Report Modal Functions
 let allDepartments = [];
@@ -1366,23 +1754,23 @@ function loadReportData() {
                 data.reports.forEach(report => {
                     tbody.innerHTML += `
                         <tr>
-                            <td><strong>${escapeHtml(report.title)}</strong></td>
+                            <td><strong>${escapeHtml(report.title)}</strong></div>
                             <td>
                                 <span class="badge ${report.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
                                     ${escapeHtml(report.training_type)}
                                 </span>
-                            </td>
-                            <td>${escapeHtml(report.date_start)}</td>
-                            <td>${escapeHtml(report.date_end)}</td>
-                            <td>${escapeHtml(report.requester_name)}</td>
-                            <td>${escapeHtml(report.division_name || '—')}</td>
-                            <td>${escapeHtml(report.department_name || '—')}</td>
-                            <td>${escapeHtml(report.hospital_order_no || '—')}</td>
-                            <td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            </div>
+                            <td>${escapeHtml(report.date_start)}</div>
+                            <td>${escapeHtml(report.date_end)}</div>
+                            <td>${escapeHtml(report.requester_name)}</div>
+                            <td>${escapeHtml(report.division_name || '—')}</div>
+                            <td>${escapeHtml(report.department_name || '—')}</div>
+                            <td>${escapeHtml(report.hospital_order_no || '—')}</div>
+                            <td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                             <td>
                                 <span class="badge badge-success">Approved</span>
-                            </td>
-                        </tr>
+                            </div>
+                        <tr>
                     `;
                 });
             } else {
@@ -1391,7 +1779,7 @@ function loadReportData() {
                         <td colspan="10" class="text-center py-5">
                             <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                             <p class="text-muted mb-0">No approved training requests found</p>
-                        </td>
+                         </div>
                     </tr>
                 `;
             }
@@ -1403,7 +1791,7 @@ function loadReportData() {
                     <td colspan="10" class="text-center py-5 text-danger">
                         <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
                         <p>Error loading data. Please try again.</p>
-                    </td>
+                     </div>
                 </tr>
             `;
         });
@@ -1523,13 +1911,14 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                 if (data.success) {
                     const request = data.request;
                     const files = [
-                        { name: 'PTR (Post Training Report)', file: request.ptr_file, icon: 'fa-file-alt' },
-                        { name: 'Certification (Attendance/Completion)', file: request.coc_file, icon: 'fa-file-pdf' },
-                        { name: 'MOM (Minutes of the Meeting)', file: request.mom_file, icon: 'fa-file-word' }
+                        { name: 'PTR (Post Training Report)', file: request.ptr_file, icon: 'fa-file-alt', required: true },
+                        { name: 'COC (Certificate of Completion)', file: request.coc_file, icon: 'fa-file-pdf', required: true },
+                        { name: 'MOM (Minutes of the Meeting)', file: request.mom_file, icon: 'fa-file-word', required: false }
                     ];
                     
                     let attachmentsHtml = '<div class="row g-3">';
                     let hasFiles = false;
+                    let missingRequired = [];
                     
                     files.forEach(file => {
                         if (file.file) {
@@ -1553,6 +1942,8 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                                     </div>
                                 </div>
                             `;
+                        } else if (file.required) {
+                            missingRequired.push(file.name);
                         }
                     });
                     
@@ -1566,7 +1957,16 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                             </div>
                         `;
                     } else {
-                        attachmentsList.innerHTML = attachmentsHtml;
+                        let warningHtml = '';
+                        if (missingRequired.length > 0) {
+                            warningHtml = `
+                                <div class="alert alert-warning mb-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Missing Required Attachments:</strong> ${missingRequired.join(', ')} are required to mark this training as complete.
+                                </div>
+                            `;
+                        }
+                        attachmentsList.innerHTML = warningHtml + attachmentsHtml;
                     }
                 } else {
                     attachmentsList.innerHTML = `
@@ -1634,30 +2034,40 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                 newRow.setAttribute('data-order', data.request.hospital_order_no.toLowerCase());
                 newRow.setAttribute('data-remarks', (data.request.remarks || '').toLowerCase());
                 newRow.setAttribute('data-resched', '');
+                newRow.setAttribute('data-has-ptr', '0');
+                newRow.setAttribute('data-has-coc', '0');
+                newRow.setAttribute('data-status', 'pending');
                 
                 newRow.innerHTML = `
-                    <td>${data.request.id}</td>
-                    <td><strong>${escapeHtml(data.request.title)}</strong></td>
+                    <td><strong>${escapeHtml(data.request.title)}</strong></div>
                     <td>
                         <span class="badge ${data.request.training_type === 'Internal' ? 'badge-info' : 'badge-warning'}">
                             ${data.request.training_type}
                         </span>
-                      </td>
-                    <td>${startDateFormatted}</td>
-                    <td>${endDateFormatted}</td>
-                    <td>${escapeHtml(data.request.requester_name)}</td>
-                    <td>${escapeHtml(data.request.hospital_order_no)}</td>
-                    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      </div>
+                    <td>${startDateFormatted}</div>
+                    <td>${endDateFormatted}</div>
+                    <td>${escapeHtml(data.request.requester_name)}</div>
+                    <td>${escapeHtml(data.request.hospital_order_no)}</div>
+                    <td>₱${parseFloat(data.request.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                     <td>
                         ${data.request.official_business ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}
-                      </td>
+                      </div>
+                    <td>
+                        ${data.request.late_filing ? '<span class="badge" style="background-color: #ff69b4; color: white; border-radius: 4px; padding: 4px 12px;">Yes</span>' : '<span class="badge" style="background-color: #6c757d; color: white; border-radius: 4px; padding: 4px 12px;">No</span>'}
+                      </div>
                     <td class="truncated-cell" title="${escapeHtml(data.request.remarks)}">
                         ${data.request.remarks.length > 30 ? escapeHtml(data.request.remarks.substring(0, 30)) + '...' : escapeHtml(data.request.remarks)}
-                      </td>
-                    <td class="truncated-cell" title="">—</td>
+                      </div>
+                    <td class="truncated-cell" title="">—</div>
+                    <td>
+                        <span class="badge badge-warning">
+                            <i class="fas fa-hourglass-half me-1"></i>Pending
+                        </span>
+                      </div>
                     <td>
                         <span class="status-badge status-pending">Pending</span>
-                      </td>
+                      </div>
                     <td class="action-buttons">
                         <button class="btn-action btn-edit" onclick="openEditModal(${data.request.id})">
                             <i class="fas fa-edit"></i> Edit
@@ -1671,7 +2081,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                         <button class="btn-action btn-delete" onclick="deleteRequest(${data.request.id}, this)">
                             <i class="fas fa-trash"></i> Delete
                         </button>
-                     </td>
+                      </div>
                 `;
                 
                 tableBody.insertBefore(newRow, tableBody.firstChild);
@@ -1682,11 +2092,8 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                 totalCountSpan.textContent = currentTotal + 1;
                 
                 // Update statistics
-                const internalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
-                const externalSpan = document.querySelector('.stat-item:nth-child(3) .stat-number');
-                if (data.request.training_type === 'Internal') {
-                    internalSpan.textContent = parseInt(internalSpan.textContent) + 1;
-                } else {
+                const externalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
+                if (data.request.training_type === 'External') {
                     externalSpan.textContent = parseInt(externalSpan.textContent) + 1;
                 }
                 
@@ -1738,8 +2145,11 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     document.getElementById('edit_hospital_id').value = request.hospital_order_no;
                     document.getElementById('edit_amount').value = request.amount;
                     
-                    // Check if no attachments - determine reminder level
-                    const hasAttachments = request.ptr_file || request.coc_file;
+                    // Check if attachments exist
+                    const hasPtr = !!request.ptr_file;
+                    const hasCoc = !!request.coc_file;
+                    const hasAttachments = hasPtr || hasCoc;
+                    
                     const endDate = new Date(request.date_end);
                     const currentDate = new Date();
                     const daysElapsed = Math.floor((currentDate - endDate) / (1000 * 60 * 60 * 24));
@@ -1753,22 +2163,23 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                         if (daysElapsed >= 60) {
                             reminderLevel = 'red';
                             alertClass = 'alert-danger';
-                            alertMessage = '<strong>Urgent:</strong> No attachments in 60+ days. Please upload the required documents immediately (PTR, Certification, or MOM).';
+                            alertMessage = '<strong>Urgent:</strong> No attachments in 60+ days. Please upload the required documents immediately (PTR and COC).';
                         } else if (daysElapsed >= 45) {
                             reminderLevel = 'orange';
                             alertClass = 'alert-warning';
-                            alertMessage = '<strong>Reminder:</strong> No attachments in 45+ days. Please upload the required documents (PTR, Certification, or MOM).';
+                            alertMessage = '<strong>Reminder:</strong> No attachments in 45+ days. Please upload the required documents (PTR and COC).';
                         }
+                    } else if (!hasPtr || !hasCoc) {
+                        const missing = [];
+                        if (!hasPtr) missing.push('PTR');
+                        if (!hasCoc) missing.push('COC');
+                        alertMessage = `<strong>Missing Required Attachments:</strong> ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} required to mark this training as complete.`;
+                        alertClass = 'alert-warning';
                     }
                     
-                    if (reminderLevel !== 'none') {
+                    if (alertMessage) {
                         reminderAlert.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${alertMessage}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
-                        reminderAlert.className = `alert ${alertClass} alert-dismissible fade show d-none`;
-                        if (reminderLevel === 'red') {
-                            reminderAlert.className = reminderAlert.className.replace('d-none', '');
-                        } else if (reminderLevel === 'orange') {
-                            reminderAlert.className = reminderAlert.className.replace('d-none', '');
-                        }
+                        reminderAlert.className = `alert ${alertClass} alert-dismissible fade show`;
                         reminderAlert.classList.remove('d-none');
                     } else {
                         reminderAlert.classList.add('d-none');
@@ -1785,15 +2196,89 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                         officialBusinessCheckbox.checked = request.official_business == 1;
                     }
                     
-                    // Disable approve checkbox if status is already approved
+                    // Disable approve checkbox if status is already approved or complete
                     const approveCheckbox = document.getElementById('edit_approve_status');
                     if (approveCheckbox) {
-                        if (request.status === 'approved') {
+                        if (request.status === 'approved' || request.status === 'complete') {
                             approveCheckbox.disabled = true;
-                            approveCheckbox.checked = true;
+                            approveCheckbox.checked = request.status === 'approved';
                         } else {
                             approveCheckbox.disabled = false;
                             approveCheckbox.checked = false;
+                        }
+                    }
+                    
+                    // Check if current date is before end date (training not yet finished)
+                    const currentDateForCheck = new Date();
+                    const endDateObj = new Date(request.date_end);
+                    const isTrainingOngoing = currentDateForCheck < endDateObj;
+                    
+                    // Enable/disable attachments section based on status AND date condition
+                    const attachmentsSection = document.getElementById('attachmentsSection');
+                    const attachmentInputs = document.querySelectorAll('.attachment-input');
+                    
+                    // Remove any existing warning
+                    const existingWarning = document.getElementById('trainingOngoingWarning');
+                    if (existingWarning) existingWarning.remove();
+                    
+                    if (isTrainingOngoing) {
+                        attachmentsSection.style.opacity = '0.5';
+                        attachmentsSection.style.pointerEvents = 'none';
+                        attachmentInputs.forEach(input => input.disabled = true);
+                        
+                        // Add warning message
+                        const warningDiv = document.createElement('div');
+                        warningDiv.className = 'alert alert-info mt-2 mb-0';
+                        warningDiv.id = 'trainingOngoingWarning';
+                        warningDiv.innerHTML = '<i class="fas fa-calendar-alt me-2"></i><strong>Notice:</strong> Attachments can only be added after the training end date has passed.';
+                        attachmentsSection.insertAdjacentElement('afterend', warningDiv);
+                    } else if (request.status === 'pending') {
+                        attachmentsSection.style.opacity = '0.5';
+                        attachmentsSection.style.pointerEvents = 'none';
+                        attachmentInputs.forEach(input => input.disabled = true);
+                        
+                        const warningDiv = document.createElement('div');
+                        warningDiv.className = 'alert alert-warning mt-2 mb-0';
+                        warningDiv.id = 'trainingOngoingWarning';
+                        warningDiv.innerHTML = '<i class="fas fa-info-circle me-2"></i><strong>Notice:</strong> Attachments cannot be added until this request is approved.';
+                        attachmentsSection.insertAdjacentElement('afterend', warningDiv);
+                    } else {
+                        attachmentsSection.style.opacity = '1';
+                        attachmentsSection.style.pointerEvents = 'auto';
+                        attachmentInputs.forEach(input => input.disabled = false);
+                    }
+                    
+                    // Show/hide Mark as Complete button with both PTR and COC requirement
+                    const markCompleteContainer = document.getElementById('markCompleteContainer');
+                    const markCompleteBtn = document.getElementById('markCompleteBtn');
+                    const helpTextSpan = document.querySelector('#markCompleteContainer .completion-help-text');
+                    
+                    if (markCompleteContainer) {
+                        const canBeCompleted = (request.status === 'approved' || request.status === 'submitted') && !isTrainingOngoing && hasPtr && hasCoc;
+                        
+                        if (canBeCompleted) {
+                            markCompleteContainer.style.display = 'block';
+                            if (markCompleteBtn) markCompleteBtn.disabled = false;
+                            if (helpTextSpan) helpTextSpan.innerHTML = '✓ Both PTR and COC have been uploaded. The training end date has passed. Click to mark it as complete.';
+                        } else {
+                            markCompleteContainer.style.display = 'block';
+                            if (markCompleteBtn) markCompleteBtn.disabled = true;
+                            
+                            let reasonText = '';
+                            if (isTrainingOngoing) {
+                                reasonText = '<i class="fas fa-calendar-alt me-1"></i> This training has not yet ended. Complete button will be available after the end date.';
+                            } else if (!hasPtr || !hasCoc) {
+                                const missing = [];
+                                if (!hasPtr) missing.push('PTR');
+                                if (!hasCoc) missing.push('COC');
+                                reasonText = `<i class="fas fa-paperclip me-1"></i> <strong>Missing Required Attachments:</strong> ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} required. Please upload both PTR and COC files.`;
+                            } else if (request.status !== 'approved' && request.status !== 'submitted') {
+                                reasonText = '<i class="fas fa-info-circle me-1"></i> Request must be approved or submitted before marking as complete.';
+                            }
+                            
+                            if (helpTextSpan) {
+                                helpTextSpan.innerHTML = reasonText;
+                            }
                         }
                     }
                     
@@ -1801,19 +2286,19 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     
                     // Show current files
                     if (request.ptr_file) {
-                        document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">Current PTR File</a>`;
+                        document.getElementById('current_ptr').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.ptr_file}" target="_blank">📄 View Current PTR File</a>`;
                     } else {
-                        document.getElementById('current_ptr').innerHTML = '';
+                        document.getElementById('current_ptr').innerHTML = '<span class="text-muted">No PTR file uploaded</span>';
                     }
                     if (request.coc_file) {
-                        document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">Current COC File</a>`;
+                        document.getElementById('current_coc').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.coc_file}" target="_blank">📄 View Current COC File</a>`;
                     } else {
-                        document.getElementById('current_coc').innerHTML = '';
+                        document.getElementById('current_coc').innerHTML = '<span class="text-muted">No COC file uploaded</span>';
                     }
                     if (request.mom_file) {
-                        document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">Current MOM File</a>`;
+                        document.getElementById('current_mom').innerHTML = `<a href="<?= BASE_URL ?>/uploads/training/${request.mom_file}" target="_blank">📄 View Current MOM File</a>`;
                     } else {
-                        document.getElementById('current_mom').innerHTML = '';
+                        document.getElementById('current_mom').innerHTML = '<span class="text-muted">No MOM file uploaded</span>';
                     }
                     
                     const editModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
@@ -1861,6 +2346,46 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
         .finally(() => {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Update Request';
+        });
+    });
+    
+    // Mark as Complete button handler
+    document.getElementById('markCompleteBtn')?.addEventListener('click', function() {
+        if (!confirm('Are you sure you want to mark this training request as complete? This will require both PTR and COC to be uploaded.')) {
+            return;
+        }
+        
+        const id = document.getElementById('edit_id').value;
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Marking...';
+        
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('mark_complete_ajax', '1');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const editModal = bootstrap.Modal.getInstance(document.getElementById('editRequestModal'));
+                editModal.hide();
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.message, 'danger');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check-circle me-2"></i> Mark as Complete';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('An error occurred. Please try again.', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check-circle me-2"></i> Mark as Complete';
         });
     });
     
@@ -2001,7 +2526,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
             const emptyRow = document.createElement('tr');
             emptyRow.id = 'emptyStateRow';
             emptyRow.innerHTML = `
-                <td colspan="13" class="text-center py-5">
+                <td colspan="14" class="text-center py-5">
                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                     <p class="text-muted mb-0">No training requests found</p>
                   </div>
@@ -2011,7 +2536,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
             const noResultsRow = document.createElement('tr');
             noResultsRow.className = 'no-results-row';
             noResultsRow.innerHTML = `
-                <td colspan="13" class="text-center py-5">
+                <td colspan="14" class="text-center py-5">
                     <i class="fas fa-search fa-2x mb-2" style="color: #dee2e6;"></i>
                     <p class="text-muted mb-0">No matching training requests found</p>
                   </div>
@@ -2059,11 +2584,8 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                 totalCountSpan.textContent = currentTotal - 1;
                 
                 const trainingType = row.querySelector('.badge-info, .badge-warning').textContent.trim();
-                if (trainingType === 'Internal') {
-                    const internalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
-                    internalSpan.textContent = parseInt(internalSpan.textContent) - 1;
-                } else if (trainingType === 'External') {
-                    const externalSpan = document.querySelector('.stat-item:nth-child(3) .stat-number');
+                if (trainingType === 'External') {
+                    const externalSpan = document.querySelector('.stat-item:nth-child(2) .stat-number');
                     externalSpan.textContent = parseInt(externalSpan.textContent) - 1;
                 }
                 
@@ -2072,7 +2594,7 @@ document.getElementById('reportModal')?.addEventListener('show.bs.modal', functi
                     const emptyRow = document.createElement('tr');
                     emptyRow.id = 'emptyStateRow';
                     emptyRow.innerHTML = `
-                        <td colspan="13" class="text-center py-5">
+                        <td colspan="14" class="text-center py-5">
                             <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                             <p class="text-muted mb-0">No training requests found</p>
                           </div>

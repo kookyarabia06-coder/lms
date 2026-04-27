@@ -8,6 +8,15 @@ require_login();
 $pdo = $pdo;
 $current_user_id = $_SESSION['user']['id'];
 
+// Mark unviewed training requests as viewed for this user
+$update_viewed = $pdo->prepare("
+    UPDATE pm_training_requests 
+    SET viewed_at = NOW() 
+    WHERE viewed_at IS NULL 
+    AND status IN ('pending', 'approved')
+");
+$update_viewed->execute();
+
 // Get user's committee
 $stmt = $pdo->prepare("SELECT committee_id FROM user_departments WHERE user_id = ?");
 $stmt->execute([$current_user_id]);
@@ -41,7 +50,7 @@ if (!empty($filter_month)) {
 }
 
 if (!empty($filter_committee)) {
-    $where_clauses[] = "c.id = ?";
+    $where_clauses[] = "com.id = ?";
     $params[] = $filter_committee;
 }
 
@@ -59,15 +68,17 @@ $where_sql = implode(" AND ", $where_clauses);
 $query = "SELECT 
     ptr.*,
     COALESCE(CONCAT(u.fname, ' ', u.lname), u.username, 'Unknown') as requester_name,
-    c.name as committee_name,
-    pta.attended
+    pta.attended,
+    COALESCE(com.name, '-') as committee_name
     FROM pm_training_requests ptr
     INNER JOIN pm_training_attendance pta ON ptr.id = pta.pm_training_request_id
     LEFT JOIN users u ON ptr.requester_id = u.id
-    LEFT JOIN user_departments ud ON u.id = ud.user_id
-    LEFT JOIN committees c ON ud.committee_id = c.id
+    LEFT JOIN user_departments ud ON ud.user_id = ptr.requester_id
+    LEFT JOIN committees com ON ud.committee_id = com.id
     WHERE $where_sql
+    GROUP BY ptr.id, pta.user_id
     ORDER BY ptr.date_start DESC";
+
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
@@ -233,7 +244,7 @@ if (!empty($search_query)) $active_filters++;
                             <th>Requester</th>
                             <th>Committee</th>
                             <th>Attended</th>
-                            <th>Status</th>
+                            <!-- <th>Status</th> -->
                         </tr>
                     </thead>
                     <tbody>
@@ -246,7 +257,7 @@ if (!empty($search_query)) $active_filters++;
                                     <td><?= !empty($training['time_start']) ? date('h:i A', strtotime($training['time_start'])) : '-' ?></td>
                                     <td><?= date('M d, Y', strtotime($training['date_end'])) ?></td>
                                     <td><?= htmlspecialchars($training['requester_name'] ?? 'Unknown') ?></td>
-                                    <td><?= !empty($training['committee_name']) ? htmlspecialchars($training['committee_name']) : '-' ?></td>
+                                    <td><?= htmlspecialchars($training['committee_name'] ?? '-') ?></td>
                                     <td>
                                         <?php if ($training['attended']): ?>
                                             <span class="badge badge-success">Yes</span>
@@ -263,9 +274,9 @@ if (!empty($search_query)) $active_filters++;
                                             default => 'badge-secondary'
                                         };
                                         ?>
-                                        <span class="badge <?= $status_class ?>">
+                                        <!-- <span class="badge <?= $status_class ?>">
                                             <?= ucfirst($training['status']) ?>
-                                        </span>
+                                        </span> -->
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

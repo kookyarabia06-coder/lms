@@ -61,10 +61,12 @@ if (is_admin() || is_superadmin()) {
     $stmt->execute([$_SESSION['user']['id']]);
     $pmTrainingCount = $stmt->fetchColumn();
 }
-// get notifciation count for training list (for proponents to see new training requests)
+
+// get notifciation count for training list (for students to see new training requests)
 $training_listnotif = 0;
-if (is_proponent() || is_admin() || is_superadmin()) {
-    $stmt = $pdo->query("SELECT COUNT(*) FROM training_requests WHERE status = 'pending'");
+if (is_student()) {
+    // Students see NEW training lists available to them (pending/approved & not yet viewed)
+    $stmt = $pdo->query("SELECT COUNT(*) FROM pm_training_requests WHERE status IN ('pending', 'approved') AND viewed_at IS NULL");
     $training_listnotif = $stmt->fetchColumn();
 }
 
@@ -222,7 +224,7 @@ if (is_proponent() || is_admin() || is_superadmin()) {
                 <?php endif; ?>
 
               <!-- PM TRAINING REQUESTS -->
-                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
+                <?php if($u && (is_student() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/public/training_list.php">
                             <i class="fa fa-graduation-cap"></i>  Training list
@@ -232,7 +234,7 @@ if (is_proponent() || is_admin() || is_superadmin()) {
                         </a>
                     </li>
                 <?php endif; ?>
-                <?php if($u && (is_proponent() || is_admin() || is_superadmin() || is_student())): ?>
+                <?php if($u && (is_proponent() || is_admin() || is_superadmin())): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= BASE_URL ?>/public/pm_training_management.php">
                             <i class="fa fa-graduation-cap"></i> PM Training Request

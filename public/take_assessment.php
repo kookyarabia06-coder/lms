@@ -79,7 +79,6 @@ if ($hasPassed) {
     $disabledReason = 'You have already passed this assessment';
 } elseif ($assessment['attempts_allowed'] > 0 && $attemptsLeft <= 0) {
     $canStart = false;
-    $disabledReason = 'No attempts remaining';
 }
 
 // Check for existing in-progress attempt
@@ -89,6 +88,83 @@ foreach ($attempts as $attempt) {
         $inProgressAttempt = $attempt;
         break;
     }
+}
+
+// Handle course reset (AJAX)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_course'])) {
+    try {
+        $pdo->beginTransaction();
+        
+        $courseId = $assessment['course_id'];
+        $userId = $u['id'];
+        
+        // Get enrollment record
+        $stmt = $pdo->prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?");
+        $stmt->execute([$userId, $courseId]);
+        $enrollment = $stmt->fetch();
+        
+        if ($enrollment) {
+            $enrollmentId = $enrollment['id'];
+            
+            // Clear PDF progress
+            $stmt = $pdo->prepare("DELETE FROM pdf_progress WHERE enrollment_id = ?");
+            $stmt->execute([$enrollmentId]);
+            
+            // Clear video progress
+            $stmt = $pdo->prepare("DELETE FROM video_progress WHERE enrollment_id = ?");
+            $stmt->execute([$enrollmentId]);
+            
+            // Reset enrollment progress
+            $stmt = $pdo->prepare("
+                UPDATE enrollments 
+                SET pdf_completed = 0, 
+                    video_completed = 0, 
+                    pdf_total_pages = 0, 
+                    pdf_current_page = 0,
+                    progress = 0,
+                    status = 'ongoing',
+                    completed_at = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([$enrollmentId]);
+        }
+        
+        // Get all assessments for this course and delete attempts
+        $stmt = $pdo->prepare("
+            SELECT id FROM assessments WHERE course_id = ?
+        ");
+        $stmt->execute([$courseId]);
+        $assessments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($assessments)) {
+            foreach ($assessments as $assessId) {
+                // Delete assessment answers
+                $stmt = $pdo->prepare("
+                    DELETE FROM assessment_answers 
+                    WHERE attempt_id IN (
+                        SELECT id FROM assessment_attempts 
+                        WHERE user_id = ? AND assessment_id = ?
+                    )
+                ");
+                $stmt->execute([$userId, $assessId]);
+                
+                // Delete assessment attempts
+                $stmt = $pdo->prepare("
+                    DELETE FROM assessment_attempts 
+                    WHERE user_id = ? AND assessment_id = ?
+                ");
+                $stmt->execute([$userId, $assessId]);
+            }
+        }
+        
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Course progress has been reset. You can now retake the course.']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Course Reset Error: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Error resetting course progress']);
+    }
+    exit;
 }
 
 // Handle starting a new attempt
@@ -672,6 +748,36 @@ $previousAttempts = $stmt->fetchAll();
     <link href="<?= BASE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/take_assessment.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .btn-retake-course {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .btn-retake-course:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+            color: white;
+        }
+        .btn-retake-course i {
+            margin-right: 8px;
+        }
+        .btn-retake-course:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
 </head>
 <body>
     <div class="lms-sidebar-container">
@@ -780,10 +886,19 @@ $previousAttempts = $stmt->fetchAll();
                             <i class="fas fa-lock"></i>
                             <?= $disabledReason ?>
                         </button>
-                        <p class="text-center text-muted small mt-3">
-                            <i class="fas fa-info-circle me-1"></i>
-                            <?= $disabledReason ?>
-                        </p>
+                        
+                        <?php if (!$hasPassed && $assessment['attempts_allowed'] > 0 && $attemptsLeft <= 0): ?>
+                            <div style="text-align: center;">
+                                <button class="btn-retake-course" onclick="retakeCourse()">
+                                    <i class="fas fa-refresh"></i>
+                                    Retake Course
+                                </button>
+                                <p class="text-muted small mt-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    You've used all attempts. Reset the course to try again.
+                                </p>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                     
                     <!-- Previous Attempts -->
@@ -824,5 +939,48 @@ $previousAttempts = $stmt->fetchAll();
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Retake course - reset progress
+        function retakeCourse() {
+            if (!confirm('This will reset all your progress in this course (PDF, video, and assessment attempts). Are you sure you want to continue?')) {
+                return;
+            }
+
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resetting...';
+
+            $.ajax({
+                url: window.location.href,
+                method: 'POST',
+                data: { reset_course: 1 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        // Show success message and redirect
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success mt-3';
+                        alertDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>Course reset successfully! Redirecting...';
+                        btn.parentNode.appendChild(alertDiv);
+                        
+                        setTimeout(() => {
+                            const courseId = <?= $assessment['course_id'] ?>;
+                            window.location.href = `course_view.php?id=${courseId}`;
+                        }, 2000);
+                    } else {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        alert(response.message || 'Failed to reset course');
+                    }
+                },
+                error: function() {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    alert('Error resetting course. Please try again.');
+                }
+            });
+        }
+    </script>
 </body>
 </html>

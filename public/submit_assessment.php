@@ -1,4 +1,14 @@
 <?php
+
+// Add at the very top of submit_assessment.php
+error_log("=== SUBMIT ASSESSMENT CALLED ===");
+error_log("REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
+error_log("CONTENT_TYPE: " . ($_SERVER['CONTENT_TYPE'] ?? 'not set'));
+error_log("RAW INPUT: " . file_get_contents('php://input'));
+
+
+// ... rest of your code
+
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/functions.php';
