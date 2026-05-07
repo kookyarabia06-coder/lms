@@ -1,4 +1,3 @@
-
 <?php
 require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
@@ -454,12 +453,172 @@ foreach ($courses as &$course) {
         border-radius: 20px;
     }
 
+    /* ADDED: Custom Confirm Modal Styles */
+    .custom-confirm-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .custom-confirm-modal.active {
+        display: flex;
+    }
+
+    .custom-confirm-content {
+        background: white;
+        border-radius: 12px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .custom-confirm-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .custom-confirm-header i {
+        font-size: 22px;
+        color: #f59e0b;
+    }
+
+    .custom-confirm-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: #111827;
+    }
+
+    .custom-confirm-body {
+        padding: 20px 24px;
+    }
+
+    .custom-confirm-body p {
+        color: #4b5563;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 8px;
+    }
+
+    .custom-confirm-body .course-info {
+        background: #f9fafb;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 12px 0;
+        border-left: 3px solid #f59e0b;
+    }
+
+    .custom-confirm-body .course-info strong {
+        display: block;
+        color: #0f172a;
+        margin-bottom: 4px;
+        font-size: 14px;
+    }
+
+    .warning-note {
+        background: #fef3c7;
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 13px;
+        color: #92400e;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .warning-note i {
+        color: #f59e0b;
+    }
+
+    .custom-confirm-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .custom-confirm-footer button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .custom-confirm-footer .btn-cancel {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .custom-confirm-footer .btn-cancel:hover {
+        background: #e5e7eb;
+    }
+
+    .custom-confirm-footer .btn-confirm {
+        background: #28a745;
+        color: white;
+    }
+
+    .custom-confirm-footer .btn-confirm:hover {
+        background: #218838;
+    }
 </style>
 </head>
 <body>
 <div class="lms-sidebar-container">
 <?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
+
+<!-- ADDED: Custom Confirm Modal -->
+<div class="custom-confirm-modal" id="enrollConfirmModal">
+    <div class="custom-confirm-content">
+        <div class="custom-confirm-header">
+            <i class="fas fa-question-circle"></i>
+            <h3>Confirm Enrollment</h3>
+        </div>
+        <div class="custom-confirm-body">
+            <p>Are you sure you want to enroll in this course?</p>
+            <div class="course-info">
+                <strong id="confirmCourseTitle">Course Name</strong>
+            </div>
+            <div class="warning-note">
+                <i class="fas fa-info-circle"></i>
+                <span>You will be able to access all course materials once enrolled.</span>
+            </div>
+        </div>
+        <div class="custom-confirm-footer">
+            <button class="btn-cancel" id="cancelEnrollBtn">Cancel</button>
+            <button class="btn-confirm" id="confirmEnrollBtn">Enroll Now</button>
+        </div>
+    </div>
+</div>
+
 <div class="modern-courses-wrapper">
     <h2 class="modern-section-title">All Courses</h2>
     
@@ -773,11 +932,12 @@ foreach ($courses as &$course) {
                         </a>
                         
                     <?php elseif ($enroll_status === 'notenrolled'): ?>
-                        <!-- Enroll button -->
+                        <!-- Enroll button - MODIFIED: Removed confirm() and added data attributes for modal -->
                         <?php if ($canEnroll || $isAdmin || $isProponent): ?>
-                            <a href="<?= BASE_URL ?>/public/enroll.php?course_id=<?= $c['id'] ?>"
-                               class="modern-btn-primary modern-btn-sm"
-                               onclick="return confirm('Enroll in this course?');">
+                            <a href="javascript:void(0)"
+                               class="modern-btn-primary modern-btn-sm enroll-link"
+                               data-course-id="<?= $c['id'] ?>"
+                               data-course-title="<?= htmlspecialchars($c['title']) ?>">
                                 <i class="fas fa-sign-in-alt"></i> Enroll Now
                             </a>
                         <?php else: ?>
@@ -821,6 +981,63 @@ foreach ($courses as &$course) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ADDED: Custom Confirm Modal for Enrollment
+const enrollModal = document.getElementById('enrollConfirmModal');
+const confirmCourseTitle = document.getElementById('confirmCourseTitle');
+const confirmEnrollBtn = document.getElementById('confirmEnrollBtn');
+const cancelEnrollBtn = document.getElementById('cancelEnrollBtn');
+
+let pendingEnrollUrl = null;
+
+function closeEnrollModal() {
+    enrollModal.classList.remove('active');
+    pendingEnrollUrl = null;
+}
+
+function showEnrollModal(courseId, courseTitle) {
+    confirmCourseTitle.textContent = courseTitle;
+    pendingEnrollUrl = '<?= BASE_URL ?>/public/enroll.php?course_id=' + courseId;
+    enrollModal.classList.add('active');
+}
+
+// Confirm enroll button
+if (confirmEnrollBtn) {
+    confirmEnrollBtn.onclick = function() {
+        if (pendingEnrollUrl) {
+            window.location.href = pendingEnrollUrl;
+        }
+    };
+}
+
+// Cancel button
+if (cancelEnrollBtn) {
+    cancelEnrollBtn.onclick = closeEnrollModal;
+}
+
+// Close modal when clicking outside
+enrollModal.addEventListener('click', function(e) {
+    if (e.target === enrollModal) {
+        closeEnrollModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && enrollModal.classList.contains('active')) {
+        closeEnrollModal();
+    }
+});
+
+// Override enroll links - REPLACES the confirm() popup
+document.querySelectorAll('.enroll-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const courseId = this.getAttribute('data-course-id');
+        const courseTitle = this.getAttribute('data-course-title');
+        showEnrollModal(courseId, courseTitle);
+    });
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));

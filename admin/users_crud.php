@@ -536,6 +536,146 @@ $totalPending = count($pendingUsers);
         border-radius: 10px;
         margin-left: 5px;
     }
+    
+    /* ADDED: Delete Confirmation Modal Styles */
+    .delete-confirm-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .delete-confirm-modal.active {
+        display: flex;
+    }
+
+    .delete-confirm-content {
+        background: white;
+        border-radius: 12px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .delete-confirm-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .delete-confirm-header i {
+        font-size: 22px;
+        color: #dc3545;
+    }
+
+    .delete-confirm-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: #111827;
+    }
+
+    .delete-confirm-body {
+        padding: 20px 24px;
+    }
+
+    .delete-confirm-body p {
+        color: #4b5563;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 16px;
+    }
+
+    .delete-confirm-body .user-info {
+        background: #f9fafb;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 12px 0;
+        border-left: 3px solid #dc3545;
+    }
+
+    .delete-confirm-body .user-info strong {
+        display: block;
+        color: #0f172a;
+        margin-bottom: 4px;
+    }
+
+    .delete-confirm-body .user-info small {
+        color: #64748b;
+        font-size: 12px;
+    }
+
+    .warning-note {
+        background: #fef3c7;
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 13px;
+        color: #92400e;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .warning-note i {
+        color: #f59e0b;
+    }
+
+    .delete-confirm-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .delete-confirm-footer button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .delete-confirm-footer .btn-cancel-delete {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .delete-confirm-footer .btn-cancel-delete:hover {
+        background: #e5e7eb;
+    }
+
+    .delete-confirm-footer .btn-confirm-delete {
+        background: #dc3545;
+        color: white;
+    }
+
+    .delete-confirm-footer .btn-confirm-delete:hover {
+        background: #c82333;
+    }
 </style>
 </head>
 
@@ -914,6 +1054,31 @@ $totalPending = count($pendingUsers);
     </div>
 </div>
 
+<!-- ADDED: Custom Delete Confirmation Modal -->
+<div class="delete-confirm-modal" id="deleteConfirmModal">
+    <div class="delete-confirm-content">
+        <div class="delete-confirm-header">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Delete User</h3>
+        </div>
+        <div class="delete-confirm-body">
+            <p>Are you sure you want to delete this user?</p>
+            <div class="user-info">
+                <strong id="deleteUserName">User Name</strong>
+                <small id="deleteUserRole">Role: User</small>
+            </div>
+            <div class="warning-note">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Warning: This action cannot be undone. All user data including training records will be permanently deleted.</span>
+            </div>
+        </div>
+        <div class="delete-confirm-footer">
+            <button class="btn-cancel-delete" id="cancelDeleteBtn">Cancel</button>
+            <button class="btn-confirm-delete" id="confirmDeleteBtn">Delete User</button>
+        </div>
+    </div>
+</div>
+
 <!-- Pending Users Table -->
 <div class="card shadow-sm mb-4">
 <div class="card-header d-flex justify-content-between align-items-center">
@@ -974,7 +1139,6 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
             <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden;">
                 <?php 
                 $displayDivisions = [$division];
-                $remainingDivisions = 0;
                 foreach ($displayDivisions as $div): 
                 ?>
                     <span class="badge-item" style="background-color: #6610f2; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -990,19 +1154,16 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
         <?php if (!empty($combinedItems)): ?>
             <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden; max-width: 100%;">
                 <?php 
-                // Show only the first item
                 $firstItem = $combinedItems[0];
                 $badgeClass = $isStudent ? 'badge-department' : 'badge-committee';
                 $remainingCount = count($combinedItems) - 1;
                 ?>
                 
-                <!-- First item badge -->
                 <span class="badge-item <?= $badgeClass ?>" 
                     style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 4px; font-size: 11px;">
                     <?= htmlspecialchars($firstItem) ?>
                 </span>
                 
-                <!-- Counter badge for remaining items -->
                 <?php if ($remainingCount > 0): ?>
                     <span class="badge-count" style="background-color: #6c757d; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">
                         +<?= $remainingCount ?>
@@ -1021,13 +1182,13 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
         </span>
     </td>
     <td class="table-actions">
-        <a href="?act=confirm&id=<?= $u['id'] ?>" 
-           onclick="return confirm('Confirm <?= htmlspecialchars($u['username']) ?>?')" 
+        <a href="javascript:void(0)" 
+           onclick="showConfirmModal('Approve <?= htmlspecialchars($u['username']) ?>?', '?act=confirm&id=<?= $u['id'] ?>')" 
            class="btn btn-success btn-sm">
             <i class="fas fa-check"></i> Approve
         </a>
-        <a href="?act=reject&id=<?= $u['id'] ?>" 
-           onclick="return confirm('Reject and delete <?= htmlspecialchars($u['username']) ?>?')" 
+        <a href="javascript:void(0)" 
+           onclick="showConfirmModal('Reject and delete <?= htmlspecialchars($u['username']) ?>?', '?act=reject&id=<?= $u['id'] ?>')" 
            class="btn btn-danger btn-sm">
             <i class="fas fa-times"></i> Reject
         </a>
@@ -1116,20 +1277,17 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
             <?php if (!empty($combinedItems)): ?>
                 <div class="badge-container" style="display: flex; gap: 4px; overflow: hidden; max-width: 100%;">
                     <?php 
-                    // Show only the first item
                     $firstItem = $combinedItems[0];
                     $isDepartment = in_array($firstItem, $deptNames);
                     $badgeClass = $isDepartment ? 'badge-department' : 'badge-committee';
                     $remainingCount = count($combinedItems) - 1;
                     ?>
                     
-                    <!-- First item badge -->
                     <span class="badge-item <?= $badgeClass ?>" 
                         style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 4px; font-size: 11px;">
                         <?= htmlspecialchars($firstItem) ?>
                     </span>
                     
-                    <!-- Counter badge for remaining items -->
                     <?php if ($remainingCount > 0): ?>
                         <span class="badge-count" style="background-color: #6c757d; color: white; padding: 5px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">
                             +<?= $remainingCount ?>
@@ -1162,9 +1320,12 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
             <a href="?act=edit&id=<?= $u['id'] ?>" class="btn btn-primary btn-sm" title="Edit user">
                 <i class="fas fa-edit"></i>
             </a>
-            <a href="?act=delete&id=<?= $u['id'] ?>" 
-               onclick="return confirm('Are you sure you want to delete user <?= htmlspecialchars($u['username']) ?>? This action cannot be undone.')" 
-               class="btn btn-danger btn-sm" title="Delete user">
+            <a href="javascript:void(0)" 
+               class="btn btn-danger btn-sm delete-link" 
+               title="Delete user"
+               data-user-id="<?= $u['id'] ?>"
+               data-user-name="<?= htmlspecialchars($u['username']) ?>"
+               data-user-role="<?= $u['role'] ?>">
                 <i class="fas fa-trash"></i>
             </a>
         </td>
@@ -1182,18 +1343,119 @@ Pending Confirmation (<?= count($pendingUsers) ?>)
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ADDED: Custom Delete Modal Logic
+const deleteModal = document.getElementById('deleteConfirmModal');
+const deleteUserName = document.getElementById('deleteUserName');
+const deleteUserRole = document.getElementById('deleteUserRole');
+const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+let pendingDeleteUrl = null;
+let pendingActionUrl = null;
+
+// Function to close modal
+function closeDeleteModal() {
+    deleteModal.classList.remove('active');
+    pendingDeleteUrl = null;
+    pendingActionUrl = null;
+}
+
+// Function to show delete modal
+function showDeleteModal(userId, userName, userRole) {
+    deleteUserName.textContent = userName;
+    deleteUserRole.textContent = 'Role: ' + (userRole === 'admin' ? 'Admin' : (userRole === 'proponent' ? 'Proponent' : 'Student'));
+    pendingDeleteUrl = '?act=delete&id=' + userId;
+    deleteModal.classList.add('active');
+}
+
+// Function to show confirmation modal for approve/reject actions
+function showConfirmModal(message, url) {
+    deleteUserName.textContent = message;
+    deleteUserRole.textContent = 'This action cannot be undone.';
+    pendingActionUrl = url;
+    deleteModal.classList.add('active');
+    // Change header for action confirmations
+    const modalHeader = document.querySelector('#deleteConfirmModal .delete-confirm-header h3');
+    if (modalHeader) {
+        modalHeader.textContent = 'Confirm Action';
+    }
+    const deleteBtn = document.querySelector('#confirmDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.textContent = 'Confirm';
+    }
+}
+
+// Reset modal to delete mode
+function resetModalToDeleteMode() {
+    const modalHeader = document.querySelector('#deleteConfirmModal .delete-confirm-header h3');
+    if (modalHeader) {
+        modalHeader.textContent = 'Delete User';
+    }
+    const deleteBtn = document.querySelector('#confirmDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.textContent = 'Delete User';
+    }
+}
+
+// Confirm delete button
+if (confirmDeleteBtn) {
+    confirmDeleteBtn.onclick = function() {
+        if (pendingDeleteUrl) {
+            window.location.href = pendingDeleteUrl;
+        } else if (pendingActionUrl) {
+            window.location.href = pendingActionUrl;
+        }
+    };
+}
+
+// Cancel button
+if (cancelDeleteBtn) {
+    cancelDeleteBtn.onclick = function() {
+        closeDeleteModal();
+        resetModalToDeleteMode();
+    };
+}
+
+// Close modal when clicking outside
+deleteModal.addEventListener('click', function(e) {
+    if (e.target === deleteModal) {
+        closeDeleteModal();
+        resetModalToDeleteMode();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && deleteModal.classList.contains('active')) {
+        closeDeleteModal();
+        resetModalToDeleteMode();
+    }
+});
+
+// Override delete links for confirmed users
+document.querySelectorAll('.delete-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const userId = this.getAttribute('data-user-id');
+        const userName = this.getAttribute('data-user-name');
+        const userRole = this.getAttribute('data-user-role');
+        resetModalToDeleteMode();
+        showDeleteModal(userId, userName, userRole);
+    });
+});
+
 function enablePassword() {
-document.getElementById('passwordField').disabled = false;
-document.getElementById('passwordField').focus();
+    document.getElementById('passwordField').disabled = false;
+    document.getElementById('passwordField').focus();
 }
 
 setTimeout(function() {
-let alerts = document.querySelectorAll('.alert');
-alerts.forEach(alert => {
-alert.style.transition = 'opacity 0.5s';
-alert.style.opacity = '0';
-setTimeout(() => alert.remove(), 500);
-});
+    let alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        alert.style.transition = 'opacity 0.5s';
+        alert.style.opacity = '0';
+        setTimeout(() => alert.remove(), 500);
+    });
 }, 3000);
 
 // Role-based visibility for Add Form
@@ -1246,11 +1508,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const divisionId = this.value;
             
             if (divisionId) {
-                // Enable department dropdown
                 departmentSelectAdd.disabled = false;
                 departmentSelectAdd.innerHTML = '<option value="">Loading...</option>';
                 
-                // Fetch departments for this division via AJAX
                 fetch(`get_departments.php?division_id=${divisionId}`)
                     .then(response => response.json())
                     .then(data => {
@@ -1279,11 +1539,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const divisionId = this.value;
             
             if (divisionId) {
-                // Enable department dropdown
                 departmentSelectEdit.disabled = false;
                 departmentSelectEdit.innerHTML = '<option value="">Loading...</option>';
                 
-                // Fetch departments for this division via AJAX
                 fetch(`get_departments.php?division_id=${divisionId}`)
                     .then(response => response.json())
                     .then(data => {
@@ -1300,19 +1558,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 departmentSelectEdit.disabled = true;
                 departmentSelectEdit.innerHTML = '<option value="">-- First select a division --</option>';
             }
-        });
-    }
-
-    // Add Department button functionality
-    const addDepartmentBtnAdd = document.getElementById('addDepartmentBtnAdd');
-    if (addDepartmentBtnAdd) {
-        addDepartmentBtnAdd.addEventListener('click', function() {
-            // Clone the department select and add it to the form
-            const deptSelect = document.getElementById('departmentSelectAdd').cloneNode(true);
-            deptSelect.value = '';
-            deptSelect.id = 'departmentSelectAdd_' + Date.now();
-            deptSelect.name = 'departments[]';
-            document.getElementById('selectedDepartmentsAdd').appendChild(deptSelect);
         });
     }
 
@@ -1400,11 +1645,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const items = this.getAttribute('data-items');
             if (!items || items === '') return;
             
-            // Create tooltip
             const tooltip = document.createElement('div');
             tooltip.className = 'custom-tooltip';
             
-            // Format items nicely with line breaks for better readability
             const itemList = items.split(', ');
             let formattedItems = '';
             itemList.forEach(item => {
@@ -1415,7 +1658,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(tooltip);
             this._tooltip = tooltip;
             
-            // Position tooltip
             const rect = this.getBoundingClientRect();
             tooltip.style.top = (rect.top - 10) + 'px';
             tooltip.style.left = (rect.left + (rect.width / 2)) + 'px';
@@ -1432,11 +1674,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function removeDepartment(btn, deptId) {
-    // Remove the department badge
     btn.parentElement.remove();
-    
-    // You might want to add the department ID to a hidden field for removal
-    // This would require additional implementation
 }
 </script>
 

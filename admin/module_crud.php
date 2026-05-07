@@ -386,7 +386,7 @@ $max_upload_size = ini_get('upload_max_filesize');
             margin-top: 8px;
         }
 
-                /* Committee styling - matching course cards */
+        /* Committee styling - matching course cards */
         .committee-container {
             margin: 10px 0;
             padding: 5px 0;
@@ -401,7 +401,7 @@ $max_upload_size = ini_get('upload_max_filesize');
             font-weight: 600;
         }
 
-        .committee-badge {
+        .committee-badge-module {
             display: inline-block;
             background-color: #8227a9;
             color: white;
@@ -410,7 +410,146 @@ $max_upload_size = ini_get('upload_max_filesize');
             font-size: 11px;
             font-weight: 500;
         }
-        
+
+        /* ADDED: Custom Modal CSS for Module Delete Confirmation */
+        .module-delete-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .module-delete-modal.active {
+            display: flex;
+        }
+
+        .module-delete-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .module-delete-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .module-delete-header i {
+            font-size: 22px;
+            color: #dc3545;
+        }
+
+        .module-delete-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .module-delete-body {
+            padding: 20px 24px;
+        }
+
+        .module-delete-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .module-delete-body .module-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #dc3545;
+        }
+
+        .module-delete-body .module-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .module-delete-body .module-info small {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .module-warning-note {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .module-warning-note i {
+            color: #f59e0b;
+        }
+
+        .module-delete-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .module-delete-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .module-delete-footer .btn-cancel-module {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .module-delete-footer .btn-cancel-module:hover {
+            background: #e5e7eb;
+        }
+
+        .module-delete-footer .btn-confirm-module {
+            background: #dc3545;
+            color: white;
+        }
+
+        .module-delete-footer .btn-confirm-module:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -537,7 +676,7 @@ $max_upload_size = ini_get('upload_max_filesize');
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Thumbnail (Max: <?= $max_upload_size ?>)</label>
-                        <input type="file" name="thumbnail" class="form-control" accept="image/jpeg,image/png,image/webm">
+                        <input type="file" name="thumbnail" class="form-control" accept="image/jpeg,image/png,image/webp">
                         <?php if ($edit_module['thumbnail']): ?>
                             <small class="text-muted d-block mt-1">Current: <?= htmlspecialchars($edit_module['thumbnail']) ?> (leave empty to keep)</small>
                         <?php endif; ?>
@@ -600,7 +739,7 @@ $max_upload_size = ini_get('upload_max_filesize');
                                     </div>
                                     <div>
                                         <?php if ($mod['committee_name']): ?>
-                                            <span class="committee-badge" style="background-color: #8227a9; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
+                                            <span class="committee-badge-module" style="background-color: #8227a9; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">
                                                 <?= htmlspecialchars($mod['committee_name']) ?>
                                             </span>
                                         <?php else: ?>
@@ -622,8 +761,10 @@ $max_upload_size = ini_get('upload_max_filesize');
                                         <a href="?act=edit&id=<?= $mod['id'] ?>" class="modern-btn-warning modern-btn-sm">
                                             <i class="fas fa-edit"></i> Edit
                                         </a>
-                                        <a href="?act=delete&id=<?= $mod['id'] ?>" class="modern-btn-danger modern-btn-sm" 
-                                        onclick="return confirm('Delete this module? This action cannot be undone.')">
+                                        <a href="?act=delete&id=<?= $mod['id'] ?>" class="modern-btn-danger modern-btn-sm delete-module-link" 
+                                           data-module-id="<?= $mod['id'] ?>"
+                                           data-module-title="<?= htmlspecialchars($mod['title']) ?>"
+                                           data-module-creator="<?= htmlspecialchars($mod['creator_name'] ?? 'Unknown') ?>">
                                             <i class="fas fa-trash"></i> Delete
                                         </a>
                                     <?php endif; ?>
@@ -641,6 +782,31 @@ $max_upload_size = ini_get('upload_max_filesize');
                 </div>
             <?php endif; ?>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- ADDED: Custom Module Delete Confirmation Modal -->
+<div class="module-delete-modal" id="moduleDeleteModal">
+    <div class="module-delete-content">
+        <div class="module-delete-header">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Delete Module</h3>
+        </div>
+        <div class="module-delete-body">
+            <p>Are you sure you want to delete this module?</p>
+            <div class="module-info">
+                <strong id="deleteModuleName">Module Name</strong>
+                <small id="deleteModuleCreator">Created by: Creator</small>
+            </div>
+            <div class="module-warning-note">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Warning: This action cannot be undone. This will permanently delete the module and all associated files.</span>
+            </div>
+        </div>
+        <div class="module-delete-footer">
+            <button class="btn-cancel-module" id="cancelModuleDeleteBtn">Cancel</button>
+            <button class="btn-confirm-module" id="confirmModuleDeleteBtn">Delete Module</button>
+        </div>
     </div>
 </div>
 
@@ -690,6 +856,70 @@ $max_upload_size = ini_get('upload_max_filesize');
             }
         });
     }
+
+    // ADDED: Custom Module Delete Modal Logic
+    const moduleDeleteModal = document.getElementById('moduleDeleteModal');
+    const deleteModuleName = document.getElementById('deleteModuleName');
+    const deleteModuleCreator = document.getElementById('deleteModuleCreator');
+    const confirmModuleDeleteBtn = document.getElementById('confirmModuleDeleteBtn');
+    const cancelModuleDeleteBtn = document.getElementById('cancelModuleDeleteBtn');
+    
+    let pendingModuleDeleteUrl = null;
+
+    // Function to close modal
+    function closeModuleDeleteModal() {
+        moduleDeleteModal.classList.remove('active');
+        pendingModuleDeleteUrl = null;
+    }
+
+    // Function to show delete modal
+    function showModuleDeleteModal(moduleId, moduleTitle, moduleCreator) {
+        deleteModuleName.textContent = moduleTitle;
+        deleteModuleCreator.textContent = 'Created by: ' + moduleCreator;
+        pendingModuleDeleteUrl = '?act=delete&id=' + moduleId;
+        moduleDeleteModal.classList.add('active');
+    }
+
+    // Confirm delete button
+    if (confirmModuleDeleteBtn) {
+        confirmModuleDeleteBtn.onclick = function() {
+            if (pendingModuleDeleteUrl) {
+                window.location.href = pendingModuleDeleteUrl;
+            }
+        };
+    }
+
+    // Cancel button
+    if (cancelModuleDeleteBtn) {
+        cancelModuleDeleteBtn.onclick = closeModuleDeleteModal;
+    }
+
+    // Close modal when clicking outside
+    if (moduleDeleteModal) {
+        moduleDeleteModal.addEventListener('click', function(e) {
+            if (e.target === moduleDeleteModal) {
+                closeModuleDeleteModal();
+            }
+        });
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && moduleDeleteModal && moduleDeleteModal.classList.contains('active')) {
+            closeModuleDeleteModal();
+        }
+    });
+
+    // Override delete links
+    document.querySelectorAll('.delete-module-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const moduleId = this.getAttribute('data-module-id');
+            const moduleTitle = this.getAttribute('data-module-title');
+            const moduleCreator = this.getAttribute('data-module-creator');
+            showModuleDeleteModal(moduleId, moduleTitle, moduleCreator);
+        });
+    });
 </script>
 </body>
 </html>

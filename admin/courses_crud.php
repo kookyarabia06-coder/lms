@@ -500,6 +500,149 @@ $max_post_size = ini_get('post_max_size');
     <link rel="icon" type="image/png" sizes="16x16" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
     <link rel="shortcut icon" href="<?= BASE_URL ?>/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="<?= BASE_URL ?>/uploads/images/armmc-logo.png?v=1">
+    
+    <!-- ADDED: Custom Modal CSS -->
+    <style>
+        /* Delete Confirmation Modal */
+        .delete-confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .delete-confirm-modal.active {
+            display: flex;
+        }
+
+        .delete-confirm-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .delete-confirm-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .delete-confirm-header i {
+            font-size: 22px;
+            color: #dc3545;
+        }
+
+        .delete-confirm-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .delete-confirm-body {
+            padding: 20px 24px;
+        }
+
+        .delete-confirm-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .delete-confirm-body .course-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #dc3545;
+        }
+
+        .delete-confirm-body .course-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .delete-confirm-body .course-info small {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .warning-note {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .warning-note i {
+            color: #f59e0b;
+        }
+
+        .delete-confirm-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .delete-confirm-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .delete-confirm-footer .btn-cancel-delete {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .delete-confirm-footer .btn-cancel-delete:hover {
+            background: #e5e7eb;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete:hover {
+            background: #c82333;
+        }
+    </style>
 </head>
 <body>
 
@@ -844,8 +987,10 @@ $max_post_size = ini_get('post_max_size');
 
                         <?php if (canModifyCourse($c['id'], $pdo)): ?>
                             <a href="?act=edit&id=<?= $c['id'] ?>" class="modern-btn-warning modern-btn-sm">Edit</a>
-                            <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm"
-                                onclick="return confirm('Delete this course? This will also delete all associated assessments.')">Delete</a>
+                            <a href="?act=delete&id=<?= $c['id'] ?>" class="modern-btn-danger modern-btn-sm delete-link"
+                               data-course-id="<?= $c['id'] ?>"
+                               data-course-title="<?= htmlspecialchars($c['title']) ?>"
+                               data-course-author="<?= htmlspecialchars($c['username'] ?? 'Unknown') ?>">Delete</a>
                         <?php else: ?>
                             <span class="btn btn-secondary btn-sm" disabled>Read Only</span>
                         <?php endif; ?>
@@ -860,7 +1005,31 @@ $max_post_size = ini_get('post_max_size');
 
 </div>
 
+<!-- ADDED: Custom Delete Confirmation Modal -->
+<div class="delete-confirm-modal" id="deleteConfirmModal">
+    <div class="delete-confirm-content">
+        <div class="delete-confirm-header">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Delete Course</h3>
+        </div>
+        <div class="delete-confirm-body">
+            <p>Are you sure you want to delete this course?</p>
+            <div class="course-info">
+                <strong id="deleteCourseName">Course Name</strong>
+                <small id="deleteCourseAuthor">Created by: Author</small>
+            </div>
+            <div class="warning-note">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Warning: This action cannot be undone. This will also delete all associated assessments and learning materials.</span>
+            </div>
+        </div>
+        <div class="delete-confirm-footer">
+            <button class="btn-cancel-delete" id="cancelDeleteBtn">Cancel</button>
+            <button class="btn-confirm-delete" id="confirmDeleteBtn">Delete Course</button>
+        </div>
+    </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -910,6 +1079,68 @@ document.addEventListener('DOMContentLoaded', function () {
             const bsAlert = new bootstrap.Alert(alert);
             bsAlert.close();
         }, 5000);
+    });
+
+    // ADDED: Custom Delete Modal Logic
+    const deleteModal = document.getElementById('deleteConfirmModal');
+    const deleteCourseName = document.getElementById('deleteCourseName');
+    const deleteCourseAuthor = document.getElementById('deleteCourseAuthor');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    
+    let pendingDeleteUrl = null;
+
+    // Function to close modal
+    function closeDeleteModal() {
+        deleteModal.classList.remove('active');
+        pendingDeleteUrl = null;
+    }
+
+    // Function to show delete modal
+    function showDeleteModal(courseId, courseTitle, courseAuthor) {
+        deleteCourseName.textContent = courseTitle;
+        deleteCourseAuthor.textContent = 'Created by: ' + courseAuthor;
+        pendingDeleteUrl = '?act=delete&id=' + courseId;
+        deleteModal.classList.add('active');
+    }
+
+    // Confirm delete button
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.onclick = function() {
+            if (pendingDeleteUrl) {
+                window.location.href = pendingDeleteUrl;
+            }
+        };
+    }
+
+    // Cancel button
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.onclick = closeDeleteModal;
+    }
+
+    // Close modal when clicking outside
+    deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) {
+            closeDeleteModal();
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && deleteModal.classList.contains('active')) {
+            closeDeleteModal();
+        }
+    });
+
+    // Override delete links
+    document.querySelectorAll('.delete-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const courseId = this.getAttribute('data-course-id');
+            const courseTitle = this.getAttribute('data-course-title');
+            const courseAuthor = this.getAttribute('data-course-author');
+            showDeleteModal(courseId, courseTitle, courseAuthor);
+        });
     });
 });
 </script>

@@ -406,6 +406,146 @@ unset($_SESSION['success'], $_SESSION['error']);
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        /* ADDED: Delete Confirmation Modal Styles */
+        .delete-confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .delete-confirm-modal.active {
+            display: flex;
+        }
+
+        .delete-confirm-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .delete-confirm-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .delete-confirm-header i {
+            font-size: 22px;
+            color: #dc3545;
+        }
+
+        .delete-confirm-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .delete-confirm-body {
+            padding: 20px 24px;
+        }
+
+        .delete-confirm-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .delete-confirm-body .item-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #dc3545;
+        }
+
+        .delete-confirm-body .item-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .delete-confirm-body .item-info small {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .warning-note {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .warning-note i {
+            color: #f59e0b;
+        }
+
+        .delete-confirm-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .delete-confirm-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .delete-confirm-footer .btn-cancel-delete {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .delete-confirm-footer .btn-cancel-delete:hover {
+            background: #e5e7eb;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -517,7 +657,7 @@ unset($_SESSION['success'], $_SESSION['error']);
                                                 </thead>
                                             <tbody>
                                                 <?php foreach ($departments as $dept): ?>
-                                                <tr>
+                                                <tr data-dept-id="<?= $dept['id'] ?>" data-dept-name="<?= htmlspecialchars($dept['name']) ?>">
                                                     <td class="text-truncate" style="max-width: 200px;" title="<?= htmlspecialchars($dept['name']) ?>">
                                                         <?= htmlspecialchars($dept['name']) ?>
                                                     </td>
@@ -529,9 +669,12 @@ unset($_SESSION['success'], $_SESSION['error']);
                                                             <button class="btn-action btn-edit" onclick="openEditDepartmentModal(<?= $dept['id'] ?>, '<?= htmlspecialchars(addslashes($dept['name'])) ?>', '<?= htmlspecialchars(addslashes($dept['description'] ?? '')) ?>')">
                                                                 <i class="fas fa-edit"></i> Edit
                                                             </button>
-                                                            <a href="?delete_dept_id=<?= $dept['id'] ?>" class="btn-action btn-delete" onclick="return confirm('Are you sure you want to delete this department? This action cannot be undone.')">
+                                                            <button class="btn-action btn-delete delete-dept-btn" 
+                                                                    data-id="<?= $dept['id'] ?>" 
+                                                                    data-name="<?= htmlspecialchars($dept['name']) ?>"
+                                                                    data-type="department">
                                                                 <i class="fas fa-trash"></i> Delete
-                                                            </a>
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -571,7 +714,7 @@ unset($_SESSION['success'], $_SESSION['error']);
                                 </thead>
                             <tbody>
                                 <?php foreach ($committees as $committee): ?>
-                                <tr>
+                                <tr data-comm-id="<?= $committee['id'] ?>" data-comm-name="<?= htmlspecialchars($committee['name']) ?>">
                                     <td class="text-truncate" style="max-width: 200px;" title="<?= htmlspecialchars($committee['name']) ?>">
                                         <?= htmlspecialchars($committee['name']) ?>
                                     </td>
@@ -583,9 +726,12 @@ unset($_SESSION['success'], $_SESSION['error']);
                                             <button class="btn-action btn-edit" onclick="openEditCommitteeModal(<?= $committee['id'] ?>, '<?= htmlspecialchars(addslashes($committee['name'])) ?>', '<?= htmlspecialchars(addslashes($committee['description'] ?? '')) ?>')">
                                                 <i class="fas fa-edit"></i> Edit
                                             </button>
-                                            <a href="?delete_comm_id=<?= $committee['id'] ?>" class="btn-action btn-delete" onclick="return confirm('Are you sure you want to delete this committee? This action cannot be undone.')">
+                                            <button class="btn-action btn-delete delete-comm-btn" 
+                                                    data-id="<?= $committee['id'] ?>" 
+                                                    data-name="<?= htmlspecialchars($committee['name']) ?>"
+                                                    data-type="committee">
                                                 <i class="fas fa-trash"></i> Delete
-                                            </a>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -602,6 +748,31 @@ unset($_SESSION['success'], $_SESSION['error']);
 <!-- ============================================ -->
 <!-- MODALS -->
 <!-- ============================================ -->
+
+<!-- ADDED: Custom Delete Confirmation Modal -->
+<div class="delete-confirm-modal" id="deleteConfirmModal">
+    <div class="delete-confirm-content">
+        <div class="delete-confirm-header">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3 id="deleteModalTitle">Delete Item</h3>
+        </div>
+        <div class="delete-confirm-body">
+            <p id="deleteModalMessage">Are you sure you want to delete this item?</p>
+            <div class="item-info">
+                <strong id="deleteItemName">Item Name</strong>
+                <small id="deleteItemType">Type: Item</small>
+            </div>
+            <div class="warning-note">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Warning: This action cannot be undone. All associated data will be permanently deleted.</span>
+            </div>
+        </div>
+        <div class="delete-confirm-footer">
+            <button class="btn-cancel-delete" id="cancelDeleteBtn">Cancel</button>
+            <button class="btn-confirm-delete" id="confirmDeleteBtn">Delete</button>
+        </div>
+    </div>
+</div>
 
 <!-- Add Department Modal -->
 <div class="modal fade" id="addDepartmentModal" tabindex="-1" aria-hidden="true">
@@ -724,6 +895,90 @@ unset($_SESSION['success'], $_SESSION['error']);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // ADDED: Custom Delete Modal Logic
+    const deleteModal = document.getElementById('deleteConfirmModal');
+    const deleteModalTitle = document.getElementById('deleteModalTitle');
+    const deleteModalMessage = document.getElementById('deleteModalMessage');
+    const deleteItemName = document.getElementById('deleteItemName');
+    const deleteItemType = document.getElementById('deleteItemType');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+    let pendingDeleteUrl = null;
+
+    // Function to close modal
+    function closeDeleteModal() {
+        deleteModal.classList.remove('active');
+        pendingDeleteUrl = null;
+    }
+
+    // Function to show delete modal
+    function showDeleteModal(itemId, itemName, itemType) {
+        let typeText = itemType === 'department' ? 'Department' : 'Committee';
+        deleteModalTitle.textContent = 'Delete ' + typeText;
+        deleteModalMessage.textContent = 'Are you sure you want to delete this ' + typeText.toLowerCase() + '?';
+        deleteItemName.textContent = itemName;
+        deleteItemType.textContent = 'Type: ' + typeText;
+        
+        if (itemType === 'department') {
+            pendingDeleteUrl = '?delete_dept_id=' + itemId;
+        } else {
+            pendingDeleteUrl = '?delete_comm_id=' + itemId;
+        }
+        
+        deleteModal.classList.add('active');
+    }
+
+    // Confirm delete button
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.onclick = function() {
+            if (pendingDeleteUrl) {
+                window.location.href = pendingDeleteUrl;
+            }
+        };
+    }
+
+    // Cancel button
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.onclick = function() {
+            closeDeleteModal();
+        };
+    }
+
+    // Close modal when clicking outside
+    deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) {
+            closeDeleteModal();
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && deleteModal.classList.contains('active')) {
+            closeDeleteModal();
+        }
+    });
+
+    // Override delete buttons for departments
+    document.querySelectorAll('.delete-dept-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const itemId = this.getAttribute('data-id');
+            const itemName = this.getAttribute('data-name');
+            showDeleteModal(itemId, itemName, 'department');
+        });
+    });
+
+    // Override delete buttons for committees
+    document.querySelectorAll('.delete-comm-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const itemId = this.getAttribute('data-id');
+            const itemName = this.getAttribute('data-name');
+            showDeleteModal(itemId, itemName, 'committee');
+        });
+    });
+
     // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {
         let alerts = document.querySelectorAll('.alert');

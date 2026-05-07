@@ -655,6 +655,146 @@ if ($filter === 'unread') {
             background: #d5d5d5;
         }
 
+        /* ADDED: Custom Delete Confirmation Modal for Contact Messages */
+        .contact-delete-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10001;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .contact-delete-modal.active {
+            display: flex;
+        }
+
+        .contact-delete-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .contact-delete-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .contact-delete-header i {
+            font-size: 22px;
+            color: #dc3545;
+        }
+
+        .contact-delete-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .contact-delete-body {
+            padding: 20px 24px;
+        }
+
+        .contact-delete-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .contact-delete-body .message-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #dc3545;
+        }
+
+        .contact-delete-body .message-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .contact-delete-body .message-info small {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .contact-warning-note {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .contact-warning-note i {
+            color: #f59e0b;
+        }
+
+        .contact-delete-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .contact-delete-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .contact-delete-footer .btn-cancel-contact {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .contact-delete-footer .btn-cancel-contact:hover {
+            background: #e5e7eb;
+        }
+
+        .contact-delete-footer .btn-confirm-contact {
+            background: #dc3545;
+            color: white;
+        }
+
+        .contact-delete-footer .btn-confirm-contact:hover {
+            background: #c82333;
+        }
+
         /* Responsive */
         @media (max-width: 1200px) {
             .message-preview {
@@ -810,7 +950,7 @@ if ($filter === 'unread') {
             <form method="POST" id="messageForm">
                 <div class="messages-container">
                     <?php foreach ($messages as $msg): ?>
-                        <div class="message-row <?= $msg['is_read'] ? '' : 'unread' ?>" data-id="<?= $msg['id'] ?>">
+                        <div class="message-row <?= $msg['is_read'] ? '' : 'unread' ?>" data-id="<?= $msg['id'] ?>" data-name="<?= htmlspecialchars($msg['name']) ?>" data-subject="<?= htmlspecialchars($msg['subject']) ?>">
                             <input type="checkbox" name="selected_ids[]" value="<?= $msg['id'] ?>" class="message-checkbox" onchange="updateSelection()">
                             
                             <div class="sender-info">
@@ -845,10 +985,12 @@ if ($filter === 'unread') {
                                     <i class="fas fa-reply"></i>
                                 </a>
                                 
-                                <a href="?action=delete&id=<?= $msg['id'] ?>&filter=<?= $filter ?>" 
-                                   class="action-btn delete" 
+                                <a href="#" 
+                                   class="action-btn delete delete-message-link" 
                                    title="Delete"
-                                   onclick="return confirm('Are you sure you want to delete this message? This action cannot be undone.')">
+                                   data-message-id="<?= $msg['id'] ?>"
+                                   data-message-subject="<?= htmlspecialchars($msg['subject']) ?>"
+                                   data-message-sender="<?= htmlspecialchars($msg['name']) ?>">
                                     <i class="fas fa-trash"></i>
                                 </a>
                             </div>
@@ -885,6 +1027,31 @@ if ($filter === 'unread') {
                 <button class="action-btn close" onclick="closeMessageModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADDED: Custom Delete Confirmation Modal for Contact Messages -->
+    <div class="contact-delete-modal" id="contactDeleteModal">
+        <div class="contact-delete-content">
+            <div class="contact-delete-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Delete Message</h3>
+            </div>
+            <div class="contact-delete-body">
+                <p>Are you sure you want to delete this message?</p>
+                <div class="message-info">
+                    <strong id="deleteMessageSubject">Message Subject</strong>
+                    <small id="deleteMessageSender">From: Sender</small>
+                </div>
+                <div class="contact-warning-note">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>Warning: This action cannot be undone. The message will be permanently deleted.</span>
+                </div>
+            </div>
+            <div class="contact-delete-footer">
+                <button class="btn-cancel-contact" id="cancelContactDeleteBtn">Cancel</button>
+                <button class="btn-confirm-contact" id="confirmContactDeleteBtn">Delete Message</button>
             </div>
         </div>
     </div>
@@ -999,7 +1166,7 @@ if ($filter === 'unread') {
             form.submit();
         }
 
-        // Modal functions
+        // Modal functions for message view
         function showMessageDetails(messageId) {
             const msg = messageData[messageId];
             if (!msg) return;
@@ -1032,6 +1199,10 @@ if ($filter === 'unread') {
             if (event.target == modal) {
                 closeMessageModal();
             }
+            const deleteModal = document.getElementById('contactDeleteModal');
+            if (event.target == deleteModal) {
+                closeContactDeleteModal();
+            }
         }
 
         // Click on message row to view details
@@ -1051,7 +1222,59 @@ if ($filter === 'unread') {
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeMessageModal();
+                closeContactDeleteModal();
             }
+        });
+
+        // ADDED: Custom Delete Modal Logic for Contact Messages
+        const contactDeleteModal = document.getElementById('contactDeleteModal');
+        const deleteMessageSubject = document.getElementById('deleteMessageSubject');
+        const deleteMessageSender = document.getElementById('deleteMessageSender');
+        const confirmContactDeleteBtn = document.getElementById('confirmContactDeleteBtn');
+        const cancelContactDeleteBtn = document.getElementById('cancelContactDeleteBtn');
+        
+        let pendingDeleteUrl = null;
+
+        // Function to close modal
+        function closeContactDeleteModal() {
+            if (contactDeleteModal) {
+                contactDeleteModal.classList.remove('active');
+            }
+            pendingDeleteUrl = null;
+        }
+
+        // Function to show delete modal
+        function showContactDeleteModal(messageId, messageSubject, messageSender) {
+            deleteMessageSubject.textContent = messageSubject;
+            deleteMessageSender.textContent = 'From: ' + messageSender;
+            pendingDeleteUrl = '?action=delete&id=' + messageId + '&filter=<?= $filter ?>';
+            contactDeleteModal.classList.add('active');
+        }
+
+        // Confirm delete button
+        if (confirmContactDeleteBtn) {
+            confirmContactDeleteBtn.onclick = function() {
+                if (pendingDeleteUrl) {
+                    window.location.href = pendingDeleteUrl;
+                }
+            };
+        }
+
+        // Cancel button
+        if (cancelContactDeleteBtn) {
+            cancelContactDeleteBtn.onclick = closeContactDeleteModal;
+        }
+
+        // Override delete links
+        document.querySelectorAll('.delete-message-link').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const messageId = this.getAttribute('data-message-id');
+                const messageSubject = this.getAttribute('data-message-subject');
+                const messageSender = this.getAttribute('data-message-sender');
+                showContactDeleteModal(messageId, messageSubject, messageSender);
+            });
         });
     </script>
 </body>

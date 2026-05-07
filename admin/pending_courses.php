@@ -686,6 +686,146 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
             position: relative;
         }
 
+        /* ADDED: Custom Modal CSS for Course Approval */
+        .course-confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .course-confirm-modal.active {
+            display: flex;
+        }
+
+        .course-confirm-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .course-confirm-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .course-confirm-header i {
+            font-size: 22px;
+        }
+
+        .course-confirm-header.approve i {
+            color: #10b981;
+        }
+
+        .course-confirm-header.reject i {
+            color: #ef4444;
+        }
+
+        .course-confirm-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .course-confirm-body {
+            padding: 20px 24px;
+        }
+
+        .course-confirm-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .course-confirm-body .course-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .course-confirm-body .course-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .course-confirm-body .course-info small {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .course-confirm-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .course-confirm-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .course-confirm-footer .btn-cancel-modal {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .course-confirm-footer .btn-cancel-modal:hover {
+            background: #e5e7eb;
+        }
+
+        .course-confirm-footer .btn-confirm-approve {
+            background: #10b981;
+            color: white;
+        }
+
+        .course-confirm-footer .btn-confirm-approve:hover {
+            background: #059669;
+        }
+
+        .course-confirm-footer .btn-confirm-reject {
+            background: #ef4444;
+            color: white;
+        }
+
+        .course-confirm-footer .btn-confirm-reject:hover {
+            background: #dc2626;
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .main-content {
@@ -793,7 +933,9 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                         $comm_stmt->execute([$course['id']]);
                         $committees = $comm_stmt->fetchAll();
                         ?>
-                        <tr>
+                        <tr data-course-id="<?= $course['id'] ?>" 
+                            data-course-title="<?= htmlspecialchars($course['title']) ?>" 
+                            data-course-author="<?= htmlspecialchars($course['fname'] ?? '') ?> <?= htmlspecialchars($course['lname'] ?? '') ?>">
                             <td><?= $course['id'] ?></td>
                             <td>
                                 <div class="course-title">
@@ -831,13 +973,17 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
                             <td>
                                 <div class="action-buttons">
                                     <a href="?approve=1&id=<?= $course['id'] ?>" 
-                                       class="btn-action btn-approve"
-                                       onclick="return confirm('Approve this course?')">
+                                       class="btn-action btn-approve approve-link"
+                                       data-course-id="<?= $course['id'] ?>"
+                                       data-course-title="<?= htmlspecialchars($course['title']) ?>"
+                                       data-course-author="<?= htmlspecialchars($course['fname'] ?? '') ?> <?= htmlspecialchars($course['lname'] ?? '') ?>">
                                         <i class="fas fa-check"></i> Approve
                                     </a>
                                     <a href="?reject=1&id=<?= $course['id'] ?>" 
-                                       class="btn-action btn-reject"
-                                       onclick="return confirm('Reject this course? This action cannot be undone.')">
+                                       class="btn-action btn-reject reject-link"
+                                       data-course-id="<?= $course['id'] ?>"
+                                       data-course-title="<?= htmlspecialchars($course['title']) ?>"
+                                       data-course-author="<?= htmlspecialchars($course['fname'] ?? '') ?> <?= htmlspecialchars($course['lname'] ?? '') ?>">
                                         <i class="fas fa-times"></i> Reject
                                     </a>
                                     <a href="<?= BASE_URL ?>/proponent/view_course.php?id=<?= $course['id'] ?>" 
@@ -970,7 +1116,128 @@ unset($_SESSION['success_message'], $_SESSION['error_message']);
     </div>
 </div>
 
+<!-- ADDED: Custom Modal for Course Approval/Rejection -->
+<div class="course-confirm-modal" id="courseConfirmModal">
+    <div class="course-confirm-content">
+        <div class="course-confirm-header" id="modalHeader">
+            <i class="fas fa-check-circle"></i>
+            <h3 id="modalTitle">Confirm Action</h3>
+        </div>
+        <div class="course-confirm-body">
+            <p id="modalMessage">Are you sure?</p>
+            <div class="course-info" id="courseInfo">
+                <strong id="courseName">Course Name</strong>
+                <small id="courseAuthor">Author</small>
+            </div>
+        </div>
+        <div class="course-confirm-footer">
+            <button class="btn-cancel-modal" id="cancelBtn">Cancel</button>
+            <button id="confirmBtn">Confirm</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    // Get modal elements
+    const modal = document.getElementById('courseConfirmModal');
+    const modalHeader = document.getElementById('modalHeader');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const courseName = document.getElementById('courseName');
+    const courseAuthor = document.getElementById('courseAuthor');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    let pendingUrl = null;
+    let pendingAction = null;
+    
+    // Close modal function
+    function closeModal() {
+        modal.classList.remove('active');
+        pendingUrl = null;
+        pendingAction = null;
+    }
+    
+    // Show approve modal
+    function showApproveModal(url, courseTitle, courseAuthorText) {
+        pendingUrl = url;
+        pendingAction = 'approve';
+        
+        modalHeader.className = 'course-confirm-header approve';
+        modalHeader.innerHTML = '<i class="fas fa-check-circle"></i><h3>Approve Course</h3>';
+        modalTitle.textContent = 'Approve Course';
+        modalMessage.textContent = 'Are you sure you want to approve this course?';
+        courseName.textContent = courseTitle;
+        courseAuthor.textContent = 'By: ' + courseAuthorText;
+        confirmBtn.className = 'btn-confirm-approve';
+        confirmBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+        
+        modal.classList.add('active');
+    }
+    
+    // Show reject modal
+    function showRejectModal(url, courseTitle, courseAuthorText) {
+        pendingUrl = url;
+        pendingAction = 'reject';
+        
+        modalHeader.className = 'course-confirm-header reject';
+        modalHeader.innerHTML = '<i class="fas fa-times-circle"></i><h3>Reject Course</h3>';
+        modalTitle.textContent = 'Reject Course';
+        modalMessage.textContent = 'Are you sure you want to reject this course?';
+        courseName.textContent = courseTitle;
+        courseAuthor.textContent = 'By: ' + courseAuthorText;
+        confirmBtn.className = 'btn-confirm-reject';
+        confirmBtn.innerHTML = '<i class="fas fa-times"></i> Confirm Reject';
+        
+        modal.classList.add('active');
+    }
+    
+    // Confirm button click
+    confirmBtn.onclick = function() {
+        if (pendingUrl) {
+            window.location.href = pendingUrl;
+        }
+    };
+    
+    // Cancel button click
+    cancelBtn.onclick = closeModal;
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+    
+    // Override approve links
+    document.querySelectorAll('.approve-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.getAttribute('href');
+            const courseTitle = this.getAttribute('data-course-title');
+            const courseAuthor = this.getAttribute('data-course-author');
+            showApproveModal(url, courseTitle, courseAuthor);
+        });
+    });
+    
+    // Override reject links
+    document.querySelectorAll('.reject-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.getAttribute('href');
+            const courseTitle = this.getAttribute('data-course-title');
+            const courseAuthor = this.getAttribute('data-course-author');
+            showRejectModal(url, courseTitle, courseAuthor);
+        });
+    });
+
     // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {
         let alerts = document.querySelectorAll('.alert');

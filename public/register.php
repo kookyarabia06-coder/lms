@@ -114,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fname = trim($_POST['fname'] ?? '');
         $lname = trim($_POST['lname'] ?? '');
         $email = trim($_POST['email'] ?? '');
+        $weakPasswordAccepted = isset($_POST['weak_password_accepted']) && $_POST['weak_password_accepted'] == '1';
         
         // Get the selected department from the form (single department)
         $selectedDept = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
@@ -126,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $err = 'All fields are required.'; 
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $err = 'Invalid email format';
-        } elseif (strlen($password) < 8) {
-            $err = 'Password must be at least 8 characters';
+        } elseif (strlen($password) < 8 && !$weakPasswordAccepted) {
+            $err = 'weak_password';
         } elseif (empty($selectedDepts)) {
             $err = 'Please select a department';
         } else {
@@ -236,10 +237,158 @@ if (isset($_SESSION['otp_time'])) {
             background-color: rgba(0, 35, 102, 0.4);
             z-index: -1;
         }
+
+        /* Custom Modal Styles for Password Warning */
+        .password-warning-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .password-warning-modal.active {
+            display: flex;
+        }
+
+        .password-warning-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 450px;
+            width: 90%;
+            padding: 0;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .password-warning-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .password-warning-header i {
+            font-size: 24px;
+            color: #f59e0b;
+        }
+
+        .password-warning-header h3 {
+            color: #111827;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .password-warning-body {
+            padding: 24px;
+        }
+
+        .password-warning-body p {
+            color: #4b5563;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .password-warning-body .warning-note {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .password-warning-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .password-warning-footer button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+        }
+
+        .btn-continue {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-continue:hover {
+            background: #b91c1c;
+            transform: translateY(-1px);
+        }
+
+        .btn-cancel-modal {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-cancel-modal:hover {
+            background: #e5e7eb;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
+    
     <div class="overlay"></div>
+    
+    <!-- Custom Password Warning Modal -->
+    <div class="password-warning-modal" id="passwordWarningModal">
+        <div class="password-warning-content">
+            <div class="password-warning-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Weak Password Warning</h3>
+            </div>
+            <div class="password-warning-body">
+                <p>Your password is less than 8 characters long.</p>
+                <p>Short passwords are easier to guess and may compromise your account security.</p>
+                <div class="warning-note">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>We strongly recommend using a password with at least 8 characters, including uppercase, numbers, and symbols.</span>
+                </div>
+            </div>
+            <div class="password-warning-footer">
+                <button class="btn-cancel-modal" onclick="closePasswordModal()">
+                    <i class="fas fa-arrow-left"></i> Go Back
+                </button>
+                <button class="btn-continue" onclick="continueWithWeakPassword()">
+                    <i class="fas fa-exclamation-triangle"></i> Continue Anyway
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="register-card">
         <div class="grid-layout">
             <!-- LEFT SIDE: COMPANY LOGO (identical) -->
@@ -268,7 +417,7 @@ if (isset($_SESSION['otp_time'])) {
                     Fill in your details to get started
                 </p>
 
-                <?php if($err): ?>
+                <?php if($err && $err !== 'weak_password'): ?>
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-circle"></i>
                     <?= htmlspecialchars($err) ?>
@@ -285,6 +434,8 @@ if (isset($_SESSION['otp_time'])) {
                 <!-- Registration Form -->
                 <div class="register-form-wrapper">
                     <form action="../public/register.php" method="POST" id="registerForm">
+                        <input type="hidden" name="weak_password_accepted" id="weakPasswordAccepted" value="0">
+                        
                         <?php if(!$showOTP): ?>
                         <!-- First Name & Last Name Row -->
                         <div class="register-name-row">
@@ -621,6 +772,32 @@ if (isset($_SESSION['otp_time'])) {
             }
         }
 
+        // Custom Modal Functions
+        let pendingFormSubmit = null;
+
+        function showPasswordWarningModal(event) {
+            event.preventDefault();
+            const modal = document.getElementById('passwordWarningModal');
+            modal.classList.add('active');
+            pendingFormSubmit = true;
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('passwordWarningModal');
+            modal.classList.remove('active');
+            pendingFormSubmit = false;
+        }
+
+        function continueWithWeakPassword() {
+            document.getElementById('weakPasswordAccepted').value = '1';
+            closePasswordModal();
+            
+            // Submit the form after a small delay
+            setTimeout(() => {
+                document.getElementById('registerForm').submit();
+            }, 100);
+        }
+
         // OTP Timer and Auto-submit
         const otpTimeLeft = <?= $timeLeft ?>;
         let timeLeft = otpTimeLeft;
@@ -718,7 +895,7 @@ if (isset($_SESSION['otp_time'])) {
             }
         }
 
-        // Form validation
+        // Form validation with custom modal
         const form = document.getElementById('registerForm');
         if (form) {
             form.addEventListener('submit', function(e) {
@@ -749,8 +926,11 @@ if (isset($_SESSION['otp_time'])) {
                     return false;
                 }
                 if (password.length < 8) {
-                    if (!confirm('Your password is less than 8 characters. Continue anyway?')) {
+                    // Check if this is a resubmission after accepting weak password
+                    const weakPasswordAccepted = document.getElementById('weakPasswordAccepted').value;
+                    if (weakPasswordAccepted !== '1') {
                         e.preventDefault();
+                        showPasswordWarningModal(e);
                         return false;
                     }
                 }
@@ -794,7 +974,9 @@ if (isset($_SESSION['otp_time'])) {
                 const form = document.getElementById('registerForm');
                 form.insertBefore(errorDiv, form.firstChild);
             } else {
-                errorDiv.querySelector('span').textContent = message;
+                const span = errorDiv.querySelector('span');
+                if (span) span.textContent = message;
+                else errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${message}</span>`;
             }
             errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -811,6 +993,16 @@ if (isset($_SESSION['otp_time'])) {
                 this.parentElement.style.transform = 'scale(1)';
             });
         });
+
+        // Close modal when clicking outside
+        const modal = document.getElementById('passwordWarningModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closePasswordModal();
+                }
+            });
+        }
     </script>
 </body>
 </html>

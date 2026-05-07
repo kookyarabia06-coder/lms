@@ -812,6 +812,125 @@ $hasVideo = !empty($course['file_video']);
             background: #667eea;
             transition: width 0.3s ease;
         }
+
+        /* ADDED: Custom Confirm Modal Styles */
+        .custom-confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .custom-confirm-modal.active {
+            display: flex;
+        }
+
+        .custom-confirm-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .custom-confirm-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .custom-confirm-header i {
+            font-size: 22px;
+            color: #28a745;
+        }
+
+        .custom-confirm-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .custom-confirm-body {
+            padding: 20px 24px;
+        }
+
+        .custom-confirm-body p {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .custom-confirm-body .course-info {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border-left: 3px solid #28a745;
+        }
+
+        .custom-confirm-body .course-info strong {
+            display: block;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .custom-confirm-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .custom-confirm-footer button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .custom-confirm-footer .btn-cancel {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .custom-confirm-footer .btn-cancel:hover {
+            background: #e5e7eb;
+        }
+
+        .custom-confirm-footer .btn-confirm {
+            background: #28a745;
+            color: white;
+        }
+
+        .custom-confirm-footer .btn-confirm:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -824,6 +943,30 @@ $hasVideo = !empty($course['file_video']);
     <div id="toastContainer" class="toast-notification"></div>
     <div id="fullscreenHint" class="fullscreen-hint" style="display: none;">
         <i class="fas fa-keyboard"></i> Press ESC to exit full screen
+    </div>
+
+    <!-- ADDED: Custom Confirm Modal -->
+    <div class="custom-confirm-modal" id="completeCourseModal">
+        <div class="custom-confirm-content">
+            <div class="custom-confirm-header">
+                <i class="fas fa-graduation-cap"></i>
+                <h3>Complete Course</h3>
+            </div>
+            <div class="custom-confirm-body">
+                <p>Are you sure you want to mark this course as completed?</p>
+                <div class="course-info">
+                    <strong id="confirmCourseTitle"><?= htmlspecialchars($course['title']) ?></strong>
+                </div>
+                <small class="text-muted d-block mt-2">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Once marked as completed, you will receive a certificate of completion.
+                </small>
+            </div>
+            <div class="custom-confirm-footer">
+                <button class="btn-cancel" id="cancelCompleteBtn">Cancel</button>
+                <button class="btn-confirm" id="confirmCompleteBtn">Yes, Complete Course</button>
+            </div>
+        </div>
     </div>
 
     <div class="main-content-wrapper" id="mainContent" tabindex="-1">
@@ -944,7 +1087,7 @@ $hasVideo = !empty($course['file_video']);
                 </div>
             </div>
 
-            <!-- Complete Course Button -->
+            <!-- Complete Course Button - MODIFIED: Removed confirm() -->
             <?php if ($enrollment['status'] !== 'completed'): ?>
             <div class="mt-4">
                 <?php if ($hasPassedAssessment): ?>
@@ -1056,6 +1199,41 @@ $hasVideo = !empty($course['file_video']);
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         <?php if (is_student()): ?>
+        // ADDED: Custom Confirm Modal for Course Completion
+        const completeModal = document.getElementById('completeCourseModal');
+        const confirmCompleteBtn = document.getElementById('confirmCompleteBtn');
+        const cancelCompleteBtn = document.getElementById('cancelCompleteBtn');
+        let pendingCompleteCallback = null;
+
+        function closeCompleteModal() {
+            completeModal.classList.remove('active');
+            pendingCompleteCallback = null;
+        }
+
+        function showCompleteModal(callback) {
+            completeModal.classList.add('active');
+            pendingCompleteCallback = callback;
+        }
+
+        if (confirmCompleteBtn) {
+            confirmCompleteBtn.onclick = function() {
+                if (pendingCompleteCallback) pendingCompleteCallback();
+                closeCompleteModal();
+            };
+        }
+
+        if (cancelCompleteBtn) {
+            cancelCompleteBtn.onclick = closeCompleteModal;
+        }
+
+        completeModal.addEventListener('click', function(e) {
+            if (e.target === completeModal) closeCompleteModal();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && completeModal.classList.contains('active')) closeCompleteModal();
+        });
+
         // Course data with dynamic material availability
         const courseData = {
             id: <?= $courseId ?>,
@@ -1295,7 +1473,7 @@ $hasVideo = !empty($course['file_video']);
             }
         }
 
-        // Complete Course Button
+        // Complete Course Button - MODIFIED: Uses custom modal instead of confirm()
         if (elements.completeCourseBtn) {
             elements.completeCourseBtn.addEventListener('click', function() {
                 if (state.overallProgress < 100) {
@@ -1303,33 +1481,32 @@ $hasVideo = !empty($course['file_video']);
                     return;
                 }
                 
-                if (!confirm('Are you sure you want to mark this course as completed?')) {
-                    return;
-                }
-                
-                const btn = $(this);
-                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Completing...');
-                
-                $.ajax({
-                    url: window.location.href,
-                    method: 'POST',
-                    data: { complete_course: 1 },
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.success) {
-                            showToast('Course completed successfully! 🎓', 'success');
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 2000);
-                        } else {
+                // Show custom modal instead of confirm()
+                showCompleteModal(function() {
+                    const btn = $(elements.completeCourseBtn);
+                    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Completing...');
+                    
+                    $.ajax({
+                        url: window.location.href,
+                        method: 'POST',
+                        data: { complete_course: 1 },
+                        dataType: 'json',
+                        success: function(response) {
+                            if (response.success) {
+                                showToast('Course completed successfully! 🎓', 'success');
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 2000);
+                            } else {
+                                btn.prop('disabled', false).html('<i class="fas fa-graduation-cap me-2"></i>Complete Course');
+                                showToast(response.message || 'Error completing course', 'danger');
+                            }
+                        },
+                        error: function() {
                             btn.prop('disabled', false).html('<i class="fas fa-graduation-cap me-2"></i>Complete Course');
-                            showToast(response.message || 'Error completing course', 'danger');
+                            showToast('Error completing course. Please try again.', 'danger');
                         }
-                    },
-                    error: function() {
-                        btn.prop('disabled', false).html('<i class="fas fa-graduation-cap me-2"></i>Complete Course');
-                        showToast('Error completing course. Please try again.', 'danger');
-                    }
+                    });
                 });
             });
         }
