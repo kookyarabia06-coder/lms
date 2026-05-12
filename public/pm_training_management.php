@@ -34,6 +34,62 @@ function calculateLateFiling($date_start, $created_at) {
     return ($interval <= 29) ? 1 : 0;
 }
 
+// Helper function to handle file uploads for PM Training
+function uploadPmTrainingFile($field_name, $upload_dir) {
+    if (!isset($_FILES[$field_name]) || $_FILES[$field_name]['error'] !== UPLOAD_ERR_OK) {
+        if (isset($_FILES[$field_name]) && $_FILES[$field_name]['error'] !== UPLOAD_ERR_OK) {
+            $error_codes = [
+                UPLOAD_ERR_INI_SIZE   => 'File exceeds upload_max_filesize',
+                UPLOAD_ERR_FORM_SIZE  => 'File exceeds MAX_FILE_SIZE',
+                UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded',
+                UPLOAD_ERR_NO_FILE    => 'No file was uploaded',
+                UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the upload',
+            ];
+            $err_msg = $error_codes[$_FILES[$field_name]['error']] ?? 'Unknown upload error';
+            error_log("PM Training upload error for {$field_name}: {$err_msg} (code: {$_FILES[$field_name]['error']})");
+        }
+        return null;
+    }
+    
+    // Validate file extension
+    $ext = strtolower(pathinfo($_FILES[$field_name]['name'], PATHINFO_EXTENSION));
+    $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xlsx', 'csv'];
+    if (!in_array($ext, $allowed)) {
+        error_log("PM Training upload error for {$field_name}: Invalid file extension '{$ext}'");
+        return null;
+    }
+    
+    // Ensure upload directory exists
+    if (!is_dir($upload_dir)) {
+        if (!mkdir($upload_dir, 0755, true)) {
+            error_log("PM Training upload error: Failed to create directory '{$upload_dir}'");
+            return null;
+        }
+        error_log("PM Training upload: Created directory '{$upload_dir}'");
+    }
+    
+    // Check if directory is writable
+    if (!is_writable($upload_dir)) {
+        error_log("PM Training upload error: Directory '{$upload_dir}' is not writable");
+        return null;
+    }
+    
+    // Generate unique filename
+    $filename = 'pm_training_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $destination = $upload_dir . $filename;
+    
+    // Move uploaded file
+    if (move_uploaded_file($_FILES[$field_name]['tmp_name'], $destination)) {
+        error_log("PM Training upload success: {$field_name} saved as '{$filename}'");
+        return $filename;
+    }
+    
+    error_log("PM Training upload error: move_uploaded_file() failed for '{$field_name}' to '{$destination}'");
+    return null;
+}
+
 // Handle AJAX Get Users for Attendance - EXCLUDES already added users
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_users_for_attendance'])) {
     header('Content-Type: application/json');
@@ -55,6 +111,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_users_for_attendanc
             $existing_user_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
         
+        // ALSO handle exclude_ids passed from JavaScript for unsaved batch selections
+        if (isset($_GET['exclude_ids']) && !empty($_GET['exclude_ids'])) {
+            $decoded = json_decode($_GET['exclude_ids'], true);
+            if (is_array($decoded)) {
+                $decoded = array_map('intval', $decoded);
+                $existing_user_ids = array_unique(array_merge($existing_user_ids, $decoded));
+            }
+        }
+        
+        // Original query - removed the status filter that might not exist
         $query = "SELECT id, username, CONCAT(fname, ' ', lname) as fullname 
                   FROM users 
                   WHERE role NOT IN ('admin', 'superadmin', 'proponent')";
@@ -64,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_users_for_attendanc
         if (!empty($existing_user_ids)) {
             $placeholders = implode(',', array_fill(0, count($existing_user_ids), '?'));
             $query .= " AND id NOT IN ($placeholders)";
-            $params = array_merge($params, $existing_user_ids);
+            $params = array_merge($params, array_values($existing_user_ids));
         }
         
         if (!empty($search)) {
@@ -84,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_users_for_attendanc
         echo json_encode(['success' => true, 'users' => $users]);
         exit;
     } catch (Exception $e) {
+        error_log("get_users_for_attendance error: " . $e->getMessage());
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         exit;
     }
@@ -182,7 +249,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_batch_ajax']))
             }
         }
         
+        // ALSO update batch_data JSON in pm_training_batches
+        $batch_data = json_encode(['attendees' => array_map('intval', $attendees)]);
+        $stmt = $pdo->prepare("UPDATE pm_training_batches SET batch_data = ? WHERE id = ?");
+        $stmt->execute([$batch_data, $batch_id]);
+        
         echo json_encode(['success' => true, 'message' => 'Batch updated successfully!']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Update Attendance
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance_ajax'])) {
+    header('Content-Type: application/json');
+    try {
+        $batch_id = (int)$_POST['batch_id'];
+        $user_id = (int)$_POST['user_id'];
+        $attended = (int)$_POST['attended'];
+        
+        $stmt = $pdo->prepare("UPDATE pm_training_attendance SET attended = ?, updated_at = NOW() WHERE batch_id = ? AND user_id = ?");
+        $stmt->execute([$attended, $batch_id, $user_id]);
+        
+        echo json_encode(['success' => true, 'message' => 'Attendance updated']);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+
+// Handle AJAX Get Attendance Status
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_attendance_status'])) {
+    header('Content-Type: application/json');
+    try {
+        $batch_ids = array_map('intval', explode(',', $_GET['batch_ids'] ?? ''));
+        if (empty($batch_ids)) {
+            echo json_encode(['success' => true, 'attendance' => []]);
+            exit;
+        }
+        
+        $placeholders = implode(',', array_fill(0, count($batch_ids), '?'));
+        $stmt = $pdo->prepare("SELECT batch_id, user_id, attended FROM pm_training_attendance WHERE batch_id IN ($placeholders)");
+        $stmt->execute($batch_ids);
+        $attendance = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode(['success' => true, 'attendance' => $attendance]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// Handle AJAX Get Attendance Report
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_attendance_report'])) {
+    header('Content-Type: application/json');
+    try {
+        $batch_id = (int)$_GET['batch_id'];
+        
+        // Get batch info
+        $stmt = $pdo->prepare("SELECT b.*, ptr.title as training_title FROM pm_training_batches b LEFT JOIN pm_training_requests ptr ON b.pm_training_request_id = ptr.id WHERE b.id = ?");
+        $stmt->execute([$batch_id]);
+        $batch = $stmt->fetch();
+        
+        if (!$batch) {
+            echo json_encode(['success' => false, 'message' => 'Batch not found']);
+            exit;
+        }
+        
+        // Get attendees with attendance status
+        $batch_data = json_decode($batch['batch_data'], true);
+        $attendees = $batch_data['attendees'] ?? [];
+        
+        $attendee_details = [];
+        if (!empty($attendees)) {
+            $placeholders = implode(',', array_fill(0, count($attendees), '?'));
+            $stmt = $pdo->prepare("
+                SELECT u.id, CONCAT(u.fname, ' ', u.lname) as fullname, u.username,
+                       COALESCE(a.attended, 0) as attended
+                FROM users u
+                LEFT JOIN pm_training_attendance a ON u.id = a.user_id AND a.batch_id = ?
+                WHERE u.id IN ($placeholders)
+            ");
+            $params = array_merge([$batch_id], $attendees);
+            $stmt->execute($params);
+            $attendee_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'batch_name' => $batch['batch_name'],
+            'training_title' => $batch['training_title'],
+            'attendees' => $attendee_details
+        ]);
         exit;
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -303,12 +466,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_training_batches'])
             $batch_data = json_decode($batch['batch_data'], true);
             $attendees = $batch_data['attendees'] ?? [];
 
-            // Get attendee details
+            // Get attendee details AND attendance status
             $attendee_details = [];
             if (!empty($attendees)) {
                 $placeholders = implode(',', array_fill(0, count($attendees), '?'));
-                $stmt = $pdo->prepare("SELECT id, CONCAT(fname, ' ', lname) as fullname, username FROM users WHERE id IN ($placeholders)");
-                $stmt->execute($attendees);
+                $stmt = $pdo->prepare("
+                    SELECT u.id, CONCAT(u.fname, ' ', u.lname) as fullname, u.username,
+                           COALESCE(a.attended, 0) as attended
+                    FROM users u
+                    LEFT JOIN pm_training_attendance a ON u.id = a.user_id AND a.batch_id = ?
+                    WHERE u.id IN ($placeholders)
+                ");
+                $params = array_merge([$batch['id']], $attendees);
+                $stmt->execute($params);
                 $attendee_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
 
@@ -518,9 +688,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         
         // Check if admin action is allowed
         if (isset($_POST['admin_action']) && !empty($_POST['admin_action']) && $is_admin) {
-            if ($current_data['status'] !== 'pending' && $current_data['status'] !== 'disapproved') {
-                echo json_encode(['success' => false, 'message' => 'This request has already been reviewed.']);
-                exit;
+            $allowed_actions = ['approve', 'conditional', 'disapprove'];
+            $revert_actions = ['revert'];
+            
+            if (in_array($_POST['admin_action'], $allowed_actions)) {
+                if ($current_data['status'] !== 'pending' && $current_data['status'] !== 'disapproved') {
+                    echo json_encode(['success' => false, 'message' => 'This request has already been reviewed.']);
+                    exit;
+                }
             }
         }
         
@@ -532,27 +707,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         $late_filing = isset($_POST['late_filing']) ? 1 : 0;
         $remarks_input = trim($_POST['remarks'] ?? '');
         
-        // Handle file uploads (only if training has ended and status is approved/conditional)
+        // Define upload directory for PM training files
         $upload_dir = __DIR__ . '/../uploads/pm_training/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-        
-        function uploadPmTrainingFile($field_name) {
-            if (!isset($_FILES[$field_name]) || $_FILES[$field_name]['error'] !== UPLOAD_ERR_OK) {
-                return null;
-            }
-            $ext = strtolower(pathinfo($_FILES[$field_name]['name'], PATHINFO_EXTENSION));
-            $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xlsx', 'csv'];
-            if (!in_array($ext, $allowed)) {
-                return null;
-            }
-            $filename = 'pm_training_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-            if (move_uploaded_file($_FILES[$field_name]['tmp_name'], $upload_dir . $filename)) {
-                return $filename;
-            }
-            return null;
-        }
         
         $current_date = new DateTime();
         $end_date = new DateTime($current_data['date_end']);
@@ -562,8 +718,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
         $attendance_file = null;
         
         if ($has_training_ended && ($current_data['status'] === 'approved' || $current_data['status'] === 'conditional')) {
-            $ptr_file = uploadPmTrainingFile('ptr_file');
-            $attendance_file = uploadPmTrainingFile('attendance_file');
+            $ptr_file = uploadPmTrainingFile('ptr_file', $upload_dir);
+            $attendance_file = uploadPmTrainingFile('attendance_file', $upload_dir);
+            
+            if ($ptr_file !== null) {
+                error_log("PM Training: PTR file uploaded for request ID {$id}: {$ptr_file}");
+            }
+            if ($attendance_file !== null) {
+                error_log("PM Training: Attendance file uploaded for request ID {$id}: {$attendance_file}");
+            }
         }
         
         // Build update query
@@ -604,6 +767,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_pm_request_ajax'
                 case 'disapprove':
                     $new_status = 'disapproved';
                     $status_prefix = 'Disapproved';
+                    break;
+                case 'revert':
+                    $new_status = 'pending';
+                    $status_prefix = 'Reverted to Pending';
                     break;
             }
             
@@ -717,13 +884,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_pm_request
             exit;
         }
         
-        $stmt = $pdo->prepare("UPDATE pm_training_requests SET 
-            date_start = ?, date_end = ?, remarks = CONCAT(COALESCE(remarks, ''), '\n[Rescheduled: ', ?, ']'), 
-            status = 'pending', ptr_status = 'pending', ptr_file = NULL, attendance_file = NULL
-            WHERE id = ?");
-        $stmt->execute([$date_start, $date_end, $resched_reason, $id]);
+        // Recalculate late filing based on new dates
+        $created_at = date('Y-m-d H:i:s');
+        $auto_late_filing = calculateLateFiling($date_start, $created_at);
         
-        echo json_encode(['success' => true, 'message' => 'Training request rescheduled successfully!']);
+        // Recalculate late filing based on new dates
+        $created_at = date('Y-m-d H:i:s');
+        $auto_late_filing = calculateLateFiling($date_start, $created_at);
+        
+        $stmt = $pdo->prepare("UPDATE pm_training_requests SET 
+            date_start = ?, date_end = ?, 
+            late_filing = ?,
+            remarks = CONCAT(COALESCE(remarks, ''), '\n[Rescheduled: ', ?, ']'), 
+            ptr_status = 'pending', 
+            ptr_file = NULL, attendance_file = NULL, updated_at = NOW()
+            WHERE id = ?");
+        $result = $stmt->execute([$date_start, $date_end, $auto_late_filing, $resched_reason, $id]);
+        
+        if ($result) {
+            error_log("PM Training: Request ID {$id} rescheduled successfully");
+            echo json_encode(['success' => true, 'message' => 'Training request rescheduled successfully!']);
+        } else {
+            error_log("PM Training: Failed to reschedule request ID {$id}");
+            echo json_encode(['success' => false, 'message' => 'Failed to reschedule request.']);
+        }
         exit;
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -798,33 +982,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_pm_report_data']) &
     try {
         $year = isset($_GET['year']) && !empty($_GET['year']) ? (int)$_GET['year'] : null;
         $month = isset($_GET['month']) && !empty($_GET['month']) ? (int)$_GET['month'] : null;
+        $status = $_GET['status'] ?? '';
+        $ptr_status = $_GET['ptr_status'] ?? '';
+        $committee = isset($_GET['committee']) && !empty($_GET['committee']) ? (int)$_GET['committee'] : null;
         
-        $where_clauses = ["ptr.ptr_status = 'complete'"];
+        $where_clauses = [];
         $params = [];
         
-        if ($year) {
-            $where_clauses[] = "YEAR(ptr.date_start) = ?";
-            $params[] = $year;
-        }
-        if ($month) {
-            $where_clauses[] = "MONTH(ptr.date_start) = ?";
-            $params[] = $month;
-        }
+        if ($year) { $where_clauses[] = "YEAR(ptr.date_start) = ?"; $params[] = $year; }
+        if ($month) { $where_clauses[] = "MONTH(ptr.date_start) = ?"; $params[] = $month; }
+        if ($status) { $where_clauses[] = "ptr.status = ?"; $params[] = $status; }
+        if ($ptr_status) { $where_clauses[] = "ptr.ptr_status = ?"; $params[] = $ptr_status; }
+        if ($committee) { $where_clauses[] = "ptr.committee_id = ?"; $params[] = $committee; }
         
-        $where_sql = "WHERE " . implode(" AND ", $where_clauses);
+        $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
         
         $query = "
-            SELECT 
-                ptr.id,
-                ptr.title,
-                ptr.venue,
+            SELECT ptr.id, ptr.title, ptr.venue,
                 DATE_FORMAT(ptr.date_start, '%M %d, %Y') as date_start,
                 DATE_FORMAT(ptr.date_end, '%M %d, %Y') as date_end,
-                CONCAT(u.fname, ' ', u.lname) as requester_name,
-                u.username,
-                ptr.hospital_order_no,
-                ptr.amount,
-                ptr.ptr_status
+                CONCAT(u.fname, ' ', u.lname) as requester_name, u.username,
+                ptr.hospital_order_no, ptr.amount, ptr.status, ptr.ptr_status
             FROM pm_training_requests ptr
             LEFT JOIN users u ON ptr.requester_id = u.id
             $where_sql
@@ -879,6 +1057,7 @@ $filter_status = isset($_GET['filter_status']) ? $_GET['filter_status'] : '';
 $filter_year = isset($_GET['filter_year']) && !empty($_GET['filter_year']) ? (int)$_GET['filter_year'] : '';
 $filter_month = isset($_GET['filter_month']) && !empty($_GET['filter_month']) ? (int)$_GET['filter_month'] : '';
 $filter_committee = isset($_GET['filter_committee']) && !empty($_GET['filter_committee']) ? (int)$_GET['filter_committee'] : '';
+$filter_ptr_status = isset($_GET['filter_ptr_status']) ? $_GET['filter_ptr_status'] : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // Pagination parameters
@@ -933,6 +1112,12 @@ if (!empty($filter_committee)) {
     $count_where_clause[] = "ptr.committee_id = ?";
 }
 
+if (!empty($filter_ptr_status)) {
+    $where_clause[] = "ptr.ptr_status = ?";
+    $main_params[] = $filter_ptr_status;
+    $count_where_clause[] = "ptr.ptr_status = ?";
+}
+
 $where_sql = !empty($where_clause) ? "WHERE " . implode(" AND ", $where_clause) : "";
 $count_where_sql = !empty($count_where_clause) ? "WHERE " . implode(" AND ", $count_where_clause) : "";
 
@@ -961,6 +1146,10 @@ if (!empty($search)) {
 }
 if (!empty($filter_committee)) {
     $count_params[] = $filter_committee;
+}
+
+if (!empty($filter_ptr_status)) {
+    $count_params[] = $filter_ptr_status;
 }
 
 // Get total count
@@ -1066,13 +1255,23 @@ if (!empty($filter_committee)) $active_filters++;
                 </div>
 
                 <div class="filter-group">
-                    <label class="form-label">Status</label>
+                    <label class="form-label"> Request Status</label>
                     <select name="filter_status" class="form-select">
-                        <option value="">All Status</option>
+                        <option value="">All Request Status</option>
                         <option value="pending" <?= ($filter_status == 'pending') ? 'selected' : '' ?>>Pending</option>
                         <option value="approved" <?= ($filter_status == 'approved') ? 'selected' : '' ?>>Approved</option>
                         <option value="conditional" <?= ($filter_status == 'conditional') ? 'selected' : '' ?>>Conditional</option>
                         <option value="disapproved" <?= ($filter_status == 'disapproved') ? 'selected' : '' ?>>Disapproved</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="form-label">PTR Status</label>
+                    <select name="filter_ptr_status" class="form-select">
+                        <option value="">All PTR Status</option>
+                        <option value="pending" <?= (isset($filter_ptr_status) && $filter_ptr_status == 'pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="submitted" <?= (isset($filter_ptr_status) && $filter_ptr_status == 'submitted') ? 'selected' : '' ?>>Submitted</option>
+                        <option value="complete" <?= (isset($filter_ptr_status) && $filter_ptr_status == 'complete') ? 'selected' : '' ?>>Complete</option>
                     </select>
                 </div>
 
@@ -1113,11 +1312,51 @@ if (!empty($filter_committee)) $active_filters++;
             </div>
             <div class="stat-item">
                 <span class="stat-label">Pending Approval:</span>
-                <span class="stat-number"><?= number_format(count(array_filter($pm_requests, function($r) { return $r['status'] == 'pending'; }))) ?></span>
+                <span class="stat-number">
+                    <?php 
+                    $pending_sql = "SELECT COUNT(DISTINCT ptr.id) FROM pm_training_requests ptr LEFT JOIN users u ON ptr.requester_id = u.id " . 
+                        (!empty($count_where_sql) ? $count_where_sql . " AND ptr.status = 'pending'" : "WHERE ptr.status = 'pending'");
+                    $pending_stmt = $pdo->prepare($pending_sql);
+                    $pending_stmt->execute($count_params);
+                    echo number_format($pending_stmt->fetchColumn());
+                    ?>
+                </span>
             </div>
             <div class="stat-item">
                 <span class="stat-label">Completed:</span>
-                <span class="stat-number"><?= number_format(count(array_filter($pm_requests, function($r) { return $r['ptr_status'] == 'complete'; }))) ?></span>
+                <span class="stat-number">
+                    <?php 
+                    $complete_sql = "SELECT COUNT(DISTINCT ptr.id) FROM pm_training_requests ptr LEFT JOIN users u ON ptr.requester_id = u.id " . 
+                        (!empty($count_where_sql) ? $count_where_sql . " AND ptr.ptr_status = 'complete'" : "WHERE ptr.ptr_status = 'complete'");
+                    $complete_stmt = $pdo->prepare($complete_sql);
+                    $complete_stmt->execute($count_params);
+                    echo number_format($complete_stmt->fetchColumn());
+                    ?>
+                </span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label text-warning">⚠ Warning:</span>
+                <span class="stat-number text-warning">
+                    <?php 
+                    $warning_sql = "SELECT COUNT(DISTINCT ptr.id) FROM pm_training_requests ptr LEFT JOIN users u ON ptr.requester_id = u.id " . 
+                        (!empty($count_where_sql) ? $count_where_sql . " AND ptr.ptr_status = 'pending' AND ptr.date_end < NOW() AND DATEDIFF(NOW(), ptr.date_end) BETWEEN 20 AND 31" : "WHERE ptr.ptr_status = 'pending' AND ptr.date_end < NOW() AND DATEDIFF(NOW(), ptr.date_end) BETWEEN 20 AND 31");
+                    $warning_stmt = $pdo->prepare($warning_sql);
+                    $warning_stmt->execute($count_params);
+                    echo number_format($warning_stmt->fetchColumn());
+                    ?>
+                </span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label text-danger">❌ Expired:</span>
+                <span class="stat-number text-danger">
+                    <?php 
+                    $expired_sql = "SELECT COUNT(DISTINCT ptr.id) FROM pm_training_requests ptr LEFT JOIN users u ON ptr.requester_id = u.id " . 
+                        (!empty($count_where_sql) ? $count_where_sql . " AND ptr.ptr_status = 'pending' AND ptr.date_end < NOW() AND DATEDIFF(NOW(), ptr.date_end) >= 32" : "WHERE ptr.ptr_status = 'pending' AND ptr.date_end < NOW() AND DATEDIFF(NOW(), ptr.date_end) >= 32");
+                    $expired_stmt = $pdo->prepare($expired_sql);
+                    $expired_stmt->execute($count_params);
+                    echo number_format($expired_stmt->fetchColumn());
+                    ?>
+                </span>
             </div>
         </div>
         
@@ -1149,9 +1388,10 @@ if (!empty($filter_committee)) $active_filters++;
                             <th>Late Filing</th>
                             <th>Remarks</th>
                             <th>PTR Status</th>
-                            <th>Status</th>
+                            <th>Request Status</th>
                             <th>Actions</th>
-                         </thead>
+                         </tr>
+                    </thead>
                     <tbody>
                         <?php if (!empty($pm_requests)): ?>
                             <?php foreach ($pm_requests as $request): ?>
@@ -1177,14 +1417,15 @@ if (!empty($filter_committee)) $active_filters++;
                                 }
                                 ?>
                                 <tr class="<?= $row_class ?>" data-training-start="<?= $request['date_start'] ?>">
-                                    <td><strong><?= htmlspecialchars($request['title']) ?></strong>
+                                    <td>
+                                        <strong><?= htmlspecialchars($request['title']) ?></strong>
                                         <?php if ($warning_message): ?>
                                             <br><span class="badge <?= $row_class === 'danger-row' ? 'badge-danger' : 'badge-warning' ?>" title="<?= $warning_message ?>"><i class="fas fa-exclamation-circle me-1"></i><?= $warning_message ?></span>
                                         <?php endif; ?>
-                                     </div>
-                                    <td><?= htmlspecialchars($request['venue']) ?></div>
-                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></div>
-                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></div>
+                                    </td>
+                                    <td><?= htmlspecialchars($request['venue']) ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_start'])) ?></td>
+                                    <td><?= date('M d, Y', strtotime($request['date_end'])) ?></td>
                                     <td>
                                         <?php 
                                         $batch_count = $request['batch_count'] ?? 0;
@@ -1197,19 +1438,20 @@ if (!empty($filter_committee)) $active_filters++;
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= htmlspecialchars($request['requester_name']) ?></div>
-                                    <td><?= !empty($request['committee_name']) ? htmlspecialchars($request['committee_name']) : '-' ?></div>
-                                    <td><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></div>
-                                    <td>₱<?= number_format($request['amount'], 2) ?></div>
-                                    <td><?php if ($request['late_filing'] == 1): ?>
+                                    <td><?= htmlspecialchars($request['requester_name']) ?></td>
+                                    <td><?= !empty($request['committee_name']) ? htmlspecialchars($request['committee_name']) : '-' ?></td>
+                                    <td><?= htmlspecialchars($request['hospital_order_no'] ?? '-') ?></td>
+                                    <td>₱<?= number_format($request['amount'], 2) ?></td>
+                                    <td>
+                                        <?php if ($request['late_filing'] == 1): ?>
                                             <span class="late-badge late-yes">Yes</span>
                                         <?php else: ?>
                                             <span class="late-badge late-no">No</span>
                                         <?php endif; ?>
-                                     </div>
+                                    </td>
                                     <td class="truncated-cell" title="<?= htmlspecialchars($request['remarks'] ?? '') ?>">
                                         <?= htmlspecialchars(strlen($request['remarks'] ?? '') > 30 ? substr($request['remarks'] ?? '', 0, 30) . '...' : $request['remarks'] ?? '-') ?>
-                                     </div>
+                                    </td>
                                     <td>
                                         <?php
                                         $ptr_badge_class = 'ptr-' . $ptr_status;
@@ -1218,7 +1460,7 @@ if (!empty($filter_committee)) $active_filters++;
                                         <span class="badge <?= $ptr_badge_class ?>">
                                             <i class="fas <?= $ptr_icon ?> me-1"></i><?= ucfirst($ptr_status) ?>
                                         </span>
-                                     </div>
+                                    </td>
                                     <td>
                                         <?php if ($request['status'] == 'conditional'): ?>
                                             <span class="status-badge status-conditional">Conditional</span>
@@ -1227,7 +1469,7 @@ if (!empty($filter_committee)) $active_filters++;
                                         <?php else: ?>
                                             <span class="status-badge status-<?= $request['status'] ?>"><?= ucfirst($request['status']) ?></span>
                                         <?php endif; ?>
-                                     </div>
+                                    </td>
                                     <td class="action-buttons">
                                         <?php if ($is_complete): ?>
                                             <button class="btn-action btn-view" onclick="openViewPmModal(<?= $request['id'] ?>)" title="View Details">
@@ -1255,16 +1497,16 @@ if (!empty($filter_committee)) $active_filters++;
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         <?php endif; ?>
-                                     </div>
-                                  </tr>
+                                    </td>
+                                </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr id="emptyStateRow">
                                 <td colspan="14" class="text-center py-5">
                                     <i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i>
                                     <p class="text-muted mb-0">No PM training requests found</p>
-                                 </div>
-                              </tr>
+                                </td>
+                            </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -1410,7 +1652,7 @@ if (!empty($filter_committee)) $active_filters++;
 
 <!-- Edit PM Training Request Modal -->
 <div class="modal fade" id="editPmTrainingModal" tabindex="-1" aria-labelledby="editPmTrainingLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
                 <h5 class="modal-title" id="editPmTrainingLabel">
@@ -1419,117 +1661,140 @@ if (!empty($filter_committee)) $active_filters++;
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="editPmTrainingForm" enctype="multipart/form-data">
-                    <input type="hidden" name="id" id="edit_pm_id">
-                    <input type="hidden" name="admin_action" id="adminAction" value="">
-                    
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Title</label>
-                            <input type="text" class="form-control" name="title" id="edit_pm_title">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Venue</label>
-                            <input type="text" class="form-control" name="venue" id="edit_pm_venue">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Date Start</label>
-                            <input type="date" class="form-control" name="date_start" id="edit_pm_date_start" disabled style="background-color: #e9ecef;">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Date End</label>
-                            <input type="date" class="form-control" name="date_end" id="edit_pm_date_end" disabled style="background-color: #e9ecef;">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Hospital Order No.</label>
-                            <input type="text" class="form-control" name="hospital_order_no" id="edit_pm_hospital_order_no">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Committee</label>
-                            <select name="committee_id" class="form-select" id="edit_pm_committee">
-                                <option value="">-- Select Committee --</option>
-                                <?php foreach ($all_committees as $comm): ?>
-                                    <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Amount (PHP)</label>
-                            <input type="number" class="form-control" name="amount" id="edit_pm_amount" step="0.01">
-                        </div>
-                        
-                        <div class="col-md-12">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="edit_pm_late_filing" name="late_filing" value="1">
-                                <label class="form-check-label" for="edit_pm_late_filing">Late Filing</label>
-                            </div>
-                        </div>
-
-                        <?php if ($is_admin): ?>
-                        <div class="col-12">
-                            <div class="card bg-light p-3">
-                                <h6 class="mb-3"><i class="fas fa-gavel me-2"></i>Administrative Actions</h6>
-                                <div class="d-flex gap-3 flex-wrap" id="adminActionsButtons">
-                                    <button type="button" class="btn btn-success" onclick="confirmApprove()">
-                                        <i class="fas fa-check-circle me-1"></i> Approve
-                                    </button>
-                                    <button type="button" class="btn btn-warning" onclick="confirmConditional()">
-                                        <i class="fas fa-exclamation-triangle me-1"></i> Conditional
-                                    </button>
-                                    <button type="button" class="btn btn-danger" onclick="confirmDisapprove()">
-                                        <i class="fas fa-times-circle me-1"></i> Disapprove
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Complete Button -->
-                        <div class="col-12" id="completeButtonContainer" style="display: none;">
-                            <div class="card bg-success bg-opacity-10 border-success p-3">
-                                <button type="button" class="btn btn-success" id="markCompleteBtn">
-                                    <i class="fas fa-check-circle me-2"></i> Mark as Complete
-                                </button>
-                                <small class="d-block mt-2 text-muted">Training has ended and PTR has been uploaded.</small>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-
-                        <div class="col-12">
-                            <label class="form-label">Remarks</label>
-                            <textarea class="form-control" name="remarks" id="edit_pm_remarks" rows="2"></textarea>
-                        </div>
-                        
-                        <!-- Attachments Section -->
-                        <div class="col-12" id="attachmentsSection" style="display: none;">
-                            <h6 class="mt-3 mb-3"><i class="fas fa-paperclip me-2"></i>Attachments</h6>
-                            <div class="alert alert-info mb-3">
-                                <i class="fas fa-info-circle me-2"></i>
-                                <strong>Note:</strong> PTR (Post Training Report) is required to mark this training as complete.
-                            </div>
+                <!-- Tabs Navigation -->
+                <ul class="nav nav-tabs mb-3" id="editModalTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="details-tab" type="button" onclick="switchEditModalTab('details')">Details</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="batches-tab" type="button" onclick="switchEditModalTab('batches')">Batches</button>
+                    </li>
+                </ul>
+                
+                <!-- Tab Panels -->
+                <div class="tab-content">
+                    <!-- Details Panel -->
+                    <div class="tab-pane fade show active" id="details-panel" role="tabpanel">
+                        <form id="editPmTrainingForm" enctype="multipart/form-data">
+                            <input type="hidden" name="id" id="edit_pm_id">
+                            <input type="hidden" name="admin_action" id="adminAction" value="">
+                            
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">PTR (Post Training Report) <span class="text-danger">*Required for completion</span></label>
-                                    <input type="file" class="form-control" name="ptr_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.csv">
-                                    <div id="current_ptr_file" class="current-file mt-1"></div>
+                                    <label class="form-label">Title</label>
+                                    <input type="text" class="form-control" name="title" id="edit_pm_title">
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Attendance File (Optional)</label>
-                                    <input type="file" class="form-control" name="attendance_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.csv">
-                                    <div id="current_attendance_file" class="current-file mt-1"></div>
+                                    <label class="form-label">Venue</label>
+                                    <input type="text" class="form-control" name="venue" id="edit_pm_venue">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Date Start</label>
+                                    <input type="date" class="form-control" name="date_start" id="edit_pm_date_start" disabled style="background-color: #e9ecef;">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Date End</label>
+                                    <input type="date" class="form-control" name="date_end" id="edit_pm_date_end" disabled style="background-color: #e9ecef;">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Hospital Order No.</label>
+                                    <input type="text" class="form-control" name="hospital_order_no" id="edit_pm_hospital_order_no">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Committee</label>
+                                    <select name="committee_id" class="form-select" id="edit_pm_committee">
+                                        <option value="">-- Select Committee --</option>
+                                        <?php foreach ($all_committees as $comm): ?>
+                                            <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Amount (PHP)</label>
+                                    <input type="number" class="form-control" name="amount" id="edit_pm_amount" step="0.01">
+                                </div>
+                                
+                                <div class="col-md-12">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="edit_pm_late_filing" name="late_filing" value="1">
+                                        <label class="form-check-label" for="edit_pm_late_filing">Late Filing</label>
+                                    </div>
+                                </div>
+
+                                <?php if ($is_admin): ?>
+                                <div class="col-12">
+                                    <div class="card bg-light p-3">
+                                        <h6 class="mb-3"><i class="fas fa-gavel me-2"></i>Administrative Actions</h6>
+                                        <div class="d-flex gap-3 flex-wrap" id="adminActionsButtons">
+                                            <button type="button" class="btn btn-success btn-approve" onclick="confirmApprove()">
+                                                <i class="fas fa-check-circle me-1"></i> Approve
+                                            </button>
+                                            <button type="button" class="btn btn-warning btn-conditional" onclick="confirmConditional()">
+                                                <i class="fas fa-exclamation-triangle me-1"></i> Conditional
+                                            </button>
+                                            <button type="button" class="btn btn-danger btn-disapprove" onclick="confirmDisapprove()">
+                                                <i class="fas fa-times-circle me-1"></i> Disapprove
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-revert" onclick="confirmRevert()" style="display: none;">
+                                                <i class="fas fa-undo me-1"></i> Revert to Pending
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12" id="completeButtonContainer" style="display: none;">
+                                    <div class="card bg-success bg-opacity-10 border-success p-3">
+                                        <button type="button" class="btn btn-success" id="markCompleteBtn">
+                                            <i class="fas fa-check-circle me-2"></i> Mark as Complete
+                                        </button>
+                                        <small class="d-block mt-2 text-muted">Training has ended and PTR has been uploaded.</small>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+
+                                <div class="col-12">
+                                    <label class="form-label">Remarks</label>
+                                    <textarea class="form-control" name="remarks" id="edit_pm_remarks" rows="2"></textarea>
+                                </div>
+                                
+                                <div class="col-12" id="attachmentsSection" style="display: none;">
+                                    <h6 class="mt-3 mb-3"><i class="fas fa-paperclip me-2"></i>Attachments</h6>
+                                    <div class="alert alert-info mb-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Note:</strong> PTR (Post Training Report) is required to mark this training as complete.
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">PTR (Post Training Report) <span class="text-danger">*Required for completion</span></label>
+                                            <input type="file" class="form-control" name="ptr_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.csv">
+                                            <div id="current_ptr_file" class="current-file mt-1"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Attendance File (Optional)</label>
+                                            <input type="file" class="form-control" name="attendance_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.csv">
+                                            <div id="current_attendance_file" class="current-file mt-1"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                            
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary" id="updateRequestBtn">
+                                    <i class="fas fa-save me-1"></i> Update Request
+                                </button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i> Cancel
+                                </button>
+                            </div>
+                        </form>
                     </div>
                     
-                    <div class="mt-4">
-                        <button type="submit" class="btn btn-primary" id="updateRequestBtn">
-                            <i class="fas fa-save me-1"></i> Update Request
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="fas fa-times me-1"></i> Cancel
-                        </button>
+                    <!-- Batches Panel -->
+                    <div id="batches-panel" style="display: none;">
+                        <div id="editBatchTabsContainer"></div>
+                        <div id="editBatchPanelsContainer"></div>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
@@ -1639,25 +1904,54 @@ if (!empty($filter_committee)) $active_filters++;
     </div>
 </div>
 
+
+<!-- Attendance Preview Modal -->
+<div class="modal fade" id="attendancePreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>Attendance Report Preview</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="attendancePreviewBody">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Loading...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" onclick="printAttendanceReport()">
+                    <i class="fas fa-print me-1"></i> Print
+                </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="saveAttendancePdf()">
+                    <i class="fas fa-file-pdf me-1"></i> Save as PDF
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
 <!-- Generate Report Modal -->
 <?php if ($is_admin): ?>
 <div class="modal fade" id="pmReportModal" tabindex="-1" aria-labelledby="pmReportLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="pmReportLabel"><i class="fas fa-chart-line me-2"></i>Completed Trainings Report</h5>
+                <h5 class="modal-title" id="pmReportLabel"><i class="fas fa-chart-line me-2"></i>Generate Training Report</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i><strong>Note:</strong> This report only shows trainings with <strong>COMPLETED</strong> PTR status.</div>
                 <div class="row g-3 mb-4">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Year</label>
                         <select id="reportYear" class="form-select">
                             <option value="">All Years</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Month</label>
                         <select id="reportMonth" class="form-select">
                             <option value="">All Months</option>
@@ -1666,22 +1960,55 @@ if (!empty($filter_committee)) $active_filters++;
                             <?php endfor; ?>
                         </select>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button id="exportPmReportBtn" class="btn btn-success"><i class="fas fa-download me-1"></i> Export CSV</button>
+                    <div class="col-md-2">
+                        <label class="form-label">Request Status</label>
+                        <select id="reportStatus" class="form-select">
+                            <option value="">All Request Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="conditional">Conditional</option>
+                            <option value="disapproved">Disapproved</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">PTR Status</label>
+                        <select id="reportPtrStatus" class="form-select">
+                            <option value="">All PTR</option>
+                            <option value="pending">Pending</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="complete">Complete</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Committee</label>
+                        <select id="reportCommittee" class="form-select">
+                            <option value="">All Committees</option>
+                            <?php foreach ($all_committees as $comm): ?>
+                                <option value="<?= $comm['id'] ?>"><?= htmlspecialchars($comm['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button id="generateReportPreviewBtn" class="btn btn-success w-100">
+                            <i class="fas fa-search me-1"></i> Generate
+                        </button>
                     </div>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="pmReportTable">
-                        <thead class="table-light">
-                            <tr><th>Title</th><th>Venue</th><th>From</th><th>To</th><th>Program Manager</th><th>Hospital Order No.</th><th>Amount</th><th>PTR Status</th></tr>
-                        </thead>
-                        <tbody id="pmReportTableBody">
-                            <tr><td colspan="8" class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><p>Loading data...</p></div></tr>
-                        </tbody>
-                    </table>
+                <div id="reportPreviewContainer" style="display: none;">
+                    <div id="reportPreviewContent"></div>
+                    <div class="d-flex gap-2 mt-3 justify-content-end">
+                        <button class="btn btn-outline-secondary" onclick="printGeneratedReport()">
+                            <i class="fas fa-print me-1"></i> Print
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="saveGeneratedReportPdf()">
+                            <i class="fas fa-file-pdf me-1"></i> Save as PDF
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1734,7 +2061,6 @@ if (!empty($filter_committee)) $active_filters++;
 
     // ========== BATCH FUNCTIONS FOR ADD MODAL ==========
     
-    // Get all selected user IDs from all batches except the current one
     function getSelectedUserIdsFromOtherBatches(currentBatchIndex) {
         let selectedIds = [];
         for (let i = 0; i < batches.length; i++) {
@@ -1746,16 +2072,11 @@ if (!empty($filter_committee)) $active_filters++;
     }
     
     function initBatchTabs() {
-        const container = document.getElementById('batchTabsContainer');
-        const panelsContainer = document.getElementById('batchPanelsContainer');
-        
         if (batches.length === 0) {
             addNewBatch();
         }
-        
         renderBatchTabs();
         renderBatchPanels();
-        
         batches.forEach((_, index) => {
             loadUsersForBatch(index);
         });
@@ -1785,8 +2106,12 @@ if (!empty($filter_committee)) $active_filters++;
         const container = document.getElementById('batchPanelsContainer');
         if (!container) return;
         
+        const activeTab = document.querySelector('.batch-tab.active');
+        const activeTabIndex = activeTab ? parseInt(activeTab.getAttribute('data-batch-index')) : 0;
+        
         let html = '';
         batches.forEach((batch, index) => {
+            const isActive = index === activeTabIndex;
             const attendeesHtml = (batch.attendees || []).map(att => {
                 const isChecked = batch.selectedAttendees.includes(att.id);
                 return `
@@ -1801,7 +2126,7 @@ if (!empty($filter_committee)) $active_filters++;
             }).join('');
             
             html += `
-                <div class="batch-panel ${index === 0 ? 'active' : ''}" data-batch-panel="${index}">
+                <div class="batch-panel ${isActive ? 'active' : ''}" data-batch-panel="${index}">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Start Date <span class="text-danger">*</span></label>
@@ -1838,30 +2163,37 @@ if (!empty($filter_committee)) $active_filters++;
     }
     
     function loadUsersForBatch(batchIndex, search = '') {
-        // Get existing user IDs from other batches to exclude them
         const excludedUserIds = getSelectedUserIdsFromOtherBatches(batchIndex);
         
         const url = new URL(window.location.href);
         url.searchParams.set('get_users_for_attendance', '1');
         url.searchParams.set('request_id', 0);
         if (search) url.searchParams.set('search', search);
-        
-        // Also need to pass excluded IDs to the backend
         if (excludedUserIds.length > 0) {
             url.searchParams.set('exclude_ids', JSON.stringify(excludedUserIds));
         }
+        
+        const activeTab = document.querySelector('.batch-tab.active');
+        const activeTabIndex = activeTab ? parseInt(activeTab.getAttribute('data-batch-index')) : batchIndex;
         
         fetch(url.toString())
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.users) {
-                    // Filter out users that are already selected in other batches
                     const filteredUsers = data.users.filter(user => !excludedUserIds.includes(user.id));
                     batches[batchIndex].attendees = filteredUsers;
                     renderBatchPanels();
+                    setTimeout(() => {
+                        switchBatchTab(activeTabIndex);
+                    }, 50);
+                } else {
+                    showToast(data.message || 'Failed to load users', 'danger');
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error loading users:', error);
+                showToast('Error loading users', 'danger');
+            });
     }
     
     function searchBatchAttendees(batchIndex, search) {
@@ -1894,7 +2226,6 @@ if (!empty($filter_committee)) $active_filters++;
             showToast('Maximum 10 batches allowed', 'warning');
             return;
         }
-        
         batches.push({
             start_date: currentTrainingStart,
             end_date: currentTrainingEnd,
@@ -1903,7 +2234,6 @@ if (!empty($filter_committee)) $active_filters++;
             attendees: [],
             selectedAttendees: []
         });
-        
         renderBatchTabs();
         renderBatchPanels();
         switchBatchTab(batches.length - 1);
@@ -1956,12 +2286,18 @@ if (!empty($filter_committee)) $active_filters++;
         const countSpan = document.getElementById(`batch-selected-count-${index}`);
         if (countSpan) countSpan.innerText = batches[index].selectedAttendees.length;
         
-        // Reload other batches to exclude this newly selected user
+        const activeTab = document.querySelector('.batch-tab.active');
+        const activeTabIndex = activeTab ? parseInt(activeTab.getAttribute('data-batch-index')) : 0;
+        
         for (let i = 0; i < batches.length; i++) {
             if (i !== index) {
                 loadUsersForBatch(i);
             }
         }
+        
+        setTimeout(() => {
+            switchBatchTab(activeTabIndex);
+        }, 100);
     }
     
     // Set training dates for batch limits
@@ -2080,17 +2416,19 @@ if (!empty($filter_committee)) $active_filters++;
         initBatchTabs();
     });
     
-    // ========== BATCHES MODAL (SINGLE BUTTON) ==========
+    // ========== BATCHES MODAL (VIEW ONLY) ==========
     
     function openBatchesModal(trainingId, trainingStartDate) {
         currentTrainingId = trainingId;
         currentTrainingStartDate = trainingStartDate;
         
-        const currentDate = new Date();
-        const trainingStart = new Date(trainingStartDate);
-        canEditBatches = currentDate < trainingStart;
+        const modalElement = document.getElementById('batchesModal');
+        if (!modalElement) {
+            showToast('Error: Modal not found', 'danger');
+            return;
+        }
         
-        const modal = new bootstrap.Modal(document.getElementById('batchesModal'));
+        const modal = new bootstrap.Modal(modalElement);
         const modalBody = document.getElementById('batchesModalBody');
         modalBody.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading batches...</p></div>';
         modal.show();
@@ -2101,15 +2439,14 @@ if (!empty($filter_committee)) $active_filters++;
                 if (data.success && data.batches.length > 0) {
                     currentBatchesData = data.batches;
                     renderBatchesModal();
-                    if (canEditBatches) {
-                        loadAvailableUsersForBatches();
-                    }
-                } else {
+                } else if (data.success && data.batches.length === 0) {
                     modalBody.innerHTML = '<div class="alert alert-info">No batches found for this training.</div>';
+                } else {
+                    modalBody.innerHTML = '<div class="alert alert-danger">' + (data.message || 'Error loading batches') + '</div>';
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('Error loading batches:', error);
                 modalBody.innerHTML = '<div class="alert alert-danger">Error loading batches</div>';
             });
     }
@@ -2120,95 +2457,71 @@ if (!empty($filter_committee)) $active_filters++;
         let tabsHtml = '<div class="batch-modal-tabs">';
         let panelsHtml = '<div>';
         
-        // Add Batch button in tabs (only if can edit)
-        if (canEditBatches && currentBatchesData.length < 10) {
-            tabsHtml += `<div class="batch-modal-tab add-batch-tab" onclick="addBatchToTraining()">+ Add Batch</div>`;
-        }
-        
         currentBatchesData.forEach((batch, index) => {
             const isActive = index === 0;
-            
             const startDateFormatted = formatDate(batch.start_date);
             const endDateFormatted = formatDate(batch.end_date);
             const startWeekday = batch.start_date ? new Date(batch.start_date).toLocaleDateString('en-US', { weekday: 'short' }) : '';
             const endWeekday = batch.end_date ? new Date(batch.end_date).toLocaleDateString('en-US', { weekday: 'short' }) : '';
             
+            // Check if attendance has been saved
+            const hasAttendance = batch.attendees && batch.attendees.length > 0 && batch.attendees.some(att => att.attended !== undefined && att.attended !== null);
+            
             tabsHtml += `
-                <div class="batch-modal-tab ${isActive ? 'active' : ''}" data-batch-index="${index}" onclick="switchBatchModalTab(${index})">
+                <div class="batch-modal-tab ${isActive ? 'active' : ''}" onclick="switchBatchModalTab(${index})">
                     Batch ${index + 1}
-                    ${canEditBatches ? `<span class="batch-tab-remove" onclick="event.stopPropagation(); deleteBatchFromTraining(${batch.id}, ${index})">&times;</span>` : ''}
                 </div>
             `;
             
-            let attendeesHtml = '<div class="batch-modal-attendee-list">';
+            let attendanceHtml = '';
             if (batch.attendees && batch.attendees.length > 0) {
-                batch.attendees.forEach(att => {
-                    attendeesHtml += `
-                        <div class="batch-modal-attendee-item">
-                            <div class="attendee-info">
-                                <div class="attendee-name">${escapeHtml(att.fullname)}</div>
-                                <div class="attendee-username">${escapeHtml(att.username)}</div>
+                if (hasAttendance) {
+                    // Split into attended and absent
+                    const attended = batch.attendees.filter(att => att.attended == 1);
+                    const absent = batch.attendees.filter(att => att.attended != 1);
+                    
+                    const attendedList = attended.length > 0 
+                        ? attended.map(att => `<li class="mb-1"><i class="fas fa-check-circle text-success me-2"></i>${escapeHtml(att.fullname)} <small class="text-muted">(${escapeHtml(att.username)})</small></li>`).join('')
+                        : '<li class="text-muted">None</li>';
+                    
+                    const absentList = absent.length > 0
+                        ? absent.map(att => `<li class="mb-1"><i class="fas fa-times-circle text-danger me-2"></i>${escapeHtml(att.fullname)} <small class="text-muted">(${escapeHtml(att.username)})</small></li>`).join('')
+                        : '<li class="text-muted">None</li>';
+                    
+                    attendanceHtml = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-success"><i class="fas fa-check-circle me-1"></i> Attended (${attended.length})</h6>
+                                <ul class="list-unstyled mb-0">${attendedList}</ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-danger"><i class="fas fa-times-circle me-1"></i> Absent (${absent.length})</h6>
+                                <ul class="list-unstyled mb-0">${absentList}</ul>
                             </div>
                         </div>
                     `;
-                });
+                } else {
+                    attendanceHtml = '<ul class="list-unstyled mb-0">';
+                    batch.attendees.forEach(att => {
+                        attendanceHtml += `<li class="mb-1"><i class="fas fa-user me-2 text-muted"></i>${escapeHtml(att.fullname)} <small class="text-muted">(${escapeHtml(att.username)})</small></li>`;
+                    });
+                    attendanceHtml += '</ul>';
+                }
             } else {
-                attendeesHtml += '<div class="text-center py-3 text-muted">No attendees assigned to this batch</div>';
-            }
-            attendeesHtml += '</div>';
-            
-            let editFormHtml = '';
-            if (canEditBatches) {
-                editFormHtml = `
-                    <div class="mt-3 pt-3 border-top">
-                        <h6 class="mb-3">Edit Batch</h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Start Date</label>
-                                <input type="date" class="form-control edit-batch-start-date" data-batch-id="${batch.id}" value="${batch.start_date || ''}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">End Date</label>
-                                <input type="date" class="form-control edit-batch-end-date" data-batch-id="${batch.id}" value="${batch.end_date || ''}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Start Time</label>
-                                <input type="time" class="form-control edit-batch-start-time" data-batch-id="${batch.id}" value="${batch.start_time || ''}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">End Time</label>
-                                <input type="time" class="form-control edit-batch-end-time" data-batch-id="${batch.id}" value="${batch.end_time || ''}">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Add/Remove Attendees</label>
-                                <div class="search-box mb-2">
-                                    <input type="text" class="form-control batch-attendee-search" data-batch-id="${batch.id}" placeholder="Search attendees...">
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="searchBatchAttendeesForEdit(${batch.id})">Search</button>
-                                </div>
-                                <div class="batch-available-attendees" id="batch-available-attendees-${batch.id}" style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; background: white;">
-                                    <div class="text-center py-3 text-muted">Loading available users...</div>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <button class="btn btn-primary" onclick="saveBatchChanges(${batch.id})">Save Batch Changes</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                attendanceHtml = '<p class="text-muted mb-0">No attendees assigned</p>';
             }
             
             panelsHtml += `
-                <div class="batch-modal-panel ${isActive ? 'active' : ''}" data-batch-panel="${index}">
+                <div class="batch-modal-panel ${isActive ? 'active' : ''}">
                     <div class="mb-3">
-                        <h6>Schedule</h6>
-                        <p><strong>Dates:</strong> ${startDateFormatted} ${startWeekday ? `<span class="weekday-badge">${startWeekday}</span>` : ''} - ${endDateFormatted} ${endWeekday ? `<span class="weekday-badge">${endWeekday}</span>` : ''}</p>
-                        <p><strong>Times:</strong> ${batch.start_time || 'N/A'} - ${batch.end_time || 'N/A'}</p>
+                        <h6><i class="fas fa-calendar me-2"></i>Schedule</h6>
+                        <p class="mb-1"><strong>Dates:</strong> ${startDateFormatted} ${startWeekday ? `<span class="weekday-badge">${startWeekday}</span>` : ''} - ${endDateFormatted} ${endWeekday ? `<span class="weekday-badge">${endWeekday}</span>` : ''}</p>
+                        <p class="mb-0"><strong>Times:</strong> ${batch.start_time || 'N/A'} - ${batch.end_time || 'N/A'}</p>
                     </div>
-                    <div class="mb-3">
-                        <h6>Attendees (${batch.attendee_count})</h6>
-                        ${attendeesHtml}
+                    <div>
+                        <h6><i class="fas fa-${hasAttendance ? 'clipboard-check' : 'users'} me-2"></i>${hasAttendance ? 'Attendance' : 'Attendees'} (${batch.attendee_count})</h6>
+                        ${attendanceHtml}
                     </div>
-                    ${editFormHtml}
                 </div>
             `;
         });
@@ -2216,14 +2529,7 @@ if (!empty($filter_committee)) $active_filters++;
         tabsHtml += '</div>';
         panelsHtml += '</div>';
         
-        let editWarning = '';
-        if (!canEditBatches) {
-            editWarning = '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i>Training has already started. Batches cannot be edited.</div>';
-        } else {
-            editWarning = '<div class="alert alert-success mb-3"><i class="fas fa-edit me-2"></i>Training has not started yet. You can edit batch details and attendees.</div>';
-        }
-        
-        modalBody.innerHTML = editWarning + tabsHtml + panelsHtml;
+        modalBody.innerHTML = tabsHtml + panelsHtml;
     }
     
     function switchBatchModalTab(index) {
@@ -2237,178 +2543,567 @@ if (!empty($filter_committee)) $active_filters++;
         });
     }
     
-    function addBatchToTraining() {
-        if (currentBatchesData.length >= 10) {
+    // ========== BATCH EDITING IN EDIT MODAL ==========
+    let editBatches = [];
+    let editTrainingStart = '';
+    let editTrainingEnd = '';
+    let editRequestId = null;
+    
+    function getSelectedUserIdsFromOtherEditBatches(currentBatchIndex) {
+        let selectedIds = [];
+        for (let i = 0; i < editBatches.length; i++) {
+            if (i !== currentBatchIndex) {
+                selectedIds = selectedIds.concat(editBatches[i].selectedAttendees);
+            }
+        }
+        return selectedIds;
+    }
+    
+    function initEditBatchTabs(requestId, trainingStart, trainingEnd, isAttendanceMode = false) {
+        editRequestId = requestId;
+        editTrainingStart = trainingStart;
+        editTrainingEnd = trainingEnd;
+        
+        fetch(`${window.location.href}?get_training_batches=1&id=${requestId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Fetch attendance status for each batch
+                    const batchIds = data.batches.map(b => b.id);
+                    fetch(`${window.location.href}?get_attendance_status=1&batch_ids=${batchIds.join(',')}`)
+                        .then(res => res.json())
+                        .then(attData => {
+                            const attendanceMap = {};
+                            if (attData.success && attData.attendance) {
+                                attData.attendance.forEach(row => {
+                                    if (!attendanceMap[row.batch_id]) attendanceMap[row.batch_id] = {};
+                                    attendanceMap[row.batch_id][row.user_id] = row.attended == 1;
+                                });
+                            }
+                            
+                            editBatches = data.batches.map(batch => ({
+                                id: batch.id,
+                                name: batch.name,
+                                start_date: batch.start_date,
+                                end_date: batch.end_date,
+                                start_time: batch.start_time,
+                                end_time: batch.end_time,
+                                attendees: batch.attendees || [],
+                                selectedAttendees: (batch.attendees || []).map(a => parseInt(a.id)),
+                                attendance: attendanceMap[batch.id] || {}
+                            }));
+                            
+                            renderEditBatchTabs(isAttendanceMode);
+                            renderEditBatchPanels(isAttendanceMode);
+                            if (!isAttendanceMode) {
+                                editBatches.forEach((_, index) => {
+                                    loadUsersForEditBatch(index);
+                                });
+                            }
+                        });
+                } else {
+                    editBatches = [];
+                    renderEditBatchTabs(isAttendanceMode);
+                    renderEditBatchPanels(isAttendanceMode);
+                }
+            });
+    }
+    
+    function renderEditBatchTabs(isAttendanceMode = false) {
+        const container = document.getElementById('editBatchTabsContainer');
+        if (!container) return;
+        
+        let html = '<div class="batch-tabs">';
+        editBatches.forEach((batch, index) => {
+            html += `
+                <div class="batch-tab ${index === 0 ? 'active' : ''}" onclick="switchEditBatchTab(${index})">
+                    ${batch.name}
+                    ${!isAttendanceMode && editBatches.length > 1 ? `<span class="batch-tab-remove" onclick="event.stopPropagation(); deleteEditBatch(${batch.id}, ${index})">&times;</span>` : ''}
+                </div>
+            `;
+        });
+        if (!isAttendanceMode && editBatches.length < 10) {
+            html += `<div class="batch-tab add-batch-tab" onclick="addBatchToEditTraining()">+ Add Batch</div>`;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function addBatchToEditTraining() {
+        if (editBatches.length >= 10) {
             showToast('Maximum 10 batches allowed', 'warning');
             return;
         }
         
         const formData = new FormData();
         formData.append('add_batch_to_training', '1');
-        formData.append('training_id', currentTrainingId);
-        formData.append('batch_name', `Batch ${currentBatchesData.length + 1}`);
+        formData.append('training_id', editRequestId);
+        formData.append('batch_name', `Batch ${editBatches.length + 1}`);
         
         fetch(window.location.href, { method: 'POST', body: formData })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showToast('Batch added successfully!', 'success');
-                    openBatchesModal(currentTrainingId, currentTrainingStartDate);
+                    showToast('Batch added!', 'success');
+                    // Reload batch tabs
+                    initEditBatchTabs(editRequestId, editTrainingStart, editTrainingEnd);
                 } else {
                     showToast(data.message, 'danger');
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('An error occurred', 'danger');
             });
     }
+
+    function deleteEditBatch(batchId, index) {
+    if (!confirm(`Are you sure you want to delete ${editBatches[index].name}?`)) return;
     
-    function deleteBatchFromTraining(batchId, index) {
-        if (!confirm(`Are you sure you want to delete Batch ${index + 1}? This action cannot be undone.`)) return;
-        
-        const formData = new FormData();
-        formData.append('delete_batch_from_training', '1');
-        formData.append('batch_id', batchId);
-        
-        fetch(window.location.href, { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Batch deleted successfully!', 'success');
-                    openBatchesModal(currentTrainingId, currentTrainingStartDate);
-                } else {
-                    showToast(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('An error occurred', 'danger');
-            });
-    }
+    const formData = new FormData();
+    formData.append('delete_batch_from_training', '1');
+    formData.append('batch_id', batchId);
     
-    function loadAvailableUsersForBatches() {
-        currentBatchesData.forEach(batch => {
-            loadAvailableUsersForBatchEdit(batch.id);
+    fetch(window.location.href, { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Batch deleted!', 'success');
+                initEditBatchTabs(editRequestId, editTrainingStart, editTrainingEnd);
+            } else {
+                showToast(data.message, 'danger');
+            }
         });
     }
     
-    function loadAvailableUsersForBatchEdit(batchId) {
-        const container = document.getElementById(`batch-available-attendees-${batchId}`);
+    function renderEditBatchPanels(isAttendanceMode = false) {
+        const container = document.getElementById('editBatchPanelsContainer');
         if (!container) return;
+        
+        const activeTab = document.querySelector('#editBatchTabsContainer .batch-tab.active');
+        let activeIndex = 0;
+        if (activeTab) {
+            const tabs = document.querySelectorAll('#editBatchTabsContainer .batch-tab');
+            tabs.forEach((tab, i) => {
+                if (tab === activeTab) activeIndex = i;
+            });
+        }
+        
+        let html = '';
+        editBatches.forEach((batch, index) => {
+            const isActive = index === activeIndex;
+            
+            let attendeesSection = '';
+            
+            if (isAttendanceMode) {
+                // Attendance mode - show checkboxes for attended/absent
+                const attendanceHtml = (batch.attendees || []).map(att => {
+                    const isPresent = batch.attendance && batch.attendance[att.id] === true;
+                    return `
+                        <div class="batch-attendee-item">
+                            <input type="checkbox" class="attendance-checkbox" value="${att.id}" ${isPresent ? 'checked' : ''} onchange="toggleAttendance(${index}, ${att.id}, this.checked)">
+                            <div class="attendee-info">
+                                <div class="attendee-name">${escapeHtml(att.fullname)}</div>
+                                <div class="attendee-username">${escapeHtml(att.username)}</div>
+                            </div>
+                            <span class="badge ms-auto ${isPresent ? 'bg-success' : 'bg-secondary'}">${isPresent ? 'Present' : 'Absent'}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                attendeesSection = `
+                    <div class="mt-3">
+                        <label class="form-label">Attendance List</label>
+                        <div class="batch-attendee-list">
+                            ${attendanceHtml || '<div class="text-center py-3 text-muted">No attendees</div>'}
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-success" onclick="submitAttendance(${batch.id}, ${index})">
+                                <i class="fas fa-save me-1"></i> Submit Attendance
+                            </button>
+                            <button class="btn btn-info" onclick="previewAttendanceReport(${batch.id})">
+                                <i class="fas fa-eye me-1"></i> Preview Report
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Edit mode - show attendee checkboxes for selection
+                const attendeesHtml = (batch.attendees || []).map(att => {
+                    const isChecked = batch.selectedAttendees.includes(parseInt(att.id));
+                    return `
+                        <div class="batch-attendee-item">
+                            <input type="checkbox" class="batch-attendee-checkbox" value="${att.id}" ${isChecked ? 'checked' : ''} onchange="toggleEditBatchAttendee(${index}, ${att.id})">
+                            <div class="attendee-info">
+                                <div class="attendee-name">${escapeHtml(att.fullname)}</div>
+                                <div class="attendee-username">${escapeHtml(att.username)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                attendeesSection = `
+                    <div class="mt-3">
+                        <label class="form-label">Attendees</label>
+                        <div class="search-box">
+                            <input type="text" class="form-control edit-batch-attendee-search" placeholder="Search attendees..." onkeyup="searchEditBatchAttendees(${index}, this.value)">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="clearEditBatchSearch(${index})">Clear</button>
+                        </div>
+                        <div class="batch-attendee-list" id="edit-batch-attendee-list-${index}">
+                            ${attendeesHtml || '<div class="text-center py-3 text-muted">No attendees available</div>'}
+                        </div>
+                        <small class="text-muted">Selected: <span id="edit-batch-selected-count-${index}">${batch.selectedAttendees.length}</span> attendees</small>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="batch-panel ${isActive ? 'active' : ''}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" value="${batch.start_date || ''}" ${!isAttendanceMode ? '' : 'disabled'}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" value="${batch.end_date || ''}" ${!isAttendanceMode ? '' : 'disabled'}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Start Time</label>
+                            <input type="time" class="form-control" value="${batch.start_time || ''}" ${!isAttendanceMode ? '' : 'disabled'}>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Time</label>
+                            <input type="time" class="form-control" value="${batch.end_time || ''}" ${!isAttendanceMode ? '' : 'disabled'}>
+                        </div>
+                    </div>
+                    ${attendeesSection}
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function generateAttendanceReport(batchId) {
+        fetch(`${window.location.href}?get_attendance_report=1&batch_id=${batchId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Create CSV content
+                    let csv = 'Name,Username,Status\n';
+                    
+                    data.attendees.forEach(att => {
+                        const status = att.attended == 1 ? 'Present' : 'Absent';
+                        csv += `"${att.fullname}","${att.username}","${status}"\n`;
+                    });
+                    
+                    // Download CSV
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `attendance_batch_${batchId}_${new Date().toISOString().slice(0,10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    showToast('Report downloaded!', 'success');
+                } else {
+                    showToast(data.message || 'Error generating report', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error generating report', 'danger');
+            });
+    }
+
+    function toggleAttendance(batchIndex, userId, attended) {
+        if (!editBatches[batchIndex].attendance) {
+            editBatches[batchIndex].attendance = {};
+        }
+        editBatches[batchIndex].attendance[userId] = attended;
+        
+        // Update badge
+        const item = event.target.closest('.batch-attendee-item');
+        const badge = item.querySelector('.badge');
+        if (attended) {
+            badge.className = 'badge bg-success ms-auto';
+            badge.textContent = 'Present';
+        } else {
+            badge.className = 'badge bg-secondary ms-auto';
+            badge.textContent = 'Absent';
+        }
+    }
+    
+    function submitAttendance(batchId, batchIndex) {
+        const panel = document.querySelector(`#editBatchPanelsContainer .batch-panel:nth-child(${batchIndex + 1})`);
+        if (!panel) {
+            showToast('Error: Panel not found', 'danger');
+            return;
+        }
+        
+        const checkboxes = panel.querySelectorAll('.attendance-checkbox');
+        if (checkboxes.length === 0) {
+            showToast('No attendees to save', 'warning');
+            return;
+        }
+        
+        const promises = [];
+        
+        checkboxes.forEach(cb => {
+            const userId = parseInt(cb.value);
+            const attended = cb.checked ? 1 : 0;
+            
+            console.log('Saving attendance:', { batchId, userId, attended });
+            
+            const formData = new FormData();
+            formData.append('update_attendance_ajax', '1');
+            formData.append('batch_id', batchId);
+            formData.append('user_id', userId);
+            formData.append('attended', attended);
+            
+            promises.push(
+                fetch(window.location.href, { method: 'POST', body: formData })
+                    .then(r => r.json())
+            );
+        });
+        
+        Promise.all(promises)
+            .then(results => {
+                console.log('Attendance results:', results);
+                const allSuccess = results.every(r => r.success);
+                if (allSuccess) {
+                    showToast('Attendance saved!', 'success');
+                } else {
+                    const errors = results.filter(r => !r.success).map(r => r.message).join(', ');
+                    showToast('Failed: ' + errors, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Attendance error:', error);
+                showToast('Error saving attendance', 'danger');
+            });
+    }
+    
+    function loadUsersForEditBatch(batchIndex, search = '') {
+        const excludedUserIds = getSelectedUserIdsFromOtherEditBatches(batchIndex);
         
         const url = new URL(window.location.href);
         url.searchParams.set('get_users_for_attendance', '1');
-        url.searchParams.set('request_id', currentTrainingId);
-        url.searchParams.set('current_batch_id', batchId);
+        url.searchParams.set('request_id', editRequestId);
+        url.searchParams.set('current_batch_id', editBatches[batchIndex].id || 0);
+        if (search) url.searchParams.set('search', search);
+        if (excludedUserIds.length > 0) {
+            url.searchParams.set('exclude_ids', JSON.stringify(excludedUserIds));
+        }
         
         fetch(url.toString())
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.users) {
-                    let html = '';
-                    const batch = currentBatchesData.find(b => b.id === batchId);
-                    const existingAttendeeIds = batch ? batch.attendees.map(a => a.id) : [];
-                    
-                    data.users.forEach(user => {
-                        const isSelected = existingAttendeeIds.includes(user.id);
-                        html += `
-                            <div class="batch-modal-attendee-item">
-                                <input type="checkbox" class="batch-modal-attendee-checkbox" value="${user.id}" data-user-id="${user.id}" ${isSelected ? 'checked' : ''}>
-                                <div class="attendee-info">
-                                    <div class="attendee-name">${escapeHtml(user.fullname)}</div>
-                                    <div class="attendee-username">${escapeHtml(user.username)}</div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    if (data.users.length === 0) {
-                        html = '<div class="text-center py-3 text-muted">No users available to add</div>';
-                    }
-                    container.innerHTML = html;
-                    
-                    const searchInput = document.querySelector(`.batch-attendee-search[data-batch-id="${batchId}"]`);
-                    if (searchInput) {
-                        const existingSearchHandler = searchInput._searchHandler;
-                        if (existingSearchHandler) {
-                            searchInput.removeEventListener('keyup', existingSearchHandler);
-                        }
-                        const searchHandler = function() {
-                            filterBatchAttendees(batchId, this.value);
-                        };
-                        searchInput._searchHandler = searchHandler;
-                        searchInput.addEventListener('keyup', searchHandler);
-                    }
+                    const filteredUsers = data.users.filter(user => !excludedUserIds.includes(parseInt(user.id)));
+                    editBatches[batchIndex].attendees = filteredUsers;
+                    renderEditBatchPanels();
                 }
-            })
-            .catch(error => console.error('Error:', error));
-    }
-    
-    function filterBatchAttendees(batchId, searchTerm) {
-        const container = document.getElementById(`batch-available-attendees-${batchId}`);
-        if (!container) return;
-        
-        const items = container.querySelectorAll('.batch-modal-attendee-item');
-        items.forEach(item => {
-            const text = item.textContent.toLowerCase();
-            if (searchTerm === '' || text.includes(searchTerm.toLowerCase())) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-    }
-    
-    function searchBatchAttendeesForEdit(batchId) {
-        const searchInput = document.querySelector(`.batch-attendee-search[data-batch-id="${batchId}"]`);
-        if (searchInput) {
-            filterBatchAttendees(batchId, searchInput.value);
-        }
-    }
-    
-    function saveBatchChanges(batchId) {
-        const startDate = document.querySelector(`.edit-batch-start-date[data-batch-id="${batchId}"]`)?.value || '';
-        const endDate = document.querySelector(`.edit-batch-end-date[data-batch-id="${batchId}"]`)?.value || '';
-        const startTime = document.querySelector(`.edit-batch-start-time[data-batch-id="${batchId}"]`)?.value || null;
-        const endTime = document.querySelector(`.edit-batch-end-time[data-batch-id="${batchId}"]`)?.value || null;
-        
-        const container = document.getElementById(`batch-available-attendees-${batchId}`);
-        const selectedAttendees = Array.from(container.querySelectorAll('.batch-modal-attendee-checkbox:checked')).map(cb => cb.value);
-        
-        if (!startDate || !endDate) {
-            showToast('Start date and end date are required', 'danger');
-            return;
-        }
-        if (new Date(endDate) < new Date(startDate)) {
-            showToast('End date cannot be earlier than start date', 'danger');
-            return;
-        }
-        
-        const formData = new FormData();
-        formData.append('update_batch_ajax', '1');
-        formData.append('batch_id', batchId);
-        formData.append('start_date', startDate);
-        formData.append('end_date', endDate);
-        formData.append('start_time', startTime);
-        formData.append('end_time', endTime);
-        formData.append('attendees', JSON.stringify(selectedAttendees));
-        
-        fetch(window.location.href, { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Batch updated successfully!', 'success');
-                    openBatchesModal(currentTrainingId, currentTrainingStartDate);
-                } else {
-                    showToast(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('An error occurred', 'danger');
             });
     }
     
+    function searchEditBatchAttendees(batchIndex, search) {
+        if (search.length >= 2 || search.length === 0) {
+            loadUsersForEditBatch(batchIndex, search);
+        }
+    }
+    
+    function clearEditBatchSearch(batchIndex) {
+        const searchInput = document.querySelector(`#editBatchPanelsContainer .edit-batch-attendee-search`);
+        if (searchInput) {
+            searchInput.value = '';
+            loadUsersForEditBatch(batchIndex, '');
+        }
+    }
+    
+    function switchEditBatchTab(index) {
+        const tabs = document.querySelectorAll('#editBatchTabsContainer .batch-tab');
+        const panels = document.querySelectorAll('#editBatchPanelsContainer .batch-panel');
+        tabs.forEach((tab, i) => {
+            if (i === index) tab.classList.add('active');
+            else tab.classList.remove('active');
+        });
+        panels.forEach((panel, i) => {
+            if (i === index) panel.classList.add('active');
+            else panel.classList.remove('active');
+        });
+    }
+    
+    function toggleEditBatchAttendee(index, userId) {
+        const id = parseInt(userId);
+        const idx = editBatches[index].selectedAttendees.indexOf(id);
+        if (idx === -1) {
+            editBatches[index].selectedAttendees.push(id);
+        } else {
+            editBatches[index].selectedAttendees.splice(idx, 1);
+        }
+        
+        const countSpan = document.getElementById(`edit-batch-selected-count-${index}`);
+        if (countSpan) countSpan.innerText = editBatches[index].selectedAttendees.length;
+        
+        for (let i = 0; i < editBatches.length; i++) {
+            if (i !== index) {
+                loadUsersForEditBatch(i);
+            }
+        }
+    }
+    
+    function updateEditBatchStartDate(index, date) {
+        editBatches[index].start_date = date;
+    }
+    
+    function updateEditBatchEndDate(index, date) {
+        editBatches[index].end_date = date;
+    }
+    
+    function updateEditBatchStartTime(index, time) {
+        editBatches[index].start_time = time;
+    }
+    
+    function updateEditBatchEndTime(index, time) {
+        editBatches[index].end_time = time;
+    }
+    
+    function saveAllBatchChanges() {
+        const promises = editBatches.map(batch => {
+            const formData = new FormData();
+            formData.append('update_batch_ajax', '1');
+            formData.append('batch_id', batch.id);
+            formData.append('start_date', batch.start_date);
+            formData.append('end_date', batch.end_date);
+            formData.append('start_time', batch.start_time || '');
+            formData.append('end_time', batch.end_time || '');
+            formData.append('attendees', JSON.stringify(batch.selectedAttendees));
+            
+            return fetch(window.location.href, { method: 'POST', body: formData })
+                .then(response => response.json());
+        });
+        
+        return Promise.all(promises);
+    }
+
+    function previewAttendanceReport(batchId) {
+        const modal = new bootstrap.Modal(document.getElementById('attendancePreviewModal'));
+        const modalBody = document.getElementById('attendancePreviewBody');
+        modalBody.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading...</p></div>';
+        modal.show();
+        
+        // Fetch ALL batches for this training to show full report
+        fetch(`${window.location.href}?get_training_batches=1&id=${editRequestId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.batches.length > 0) {
+                    // Get training info
+                    fetch(`${window.location.href}?get_pm_request=1&id=${editRequestId}`)
+                        .then(res => res.json())
+                        .then(reqData => {
+                            const training = reqData.success ? reqData.request : {};
+                            renderAttendancePreview(training, data.batches, batchId);
+                        });
+                } else {
+                    modalBody.innerHTML = '<div class="alert alert-info">No batches found</div>';
+                }
+            });
+    }
+    
+    function renderAttendancePreview(training, batches, highlightBatchId) {
+        const modalBody = document.getElementById('attendancePreviewBody');
+        
+        let html = '';
+        
+        // Header
+        html += `
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 1px solid #000;">
+                <h4 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">${escapeHtml(training.title || 'Training')}</h4>
+                <p style="margin: 0 0 4px 0; font-size: 13px;">${escapeHtml(training.venue || '')}</p>
+                <p style="margin: 0 0 4px 0; font-size: 13px;">${formatDate(training.date_start)} — ${formatDate(training.date_end)}</p>
+                <p style="margin: 0; font-size: 12px; color: #555;">Program Manager: ${escapeHtml(training.requester_name || '')}</p>
+            </div>
+        `;
+        
+        batches.forEach(batch => {
+            const isHighlighted = batch.id == highlightBatchId;
+            const hasAttendance = batch.attendees && batch.attendees.length > 0 && batch.attendees.some(att => att.attended !== undefined && att.attended !== null);
+            
+            const attended = hasAttendance ? (batch.attendees || []).filter(att => att.attended == 1) : [];
+            const absent = hasAttendance ? (batch.attendees || []).filter(att => att.attended != 1) : [];
+            const maxRows = Math.max(attended.length, absent.length, 1);
+            
+            let tableRows = '';
+            for (let i = 0; i < maxRows; i++) {
+                const attUser = attended[i] ? `${escapeHtml(attended[i].fullname)}` : '';
+                const absUser = absent[i] ? `${escapeHtml(absent[i].fullname)}` : '';
+                tableRows += `
+                    <tr>
+                        <td style="width: 50%; padding: 6px 12px; border-right: 1px solid #ccc;">${attUser}</td>
+                        <td style="width: 50%; padding: 6px 12px;">${absUser}</td>
+                    </tr>
+                `;
+            }
+            
+            html += `
+                <div style="margin-bottom: 25px; border: 1px solid #ccc;">
+                    <div style="padding: 8px 12px; font-weight: 600; font-size: 13px; background: #f5f5f5; border-bottom: 1px solid #ccc;">
+                        ${escapeHtml(batch.name)}
+                        <span style="font-weight: 400; font-size: 12px; margin-left: 10px;">${formatDate(batch.start_date)} — ${formatDate(batch.end_date)}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #ccc;">
+                                <th style="width: 50%; padding: 6px 12px; text-align: left; font-weight: 600; border-right: 1px solid #ccc;">Attended (${attended.length})</th>
+                                <th style="width: 50%; padding: 6px 12px; text-align: left; font-weight: 600;">Absent (${absent.length})</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+        
+        // Footer
+        html += `
+            <div style="text-align: right; font-size: 11px; color: #888; margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc;">
+                Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+        `;
+        
+        modalBody.innerHTML = html;
+    }
+    
+    function printAttendanceReport() {
+        const modalBody = document.getElementById('attendancePreviewBody').innerHTML;
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Attendance Report</title>
+                <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 30px; color: #333; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { border: 1px solid #dee2e6; }
+                    .text-success { color: #198754; }
+                    .text-danger { color: #dc3545; }
+                    .text-muted { color: #6c757d; }
+                    @media print { body { padding: 0; } }
+                </style>
+            </head>
+            <body>${modalBody}</body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+        }, 300);
+    }
+
     // ========== EDIT MODAL FUNCTIONS ==========
     
     function openEditPmModal(id) {
@@ -2440,25 +3135,53 @@ if (!empty($filter_committee)) $active_filters++;
                     document.getElementById('adminAction').value = '';
                     document.getElementById('updateRequestBtn').innerHTML = '<i class="fas fa-save me-1"></i> Update Request';
                     
-                    const ptrHtml = request.ptr_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${request.ptr_file}" target="_blank">📄 View Current PTR File</a>` : '<span class="text-muted">No PTR file uploaded</span>';
-                    const attendanceHtml = request.attendance_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${request.attendance_file}" target="_blank">📄 View Current Attendance File</a>` : '<span class="text-muted">No attendance file uploaded</span>';
+                    const ptrHtml = request.ptr_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${request.ptr_file}" target="_blank">View Current PTR File</a>` : '<span class="text-muted">No PTR file uploaded</span>';
+                    const attendanceHtml = request.attendance_file ? `<a href="<?= BASE_URL ?>/uploads/pm_training/${request.attendance_file}" target="_blank">View Current Attendance File</a>` : '<span class="text-muted">No attendance file uploaded</span>';
                     document.getElementById('current_ptr_file').innerHTML = ptrHtml;
                     document.getElementById('current_attendance_file').innerHTML = attendanceHtml;
                     
                     const adminActionsContainer = document.getElementById('adminActionsButtons')?.parentElement?.parentElement;
                     if (adminActionsContainer) {
-                        adminActionsContainer.style.display = request.status === 'pending' ? 'block' : 'none';
+                        adminActionsContainer.style.display = 'block';
+                        // Show/hide buttons based on current status
+                        const btnApprove = document.querySelector('.btn-approve');
+                        const btnConditional = document.querySelector('.btn-conditional');
+                        const btnDisapprove = document.querySelector('.btn-disapprove');
+                        const btnRevert = document.querySelector('.btn-revert');
+                        
+                        if (request.status === 'pending') {
+                            if (btnApprove) btnApprove.style.display = '';
+                            if (btnConditional) btnConditional.style.display = '';
+                            if (btnDisapprove) btnDisapprove.style.display = '';
+                            if (btnRevert) btnRevert.style.display = 'none';
+                        } else if (request.status === 'approved' || request.status === 'conditional') {
+                            if (btnApprove) btnApprove.style.display = 'none';
+                            if (btnConditional) btnConditional.style.display = 'none';
+                            if (btnDisapprove) btnDisapprove.style.display = 'none';
+                            if (btnRevert) btnRevert.style.display = '';
+                        } else {
+                            if (btnApprove) btnApprove.style.display = 'none';
+                            if (btnConditional) btnConditional.style.display = 'none';
+                            if (btnDisapprove) btnDisapprove.style.display = 'none';
+                            if (btnRevert) btnRevert.style.display = 'none';
+                        }
                     }
                     
+                    // Declare date variables ONCE
                     const currentDate = new Date();
+                    const startDate = new Date(request.date_start);
                     const endDate = new Date(request.date_end);
                     const isPastEndDate = currentDate > endDate;
+                    const isBeforeStart = currentDate < startDate;
+                    
+                    // Attachments section
                     const canShowAttachments = isPastEndDate && (request.status === 'approved' || request.status === 'conditional');
                     const attachmentsSection = document.getElementById('attachmentsSection');
                     if (attachmentsSection) {
                         attachmentsSection.style.display = canShowAttachments ? 'block' : 'none';
                     }
                     
+                    // Complete button
                     const completeContainer = document.getElementById('completeButtonContainer');
                     if (completeContainer && request.ptr_status === 'submitted' && isPastEndDate) {
                         completeContainer.style.display = 'block';
@@ -2472,7 +3195,26 @@ if (!empty($filter_committee)) $active_filters++;
                         completeContainer.style.display = 'none';
                     }
                     
-                    new bootstrap.Modal(document.getElementById('editPmTrainingModal')).show();
+                    // Handle batches tab visibility
+                    const showBatchesTab = isBeforeStart || isPastEndDate;
+                    
+                    const batchesTabLi = document.getElementById('batches-tab')?.parentElement;
+                    if (batchesTabLi) {
+                        if (showBatchesTab) {
+                            batchesTabLi.style.display = '';
+                            initEditBatchTabs(request.id, request.date_start, request.date_end, isPastEndDate);
+                        } else {
+                            batchesTabLi.style.display = 'none';
+                        }
+                    }
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('editPmTrainingModal'));
+                    modal.show();
+                    
+                    setTimeout(() => {
+                        switchEditModalTab('details');
+                    }, 200);
+                    
                 } else {
                     showToast(data.message, 'danger');
                 }
@@ -2481,6 +3223,35 @@ if (!empty($filter_committee)) $active_filters++;
                 console.error('Error:', error);
                 showToast('Error loading request data', 'danger');
             });
+    }
+
+    function confirmRevert() {
+        const adminButtons = document.getElementById('adminActionsButtons');
+        if (adminButtons) adminButtons.style.display = 'none';
+        submitAdminAction('revert', '');
+    }
+
+    function switchEditModalTab(tabName) {
+        const detailsTab = document.getElementById('details-tab');
+        const batchesTab = document.getElementById('batches-tab');
+        const detailsPanel = document.getElementById('details-panel');
+        const batchesPanel = document.getElementById('batches-panel');
+        
+        if (!detailsPanel || !batchesPanel) return;
+        
+        if (detailsTab) detailsTab.classList.remove('active');
+        if (batchesTab) batchesTab.classList.remove('active');
+        
+        detailsPanel.style.display = 'none';
+        batchesPanel.style.display = 'none';
+        
+        if (tabName === 'details') {
+            if (detailsTab) detailsTab.classList.add('active');
+            detailsPanel.style.display = 'block';
+        } else if (tabName === 'batches') {
+            if (batchesTab) batchesTab.classList.add('active');
+            batchesPanel.style.display = 'block';
+        }
     }
     
     function markAsComplete(id) {
@@ -2507,33 +3278,24 @@ if (!empty($filter_committee)) $active_filters++;
             });
     }
     
-    // ========== ADMIN ACTION FUNCTIONS (NO REMARKS) ==========
+    // ========== ADMIN ACTION FUNCTIONS ==========
     
     function confirmApprove() {
-        const adminAction = 'approve';
         const adminButtons = document.getElementById('adminActionsButtons');
-        if (adminButtons) {
-            adminButtons.style.display = 'none';
-        }
-        submitAdminAction(adminAction, '');
+        if (adminButtons) adminButtons.style.display = 'none';
+        submitAdminAction('approve', '');
     }
     
     function confirmConditional() {
-        const adminAction = 'conditional';
         const adminButtons = document.getElementById('adminActionsButtons');
-        if (adminButtons) {
-            adminButtons.style.display = 'none';
-        }
-        submitAdminAction(adminAction, '');
+        if (adminButtons) adminButtons.style.display = 'none';
+        submitAdminAction('conditional', '');
     }
     
     function confirmDisapprove() {
-        const adminAction = 'disapprove';
         const adminButtons = document.getElementById('adminActionsButtons');
-        if (adminButtons) {
-            adminButtons.style.display = 'none';
-        }
-        submitAdminAction(adminAction, '');
+        if (adminButtons) adminButtons.style.display = 'none';
+        submitAdminAction('disapprove', '');
     }
     
     function submitAdminAction(action, remark) {
@@ -2550,9 +3312,7 @@ if (!empty($filter_committee)) $active_filters++;
         fetch(window.location.href, { 
             method: 'POST', 
             body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(async response => {
             const text = await response.text();
@@ -2571,18 +3331,14 @@ if (!empty($filter_committee)) $active_filters++;
             } else {
                 showToast(data.message, 'danger');
                 const adminButtons = document.getElementById('adminActionsButtons');
-                if (adminButtons) {
-                    adminButtons.style.display = 'flex';
-                }
+                if (adminButtons) adminButtons.style.display = 'flex';
             }
         })
         .catch(error => {
             console.error('Error:', error);
             showToast('An error occurred. Please try again.', 'danger');
             const adminButtons = document.getElementById('adminActionsButtons');
-            if (adminButtons) {
-                adminButtons.style.display = 'flex';
-            }
+            if (adminButtons) adminButtons.style.display = 'flex';
         })
         .finally(() => {
             submitBtn.disabled = false;
@@ -2590,6 +3346,52 @@ if (!empty($filter_committee)) $active_filters++;
         });
     }
     
+    // Edit form submission - saves batches first, then submits form
+    document.getElementById('editPmTrainingForm')?.addEventListener('submit', function(e) {
+        const adminAction = document.getElementById('adminAction').value;
+        if (adminAction) return;
+        
+        e.preventDefault();
+        
+        saveAllBatchChanges()
+            .then(results => {
+                const allSuccess = results.every(r => r.success);
+                if (!allSuccess) {
+                    const errors = results.filter(r => !r.success).map(r => r.message).join(', ');
+                    showToast('Batch update failed: ' + errors, 'danger');
+                    return;
+                }
+                
+                const formData = new FormData(this);
+                formData.append('edit_pm_request_ajax', '1');
+                
+                const submitBtn = document.getElementById('updateRequestBtn');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+                
+                fetch(window.location.href, { method: 'POST', body: formData })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            bootstrap.Modal.getInstance(document.getElementById('editPmTrainingModal'))?.hide();
+                            showToast(data.message, 'success');
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showToast(data.message, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showToast('An error occurred', 'danger');
+                    })
+                    .finally(() => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    });
+            });
+    });
+
     // ========== VIEW MODAL FUNCTIONS ==========
     
     function openViewPmModal(id) {
@@ -2628,9 +3430,23 @@ if (!empty($filter_committee)) $active_filters++;
                                     <small>Dates: ${formatDate(batch.start_date)} - ${formatDate(batch.end_date)}</small><br>
                                     <small>Times: ${batch.start_time || 'N/A'} - ${batch.end_time || 'N/A'}</small><br>
                                     <strong>Attendees (${batch.attendee_count}):</strong><ul>`;
-                                    batch.attendees.forEach(att => {
-                                        batchesHtml += `<li>${escapeHtml(att.fullname)} (${escapeHtml(att.username)})</li>`;
-                                    });
+                                    // Check if attendance has been saved
+                                    const hasViewAttendance = batch.attendees.some(att => att.attended !== undefined && att.attended !== null);
+                                    if (hasViewAttendance) {
+                                        const viewAttended = batch.attendees.filter(att => att.attended == 1);
+                                        const viewAbsent = batch.attendees.filter(att => att.attended != 1);
+                                        batchesHtml += `<div class="row mt-2"><div class="col-md-6"><small class="text-success"><strong>Attended (${viewAttended.length})</strong></small><ul class="list-unstyled mb-0 small">`;
+                                        viewAttended.forEach(att => { batchesHtml += `<li><i class="fas fa-check-circle text-success me-1"></i>${escapeHtml(att.fullname)} (${escapeHtml(att.username)})</li>`; });
+                                        batchesHtml += `</ul></div><div class="col-md-6"><small class="text-danger"><strong>Absent (${viewAbsent.length})</strong></small><ul class="list-unstyled mb-0 small">`;
+                                        viewAbsent.forEach(att => { batchesHtml += `<li><i class="fas fa-times-circle text-danger me-1"></i>${escapeHtml(att.fullname)} (${escapeHtml(att.username)})</li>`; });
+                                        batchesHtml += `</ul></div></div>`;
+                                    } else {
+                                        batchesHtml += `<ul>`;
+                                        batch.attendees.forEach(att => {
+                                            batchesHtml += `<li>${escapeHtml(att.fullname)} (${escapeHtml(att.username)})</li>`;
+                                        });
+                                        batchesHtml += `</ul>`;
+                                    }
                                     batchesHtml += `</ul></div>`;
                                 });
                             } else {
@@ -2641,7 +3457,7 @@ if (!empty($filter_committee)) $active_filters++;
                             modalBody.innerHTML = `
                                 <div class="row">
                                     <div class="col-md-6"><div class="view-details-card"><h6>Training Information</h6><p><strong>Title:</strong> ${escapeHtml(r.title)}</p><p><strong>Venue:</strong> ${escapeHtml(r.venue)}</p><p><strong>Committee:</strong> ${escapeHtml(r.committee_name || '-')}</p><p><strong>Hospital Order No.:</strong> ${escapeHtml(r.hospital_order_no || '-')}</p></div></div>
-                                    <div class="col-md-6"><div class="view-details-card"><h6>Schedule</h6><p><strong>Date Start:</strong> ${formatDate(r.date_start)}</p><p><strong>Date End:</strong> ${formatDate(r.date_end)}</p><p><strong>Amount:</strong> ₱${parseFloat(r.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p><p><strong>Late Filing:</strong> ${r.late_filing ? 'Yes' : 'No'}</p></div></div>
+                                    <div class="col-md-6"><div class="view-details-card"><h6>Schedule</h6><p><strong>Date Start:</strong> ${formatDate(r.date_start)}</p><p><strong>Date End:</strong> ${formatDate(r.date_end)}</p><p><strong>Amount:</strong> ${parseFloat(r.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p><p><strong>Late Filing:</strong> ${r.late_filing ? 'Yes' : 'No'}</p></div></div>
                                     <div class="col-md-6"><div class="view-details-card"><h6>Requester</h6><p><strong>Name:</strong> ${escapeHtml(r.requester_name)}</p><p><strong>Status:</strong> <span class="status-badge status-${r.status}">${ucfirst(r.status)}</span></p><p><strong>PTR Status:</strong> <span class="badge ptr-${r.ptr_status}">${ucfirst(r.ptr_status)}</span></p></div></div>
                                     <div class="col-md-6"><div class="view-details-card"><h6>Remarks</h6><p>${escapeHtml(r.remarks) || '<em>No remarks</em>'}</p></div></div>
                                     <div class="col-12">${batchesHtml}</div>
@@ -2790,104 +3606,94 @@ if (!empty($filter_committee)) $active_filters++;
             });
     });
     
-    // ========== FILTER FUNCTIONS ==========
-    
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('.table tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-    }
-    
-    // ========== REPORT MODAL FUNCTIONS ==========
+    // ========== GENERATE REPORT MODAL ==========
     
     <?php if ($is_admin): ?>
-    function loadPmFilterOptions() {
+    function loadReportFilterOptions() {
         fetch(`${window.location.href}?get_pm_filter_options=1`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const yearSelect = document.getElementById('reportYear');
-                    yearSelect.innerHTML = '<option value="">All Years</option>';
-                    data.years.forEach(year => {
-                        yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
-                    });
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    const ys = document.getElementById('reportYear');
+                    ys.innerHTML = '<option value="">All Years</option>';
+                    d.years.forEach(y => { ys.innerHTML += `<option value="${y}">${y}</option>`; });
                 }
             });
     }
     
-    function loadPmReportData() {
+    function generateReportPreview() {
         const year = document.getElementById('reportYear').value;
         const month = document.getElementById('reportMonth').value;
+        const status = document.getElementById('reportStatus').value;
+        const ptrStatus = document.getElementById('reportPtrStatus').value;
+        const committee = document.getElementById('reportCommittee').value;
+        
         let url = `${window.location.href}?get_pm_report_data=1`;
         if (year) url += `&year=${year}`;
         if (month) url += `&month=${month}`;
-        fetch(url).then(response => response.json()).then(data => {
-            const tbody = document.getElementById('pmReportTableBody');
-            if (data.success && data.reports.length > 0) {
-                tbody.innerHTML = '';
-                data.reports.forEach(report => {
-                    tbody.innerHTML += `<tr>
-                        <td><strong>${escapeHtml(report.title)}</strong></div>
-                        <td>${escapeHtml(report.venue)}</div>
-                        <td>${escapeHtml(report.date_start)}</div>
-                        <td>${escapeHtml(report.date_end)}</div>
-                        <td>${escapeHtml(report.requester_name)}</div>
-                        <td>${escapeHtml(report.hospital_order_no || '-')}</div>
-                        <td class="amount-cell">₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-                        <td><span class="badge ptr-${report.ptr_status}">${ucfirst(report.ptr_status)}</span></div>
+        if (status) url += `&status=${status}`;
+        if (ptrStatus) url += `&ptr_status=${ptrStatus}`;
+        if (committee) url += `&committee=${committee}`;
+        
+        fetch(url).then(r => r.json()).then(d => {
+            const container = document.getElementById('reportPreviewContainer');
+            const content = document.getElementById('reportPreviewContent');
+            container.style.display = 'block';
+            
+            if (d.success && d.reports.length > 0) {
+                let html = `<div style="text-align:center;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #ccc;">
+                    <h4 style="margin:0 0 5px;font-size:16px;font-weight:600;">Training Report</h4>
+                    <p style="margin:0;font-size:12px;color:#666;">Filters: ${year||'All Years'} | ${month?new Date(2000,month-1).toLocaleString('en-US',{month:'long'}):'All Months'} | Status: ${status||'All'} | PTR: ${ptrStatus||'All'} | Committee: ${committee||'All'}</p>
+                </div>`;
+                html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead><tr style="background:#f5f5f5;border-bottom:1px solid #ccc;">
+                        <th style="padding:6px 8px;text-align:left;">Title</th>
+                        <th style="padding:6px 8px;text-align:left;">Venue</th>
+                        <th style="padding:6px 8px;text-align:left;">From</th>
+                        <th style="padding:6px 8px;text-align:left;">To</th>
+                        <th style="padding:6px 8px;text-align:left;">Program Manager</th>
+                        <th style="padding:6px 8px;text-align:left;">HO No.</th>
+                        <th style="padding:6px 8px;text-align:right;">Amount</th>
+                        <th style="padding:6px 8px;text-align:left;">Status</th>
+                        <th style="padding:6px 8px;text-align:left;">PTR</th>
+                    </tr></thead><tbody>`;
+                d.reports.forEach(r => {
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:4px 8px;">${escapeHtml(r.title)}</td>
+                        <td style="padding:4px 8px;">${escapeHtml(r.venue)}</td>
+                        <td style="padding:4px 8px;">${escapeHtml(r.date_start)}</td>
+                        <td style="padding:4px 8px;">${escapeHtml(r.date_end)}</td>
+                        <td style="padding:4px 8px;">${escapeHtml(r.requester_name)}</td>
+                        <td style="padding:4px 8px;">${escapeHtml(r.hospital_order_no||'-')}</td>
+                        <td style="padding:4px 8px;text-align:right;">₱${parseFloat(r.amount).toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                        <td style="padding:4px 8px;">${ucfirst(r.status)}</td>
+                        <td style="padding:4px 8px;">${ucfirst(r.ptr_status)}</td>
                     </tr>`;
                 });
+                html += `</tbody></table>`;
+                html += `<p style="text-align:right;font-size:11px;color:#888;margin-top:10px;">Total Records: ${d.reports.length}</p>`;
+                content.innerHTML = html;
             } else {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5"><i class="fas fa-inbox fa-2x mb-2"></i><p>No completed trainings found</p></div><tr>`;
+                content.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-inbox fa-2x mb-2"></i><p>No records found</p></div>';
             }
         });
     }
     
-    function exportPmReportToCSV() {
-        const year = document.getElementById('reportYear').value;
-        const month = document.getElementById('reportMonth').value;
-        let url = `${window.location.href}?get_pm_report_data=1`;
-        if (year) url += `&year=${year}`;
-        if (month) url += `&month=${month}`;
-        fetch(url).then(response => response.json()).then(data => {
-            if (data.success && data.reports.length > 0) {
-                let csvContent = "Title,Venue,From,To,Program Manager,Hospital Order No.,Amount,PTR Status\n";
-                data.reports.forEach(report => {
-                    csvContent += `"${escapeCsv(report.title)}","${escapeCsv(report.venue)}","${report.date_start}","${report.date_end}","${escapeCsv(report.requester_name)}","${escapeCsv(report.hospital_order_no || '-')}","${report.amount}","${report.ptr_status}"\n`;
-                });
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', `completed_trainings_report_${new Date().toISOString().slice(0,10)}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                showToast('Report exported successfully!', 'success');
-            } else {
-                showToast('No data to export', 'warning');
-            }
-        });
+    function printGeneratedReport() {
+        const content = document.getElementById('reportPreviewContent').innerHTML;
+        const w = window.open('', '_blank', 'width=1000,height=700');
+        w.document.write(`<!DOCTYPE html><html><head><title>Training Report</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#222;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:6px 8px;}th{background:#f5f5f5;}@media print{body{padding:15px;}}</style></head><body>${content}</body></html>`);
+        w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
     }
     
-    function escapeCsv(str) {
-        if (!str) return '';
-        return str.replace(/"/g, '""');
+    function saveGeneratedReportPdf() {
+        printGeneratedReport();
     }
     
-    document.getElementById('reportYear')?.addEventListener('change', loadPmReportData);
-    document.getElementById('reportMonth')?.addEventListener('change', loadPmReportData);
-    document.getElementById('exportPmReportBtn')?.addEventListener('click', exportPmReportToCSV);
-    document.getElementById('pmReportModal')?.addEventListener('show.bs.modal', function() {
-        loadPmFilterOptions();
-        setTimeout(loadPmReportData, 100);
+    document.getElementById('generateReportPreviewBtn')?.addEventListener('click', generateReportPreview);
+    document.getElementById('pmReportModal')?.addEventListener('show.bs.modal', () => {
+        loadReportFilterOptions();
+        document.getElementById('reportPreviewContainer').style.display = 'none';
     });
     <?php endif; ?>
     
@@ -2903,6 +3709,15 @@ if (!empty($filter_committee)) $active_filters++;
             newVenueInput.required = false;
             newVenueInput.value = '';
         }
+    });
+    
+    // Reset edit modal tabs when modal opens
+    document.getElementById('editPmTrainingModal')?.addEventListener('show.bs.modal', function() {
+        setTimeout(() => {
+            if (typeof switchEditModalTab === 'function') {
+                switchEditModalTab('details');
+            }
+        }, 100);
     });
 </script>
 </body>

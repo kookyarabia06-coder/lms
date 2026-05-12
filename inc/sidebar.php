@@ -70,6 +70,12 @@ if (is_student()) {
     $training_listnotif = $stmt->fetchColumn();
 }
 
+// Get unread messages count for notification badge
+$unreadMessagesCount = 0;
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE receiver_id = ? AND is_read = 0 AND is_deleted_receiver = 0");
+$stmt->execute([$u['id']]);
+$unreadMessagesCount = $stmt->fetchColumn();
+
 ?>
 
 <!doctype html>
@@ -118,6 +124,16 @@ if (is_student()) {
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/public/dashboard.php">
                         <i class="fa fa-tachometer-alt"></i> Dashboard
+                    </a>
+                </li>
+
+                <!-- Messages -->
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>/public/messages.php">
+                        <i class="fa fa-comments"></i> Messages
+                        <?php if ($unreadMessagesCount > 0): ?>
+                            <span class="notification-badge"><?= $unreadMessagesCount ?></span>
+                        <?php endif; ?>
                     </a>
                 </li>
 

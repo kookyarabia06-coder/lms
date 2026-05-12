@@ -25,16 +25,56 @@ $is_admin = is_admin() || is_superadmin();
 $success_message = '';
 $error_message = '';
 
-// Helper function to calculate late filing based on created_at
+// Helper function to calculate late filing based on created_at (DATE ONLY, no time)
 function calculateLateFiling($official_business, $date_start, $created_at) {
     if (empty($date_start) || empty($created_at)) {
         return 0;
     }
     
+    // Normalize to midnight for accurate day count
     $start = new DateTime($date_start);
+    $start->setTime(0, 0, 0);
+    
     $filed = new DateTime($created_at);
+    $filed->setTime(0, 0, 0);
+    
     $interval = $filed->diff($start)->days;
     
+    // Late filing rules:
+    // OB: Late if filed within 30 days before start date (0-29 days = LATE)
+    // Non-OB: Late if filed within 14 days before start date (0-14 days = LATE)
+    if ($official_business == 1) {
+        return ($interval <= 29) ? 1 : 0;
+    } else {
+        return ($interval <= 14) ? 1 : 0;
+    }
+}
+
+// Helper function to recalculate late filing for edits/reschedules (uses original created_at)
+function recalculateLateFilingFromOriginal($pdo, $request_id, $official_business, $date_start) {
+    // Fetch the original created_at date (when request was first filed)
+    $stmt = $pdo->prepare("SELECT created_at FROM training_requests WHERE id = ?");
+    $stmt->execute([$request_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$row || empty($row['created_at']) || empty($date_start)) {
+        return 0;
+    }
+    
+    $created_at = $row['created_at'];
+    
+    // Normalize to midnight for accurate day count
+    $start = new DateTime($date_start);
+    $start->setTime(0, 0, 0);
+    
+    $filed = new DateTime($created_at);
+    $filed->setTime(0, 0, 0);
+    
+    $interval = $filed->diff($start)->days;
+    
+    // Late filing rules:
+    // OB: Late if filed within 30 days before start date (0-29 days = LATE)
+    // Non-OB: Late if filed within 14 days before start date (0-14 days = LATE)
     if ($official_business == 1) {
         return ($interval <= 29) ? 1 : 0;
     } else {
@@ -173,8 +213,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
     try {
         $id = (int)$_POST['id'];
         
-        // Get current request data - include the original late_filing value
-        $check_stmt = $pdo->prepare("SELECT ptr_status, status, date_end, created_at, date_start, late_filing, ptr_file, coc_file, mom_file FROM training_requests WHERE id = ?");
+        // Get current request data
+        $check_stmt = $pdo->prepare("SELECT ptr_status, status, date_end, created_at, date_start, late_filing, ptr_file, coc_file, mom_file, official_business FROM training_requests WHERE id = ?");
         $check_stmt->execute([$id]);
         $current_data = $check_stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -196,10 +236,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $amount = floatval($_POST['amount'] ?? 0);
         $official_business = isset($_POST['official_business']) ? 1 : 0;
         $remarks = trim($_POST['remarks'] ?? '');
+        $date_start = $current_data['date_start']; // Date start cannot be edited (disabled in form)
         
-        // CRITICAL FIX: Keep the original late_filing value, do NOT recalculate it
-        // Late filing should only be calculated ONCE when the request is created
-        $late_filing = $current_data['late_filing'];  // Use existing value, don't recalculate!
+        // AUTO LATE FILING: Recalculate if official_business changed
+        $ob_changed = ($official_business != $current_data['official_business']);
+        
+        if ($ob_changed) {
+            // Recalculate late filing based on original created_at and new official_business value
+            $late_filing = recalculateLateFilingFromOriginal($pdo, $id, $official_business, $date_start);
+        } else {
+            // Keep the original late_filing value
+            $late_filing = $current_data['late_filing'];
+        }
         
         if (empty($title)) {
             echo json_encode(['success' => false, 'message' => 'Title is required']);
@@ -256,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             }
         }
         
-        // Build the update query - NOTE: late_filing is NOT being updated
+        // Build the update query - includes late_filing
         $sql = "UPDATE training_requests SET 
             training_type = ?,
             title = ?,
@@ -264,7 +312,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             hospital_order_no = ?,
             amount = ?,
             official_business = ?,
-            remarks = ?";
+            remarks = ?,
+            late_filing = ?";
         
         $params = [
             $training_type,
@@ -273,10 +322,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             $hospital_id,
             $amount,
             $official_business,
-            $remarks
+            $remarks,
+            $late_filing
         ];
-        
-        // Note: late_filing is NOT included in the update - it stays as the original value
         
         // Add file fields to update if files were uploaded
         if ($ptr_file !== null) {
@@ -302,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
             $sql .= ", ptr_status = 'submitted'";
         }
         
-        // Handle admin actions
+        // Handle admin actions (Approve, Conditional, Disapprove, or Revert to Pending)
         $admin_action = isset($_POST['admin_action']) ? $_POST['admin_action'] : '';
         $action_remark = isset($_POST['action_remark']) ? trim($_POST['action_remark']) : '';
         
@@ -323,6 +371,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
                     $new_status = 'disapproved';
                     $status_prefix = 'Disapproved';
                     break;
+                case 'revert_pending':
+                    $new_status = 'pending';
+                    $status_prefix = 'Reverted to Pending';
+                    break;
             }
             
             if ($new_status) {
@@ -334,6 +386,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
                     $remark_entry = "\n[$timestamp] $status_prefix by " . ($_SESSION['user']['username'] ?? 'Admin') . ": $action_remark";
                     $sql .= ", remarks = CONCAT(COALESCE(remarks, ''), ?)";
                     $params[] = $remark_entry;
+                } else if ($admin_action === 'revert_pending') {
+                    // Add a default remark for revert action if no custom remark provided
+                    $timestamp = date('Y-m-d H:i:s');
+                    $remark_entry = "\n[$timestamp] $status_prefix by " . ($_SESSION['user']['username'] ?? 'Admin');
+                    $sql .= ", remarks = CONCAT(COALESCE(remarks, ''), ?)";
+                    $params[] = $remark_entry;
+                }
+                
+                // If reverting to pending, also reset ptr_status to pending if it was submitted/completed?
+                // This allows user to re-submit attachments if needed
+                if ($admin_action === 'revert_pending' && in_array($current_data['ptr_status'], ['submitted', 'completed'])) {
+                    $sql .= ", ptr_status = 'pending'";
                 }
             }
         }
@@ -418,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_request_aj
     try {
         $id = (int)$_POST['id'];
         
-        $check_stmt = $pdo->prepare("SELECT ptr_status FROM training_requests WHERE id = ?");
+        $check_stmt = $pdo->prepare("SELECT ptr_status, official_business, date_start FROM training_requests WHERE id = ?");
         $check_stmt->execute([$id]);
         $current = $check_stmt->fetch();
         
@@ -446,11 +510,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule_request_aj
             exit;
         }
         
+        // AUTO LATE FILING: Recalculate based on new start date and existing official_business
+        $official_business = $current['official_business'];
+        $new_late_filing = recalculateLateFilingFromOriginal($pdo, $id, $official_business, $date_start);
+        
         $stmt = $pdo->prepare("UPDATE training_requests SET 
             date_start = ?, date_end = ?, resched_reason = ?, status = 'pending', ptr_status = 'pending',
+            late_filing = ?,
             ptr_file = NULL, coc_file = NULL, mom_file = NULL
             WHERE id = ?");
-        $stmt->execute([$date_start, $date_end, $resched_reason, $id]);
+        $stmt->execute([$date_start, $date_end, $resched_reason, $new_late_filing, $id]);
         
         echo json_encode(['success' => true, 'message' => 'Training request rescheduled successfully!', 'reload' => true]);
         exit;
@@ -1021,6 +1090,25 @@ $base_url = BASE_URL;
                 <span class="stat-number">₱<?= number_format($stats['total_amount'] ?? 0, 2) ?></span>
             </div>
         </div>
+
+        <!-- Pending Submissions Stat Card -->
+        <div class="stats-row" style="margin-top: 20px;">
+            <div class="stat-item" style="flex: 0 0 100%; text-align: left; background: none; padding: 0 10px 10px 10px;">
+                <h5 style="margin: 0 0 10px 0; color: #333;"><i class="fas fa-clock me-2"></i>Pending Submissions</h5>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">📋 Notice:</span>
+                <span class="stat-number" id="pendingNoticeCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">⚠️ Warning:</span>
+                <span class="stat-number" id="pendingWarningCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">🔥 Expired:</span>
+                <span class="stat-number" id="pendingExpiredCount">0</span>
+            </div>
+        </div>
         
         <!-- Training Requests List -->
         <div class="table-card">
@@ -1187,7 +1275,7 @@ $base_url = BASE_URL;
                                             </button>
                                         <?php endif; ?>
                                       </div>
-                                  <tr>
+                                  </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr id="emptyStateRow">
@@ -1351,7 +1439,7 @@ $base_url = BASE_URL;
                             </div>
                         </div>
 
-                        <!-- Admin Action Buttons (only show if status is pending) -->
+                        <!-- Admin Action Buttons (only show if user is admin) -->
                         <?php if ($is_admin): ?>
                         <div class="col-12" id="adminActionsContainer">
                             <div class="card bg-light p-3">
@@ -1365,6 +1453,9 @@ $base_url = BASE_URL;
                                     </button>
                                     <button type="button" class="btn btn-danger" onclick="showAdminConfirmModal('disapprove')">
                                         <i class="fas fa-times-circle me-1"></i> Disapprove
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="showAdminConfirmModal('revert_pending')" id="revertPendingBtn">
+                                        <i class="fas fa-undo me-1"></i> Revert to Pending
                                     </button>
                                 </div>
                             </div>
@@ -1606,7 +1697,7 @@ $base_url = BASE_URL;
     </div>
 </div>
 
-<!-- ADDED: Admin Action Confirm Modal (Approve/Conditional/Disapprove) -->
+<!-- ADDED: Admin Action Confirm Modal (Approve/Conditional/Disapprove/Revert) -->
 <div class="modal fade" id="adminActionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -1641,6 +1732,54 @@ let adminAction = '';
 let editModalAbortController = null;
 let pendingDeleteUrl = null;
 let pendingAdminAction = null;
+
+// Function to update Pending Submissions counts (Notice, Warning, Expired)
+function updatePendingSubmissionsCount() {
+    const rows = document.querySelectorAll('#trainingTableBody tr:not(#emptyStateRow)');
+    let noticeCount = 0;
+    let warningCount = 0;
+    let expiredCount = 0;
+    
+    rows.forEach(row => {
+        // Only count if row is visible (not filtered out)
+        if (row.style.display === 'none') return;
+        
+        const hasPtr = row.getAttribute('data-has-ptr') === '1';
+        const hasCoc = row.getAttribute('data-has-coc') === '1';
+        const hasRequiredAttachments = hasPtr && hasCoc;
+        const ptrStatus = row.getAttribute('data-ptr-status');
+        const isCompleted = ptrStatus === 'completed';
+        const endDateStr = row.getAttribute('data-end-date');
+        const status = row.getAttribute('data-status');
+        
+        // Only count requests that:
+        // 1. Are NOT completed
+        // 2. Do NOT have required attachments (PTR + COC)
+        // 3. Have passed end date
+        // 4. Status is approved/conditional/pending (not disapproved)
+        if (!isCompleted && !hasRequiredAttachments && endDateStr && status !== 'disapproved') {
+            const currentDate = new Date();
+            const endDate = new Date(endDateStr);
+            
+            if (currentDate > endDate) {
+                const daysElapsed = Math.floor((currentDate - endDate) / (1000 * 60 * 60 * 24));
+                
+                if (daysElapsed >= 90) {
+                    expiredCount++;
+                } else if (daysElapsed >= 60) {
+                    warningCount++;
+                } else if (daysElapsed >= 30) {
+                    noticeCount++;
+                }
+            }
+        }
+    });
+    
+    // Update the stat card
+    document.getElementById('pendingNoticeCount').textContent = noticeCount;
+    document.getElementById('pendingWarningCount').textContent = warningCount;
+    document.getElementById('pendingExpiredCount').textContent = expiredCount;
+}
 
 // ADDED: Custom Delete Modal Functions
 const deleteModal = document.getElementById('deleteConfirmModal');
@@ -1722,6 +1861,11 @@ function showAdminConfirmModal(action) {
             message = 'Are you sure you want to disapprove this training request?';
             btnClass = 'btn-danger';
             break;
+        case 'revert_pending':
+            title = 'Revert to Pending';
+            message = 'Are you sure you want to revert this training request to Pending status? This will allow the requester to edit and resubmit.';
+            btnClass = 'btn-secondary';
+            break;
     }
     
     adminActionModalTitle.textContent = title;
@@ -1785,6 +1929,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDepartmentFilter();
         filterDivision.addEventListener('change', updateDepartmentFilter);
     }
+    updatePendingSubmissionsCount();
 });
 
 function openViewModal(id) {
@@ -1982,7 +2127,19 @@ function openEditModal(id) {
             
             const adminContainer = document.getElementById('adminActionsContainer');
             if (adminContainer) {
-                adminContainer.style.display = request.status === 'pending' ? 'block' : 'none';
+                // Show admin actions for all statuses except completed, but highlight based on current status
+                adminContainer.style.display = 'block';
+                
+                // Optional: Style or reorder buttons based on current status
+                const revertBtn = document.getElementById('revertPendingBtn');
+                if (revertBtn) {
+                    // Show revert button only if status is not already pending
+                    if (request.status === 'pending') {
+                        revertBtn.style.display = 'none';
+                    } else {
+                        revertBtn.style.display = 'inline-flex';
+                    }
+                }
             }
             
             const currentDate = new Date();
@@ -2293,6 +2450,8 @@ function filterTableRows() {
         emptyRow.innerHTML = `<td colspan="14" class="text-center py-5"><i class="fas fa-inbox fa-2x mb-2" style="color: #dee2e6;"></i><p class="text-muted mb-0">No training requests found</p></td>`;
         tableBody.appendChild(emptyRow);
     }
+    // Update pending submissions counts after filtering
+    updatePendingSubmissionsCount();
 }
 
 if (searchInput) searchInput.addEventListener('keyup', filterTableRows);
@@ -2315,6 +2474,8 @@ function deleteRequest(id) {
             }
             showToast(data.message, 'success');
             closeDeleteModal();
+            // Update pending submissions counts after deletion
+            updatePendingSubmissionsCount();
         } else {
             showToast(data.message, 'danger');
         }
@@ -2357,10 +2518,10 @@ function loadReportData() {
         if (data.success && data.reports.length > 0) {
             tbody.innerHTML = '';
             data.reports.forEach(report => {
-                tbody.innerHTML += `<tr><td><strong>${escapeHtml(report.title)}</strong></td><td><span class="badge badge-warning">External</span></td><td>${escapeHtml(report.date_start)}</td><td>${escapeHtml(report.date_end)}</td><td>${escapeHtml(report.requester_name)}</td><td>${escapeHtml(report.division_name || '—')}</td><td>${escapeHtml(report.department_name || '—')}</td><td>${escapeHtml(report.hospital_order_no || '—')}</td><td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div><td><span class="badge badge-success">Approved</span></div></tr>`;
+                tbody.innerHTML += `<tr><td><strong>${escapeHtml(report.title)}</strong></div><td><span class="badge badge-warning">External</span></div><td>${escapeHtml(report.date_start)}</div><td>${escapeHtml(report.date_end)}</div><td>${escapeHtml(report.requester_name)}</div><td>${escapeHtml(report.division_name || '—')}</div><td>${escapeHtml(report.department_name || '—')}</div><td>${escapeHtml(report.hospital_order_no || '—')}</div><td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div><td><span class="badge badge-success">Approved</span></div></td>`;
             });
         } else {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5"><i class="fas fa-inbox fa-2x mb-2"></i><p>No approved training requests found</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5"><i class="fas fa-inbox fa-2x mb-2"></i><p>No approved training requests found</p></div></tr>`;
         }
     });
 }
