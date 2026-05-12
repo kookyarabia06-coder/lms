@@ -587,30 +587,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data']) && $
     try {
         $year = isset($_GET['year']) && !empty($_GET['year']) ? (int)$_GET['year'] : null;
         $month = isset($_GET['month']) && !empty($_GET['month']) ? (int)$_GET['month'] : null;
+        $status = $_GET['status'] ?? '';
+        $ptr_status = $_GET['ptr_status'] ?? '';
         $division_id = isset($_GET['division_id']) && !empty($_GET['division_id']) ? (int)$_GET['division_id'] : null;
         $dept_id = isset($_GET['dept_id']) && !empty($_GET['dept_id']) ? (int)$_GET['dept_id'] : null;
         
-        $where_clauses = ["tr.status = 'approved'"];
+        $where_clauses = [];
         $params = [];
         
-        if ($year) {
-            $where_clauses[] = "YEAR(tr.date_start) = ?";
-            $params[] = $year;
-        }
-        if ($month) {
-            $where_clauses[] = "MONTH(tr.date_start) = ?";
-            $params[] = $month;
-        }
-        if ($division_id) {
-            $where_clauses[] = "d.id = ?";
-            $params[] = $division_id;
-        }
-        if ($dept_id) {
-            $where_clauses[] = "dept.id = ?";
-            $params[] = $dept_id;
-        }
+        if ($year) { $where_clauses[] = "YEAR(tr.date_start) = ?"; $params[] = $year; }
+        if ($month) { $where_clauses[] = "MONTH(tr.date_start) = ?"; $params[] = $month; }
+        if ($status) { $where_clauses[] = "tr.status = ?"; $params[] = $status; }
+        if ($ptr_status) { $where_clauses[] = "tr.ptr_status = ?"; $params[] = $ptr_status; }
+        if ($division_id) { $where_clauses[] = "d.id = ?"; $params[] = $division_id; }
+        if ($dept_id) { $where_clauses[] = "dept.id = ?"; $params[] = $dept_id; }
         
-        $where_sql = implode(" AND ", $where_clauses);
+        $where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
         
         $query = "
             SELECT 
@@ -625,13 +617,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data']) && $
                 dept.name as department_name,
                 tr.hospital_order_no,
                 tr.amount,
-                tr.status
+                tr.status,
+                tr.ptr_status,
+                tr.official_business,
+                tr.late_filing
             FROM training_requests tr
             LEFT JOIN users u ON tr.requester_id = u.id
             LEFT JOIN user_departments ud ON ud.user_id = u.id
             LEFT JOIN depts dept ON ud.dept_id = dept.id
             LEFT JOIN departments d ON dept.department_id = d.id
-            WHERE $where_sql
+            $where_sql
             GROUP BY tr.id
             ORDER BY tr.date_start DESC
         ";
@@ -652,17 +647,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_report_data']) && $
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_filter_options']) && $is_admin) {
     header('Content-Type: application/json');
     try {
-        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM training_requests WHERE status = 'approved' ORDER BY year DESC");
+        // Get years
+        $stmt = $pdo->query("SELECT DISTINCT YEAR(date_start) as year FROM training_requests ORDER BY year DESC");
         $years = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
+        // Get divisions (from departments table)
         $stmt = $pdo->query("SELECT id, name FROM departments ORDER BY name");
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // Get departments (from depts table)
         $stmt = $pdo->query("SELECT id, name, department_id FROM depts ORDER BY name");
         $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         echo json_encode([
-            'success' => true, 
+            'success' => true,
             'years' => $years,
             'divisions' => $divisions,
             'departments' => $departments
@@ -997,7 +995,7 @@ $base_url = BASE_URL;
                 </div>
 
                 <div class="filter-group">
-                    <label class="form-label">Status</label>
+                    <label class="form-label">Request Status</label>
                     <select name="filter_status" class="form-select" id="filterStatus">
                         <option value="">All Status</option>
                         <option value="pending" <?= ($filter_status == 'pending') ? 'selected' : '' ?>>Pending</option>
@@ -1089,23 +1087,16 @@ $base_url = BASE_URL;
                 <span class="stat-label">Total Amount:</span>
                 <span class="stat-number">₱<?= number_format($stats['total_amount'] ?? 0, 2) ?></span>
             </div>
-        </div>
-
-        <!-- Pending Submissions Stat Card -->
-        <div class="stats-row" style="margin-top: 20px;">
-            <div class="stat-item" style="flex: 0 0 100%; text-align: left; background: none; padding: 0 10px 10px 10px;">
-                <h5 style="margin: 0 0 10px 0; color: #333;"><i class="fas fa-clock me-2"></i>Pending Submissions</h5>
-            </div>
             <div class="stat-item">
-                <span class="stat-label">📋 Notice:</span>
+                <span class="stat-label"><i class="fas fa-exclamation-circle text-notice"></i> Notice:</span>
                 <span class="stat-number" id="pendingNoticeCount">0</span>
             </div>
             <div class="stat-item">
-                <span class="stat-label">⚠️ Warning:</span>
+                <span class="stat-label"><i class="fas fa-exclamation-triangle text-warning"></i> Warning:</span>
                 <span class="stat-number" id="pendingWarningCount">0</span>
             </div>
             <div class="stat-item">
-                <span class="stat-label">🔥 Expired:</span>
+                <span class="stat-label"><i class="fas fa-times-circle text-danger"></i> Expired:</span>
                 <span class="stat-number" id="pendingExpiredCount">0</span>
             </div>
         </div>
@@ -1138,7 +1129,7 @@ $base_url = BASE_URL;
                             <th>Remarks</th>
                             <th>Resched Reason</th>
                             <th>PTR Status</th>
-                            <th>Status</th>
+                            <th>Request Status</th>
                             <th>Actions</th>
                          </thead>
                     <tbody id="trainingTableBody">
@@ -1232,7 +1223,7 @@ $base_url = BASE_URL;
                                       </div>
                                     <td>
                                         <?php if ($request['status'] == 'conditional'): ?>
-                                            <span class="status-badge-warning status-conditional">Conditional</span>
+                                            <span class="status-badge status-conditional">Conditional</span>
                                         <?php elseif ($request['status'] == 'disapproved'): ?>
                                             <span class="status-badge status-disapproved">Disapproved</span>
                                         <?php else: ?>
@@ -1612,9 +1603,9 @@ $base_url = BASE_URL;
 <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);">
                 <h5 class="modal-title" id="reportModalLabel">
-                    <i class="fas fa-chart-line me-2"></i>Approved Training Requests Report
+                    <i class="fas fa-chart-line me-2"></i>Generate Training Report
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1635,33 +1626,53 @@ $base_url = BASE_URL;
                             <?php endfor; ?>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Request Status</label>
+                        <select id="reportStatus" class="form-select">
+                            <option value="">All Request Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="conditional">Conditional</option>
+                            <option value="disapproved">Disapproved</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">PTR Status</label>
+                        <select id="reportPtrStatus" class="form-select">
+                            <option value="">All PTR Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label">Division</label>
-                        <select id="reportDivision" class="form-select">
+                        <select id="reportDivision" class="form-select" onchange="updateReportDepartments()">
                             <option value="">All Divisions</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Department</label>
                         <select id="reportDepartment" class="form-select">
                             <option value="">All Departments</option>
                         </select>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button id="exportReportBtn" class="btn btn-success w-100">
-                            <i class="fas fa-download me-1"></i> Export CSV
+                </div>
+                <div class="d-flex justify-content-end mb-3">
+                    <button id="generateReportPreviewBtn" class="btn btn-success">
+                        <i class="fas fa-search me-1"></i> Generate
+                    </button>
+                </div>
+                <div id="reportPreviewContainer" style="display: none;">
+                    <div id="reportPreviewContent"></div>
+                    <div class="d-flex gap-2 mt-3 justify-content-end">
+                        <button class="btn btn-outline-secondary" onclick="printGeneratedReport()">
+                            <i class="fas fa-print me-1"></i> Print
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="saveGeneratedReportPdf()">
+                            <i class="fas fa-file-pdf me-1"></i> Save as PDF
                         </button>
                     </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="reportTable">
-                        <thead class="table-light">
-                            <tr><th>Title</th><th>Type</th><th>From</th><th>To</th><th>Requester</th><th>Division</th><th>Department</th><th>Hospital Order No.</th><th>Amount</th><th>Status</th></tr>
-                        </thead>
-                        <tbody id="reportTableBody">
-                            <tr><td colspan="10" class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><p>Loading data...</p></div></tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1902,6 +1913,11 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function ucfirst(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 function updateDepartmentFilter() {
     const divisionId = document.getElementById('filterDivision').value;
     const deptSelect = document.getElementById('filterDept');
@@ -2127,18 +2143,26 @@ function openEditModal(id) {
             
             const adminContainer = document.getElementById('adminActionsContainer');
             if (adminContainer) {
-                // Show admin actions for all statuses except completed, but highlight based on current status
                 adminContainer.style.display = 'block';
                 
-                // Optional: Style or reorder buttons based on current status
+                // Get all admin action buttons
+                const approveBtn = document.querySelector('#adminActionsButtons .btn-success');
+                const conditionalBtn = document.querySelector('#adminActionsButtons .btn-warning');
+                const disapproveBtn = document.querySelector('#adminActionsButtons .btn-danger');
                 const revertBtn = document.getElementById('revertPendingBtn');
-                if (revertBtn) {
-                    // Show revert button only if status is not already pending
-                    if (request.status === 'pending') {
-                        revertBtn.style.display = 'none';
-                    } else {
-                        revertBtn.style.display = 'inline-flex';
-                    }
+                
+                if (request.status === 'pending') {
+                    // Pending: show approve/conditional/disapprove, hide revert
+                    if (approveBtn) approveBtn.style.display = '';
+                    if (conditionalBtn) conditionalBtn.style.display = '';
+                    if (disapproveBtn) disapproveBtn.style.display = '';
+                    if (revertBtn) revertBtn.style.display = 'none';
+                } else {
+                    // Approved, conditional, or disapproved: hide all except revert
+                    if (approveBtn) approveBtn.style.display = 'none';
+                    if (conditionalBtn) conditionalBtn.style.display = 'none';
+                    if (disapproveBtn) disapproveBtn.style.display = 'none';
+                    if (revertBtn) revertBtn.style.display = 'inline-flex';
                 }
             }
             
@@ -2487,89 +2511,180 @@ function deleteRequest(id) {
 }
 
 <?php if ($is_admin): ?>
+// ========== GENERATE REPORT FUNCTIONS ==========
 let allDepartments = [];
-function loadFilterOptions() {
-    fetch(`${window.location.pathname}?get_filter_options=1`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const yearSelect = document.getElementById('reportYear');
-                yearSelect.innerHTML = '<option value="">All Years</option>';
-                data.years.forEach(year => yearSelect.innerHTML += `<option value="${year}">${year}</option>`);
-                const divisionSelect = document.getElementById('reportDivision');
-                divisionSelect.innerHTML = '<option value="">All Divisions</option>';
-                data.divisions.forEach(division => divisionSelect.innerHTML += `<option value="${division.id}">${escapeHtml(division.name)}</option>`);
-                allDepartments = data.departments;
-            }
-        });
-}
-function loadReportData() {
-    const year = document.getElementById('reportYear').value;
-    const month = document.getElementById('reportMonth').value;
-    const division_id = document.getElementById('reportDivision').value;
-    const dept_id = document.getElementById('reportDepartment').value;
-    let url = `${window.location.pathname}?get_report_data=1`;
-    if (year) url += `&year=${year}`;
-    if (month) url += `&month=${month}`;
-    if (division_id) url += `&division_id=${division_id}`;
-    if (dept_id) url += `&dept_id=${dept_id}`;
-    fetch(url).then(response => response.json()).then(data => {
-        const tbody = document.getElementById('reportTableBody');
-        if (data.success && data.reports.length > 0) {
-            tbody.innerHTML = '';
-            data.reports.forEach(report => {
-                tbody.innerHTML += `<tr><td><strong>${escapeHtml(report.title)}</strong></div><td><span class="badge badge-warning">External</span></div><td>${escapeHtml(report.date_start)}</div><td>${escapeHtml(report.date_end)}</div><td>${escapeHtml(report.requester_name)}</div><td>${escapeHtml(report.division_name || '—')}</div><td>${escapeHtml(report.department_name || '—')}</div><td>${escapeHtml(report.hospital_order_no || '—')}</div><td>₱${parseFloat(report.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div><td><span class="badge badge-success">Approved</span></div></td>`;
+let allReportDepartments = [];
+
+    function loadReportFilterOptions() {
+        fetch(`${window.location.pathname}?get_filter_options=1`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    // Populate years
+                    const yrSelect = document.getElementById('reportYear');
+                    yrSelect.innerHTML = '<option value="">All Years</option>';
+                    d.years.forEach(y => { yrSelect.innerHTML += `<option value="${y}">${y}</option>`; });
+                    
+                    // Populate divisions
+                    const divSelect = document.getElementById('reportDivision');
+                    divSelect.innerHTML = '<option value="">All Divisions</option>';
+                    d.divisions.forEach(div => { divSelect.innerHTML += `<option value="${div.id}">${escapeHtml(div.name)}</option>`; });
+                    
+                    // Store departments for dynamic filtering
+                    allReportDepartments = d.departments;
+                    
+                    // Reset department dropdown
+                    updateReportDepartments();
+                }
             });
-        } else {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5"><i class="fas fa-inbox fa-2x mb-2"></i><p>No approved training requests found</p></div></tr>`;
-        }
-    });
-}
-function updateDepartments() {
+    }
+
+function updateReportDepartments() {
     const divisionId = document.getElementById('reportDivision').value;
     const deptSelect = document.getElementById('reportDepartment');
-    if (!divisionId) { deptSelect.innerHTML = '<option value="">All Departments</option>'; return; }
-    const filteredDepts = allDepartments.filter(dept => dept.department_id == divisionId);
     deptSelect.innerHTML = '<option value="">All Departments</option>';
-    filteredDepts.forEach(dept => deptSelect.innerHTML += `<option value="${dept.id}">${escapeHtml(dept.name)}</option>`);
+    
+    if (divisionId) {
+        const filtered = allReportDepartments.filter(dept => dept.department_id == divisionId);
+        filtered.forEach(dept => {
+            deptSelect.innerHTML += `<option value="${dept.id}">${escapeHtml(dept.name)}</option>`;
+        });
+    } else {
+        allReportDepartments.forEach(dept => {
+            deptSelect.innerHTML += `<option value="${dept.id}">${escapeHtml(dept.name)}</option>`;
+        });
+    }
 }
-function exportReportToCSV() {
+
+function generateReportPreview() {
     const year = document.getElementById('reportYear').value;
     const month = document.getElementById('reportMonth').value;
-    const division_id = document.getElementById('reportDivision').value;
-    const dept_id = document.getElementById('reportDepartment').value;
+    const status = document.getElementById('reportStatus').value;
+    const ptrStatus = document.getElementById('reportPtrStatus').value;
+    const divisionId = document.getElementById('reportDivision').value;
+    const deptId = document.getElementById('reportDepartment').value;
+    
+    // Show loading state
+    const container = document.getElementById('reportPreviewContainer');
+    const content = document.getElementById('reportPreviewContent');
+    container.style.display = 'block';
+    content.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Generating report...</p></div>';
+    
+    // Scroll to the preview
+    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
     let url = `${window.location.pathname}?get_report_data=1`;
     if (year) url += `&year=${year}`;
     if (month) url += `&month=${month}`;
-    if (division_id) url += `&division_id=${division_id}`;
-    if (dept_id) url += `&dept_id=${dept_id}`;
-    fetch(url).then(response => response.json()).then(data => {
-        if (data.success && data.reports.length > 0) {
-            let csvContent = "Title,Type,From,To,Requester,Division,Department,Hospital Order No.,Amount,Status\n";
-            data.reports.forEach(report => {
-                csvContent += `"${report.title.replace(/"/g, '""')}","External","${report.date_start}","${report.date_end}","${report.requester_name}","${report.division_name || '—'}","${report.department_name || '—'}","${report.hospital_order_no || '—'}","${report.amount}","Approved"\n`;
-            });
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `approved_training_report_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            showToast('Report exported successfully!', 'success');
-        } else {
-            showToast('No data to export', 'warning');
-        }
-    });
+    if (status) url += `&status=${status}`;
+    if (ptrStatus) url += `&ptr_status=${ptrStatus}`;
+    if (divisionId) url += `&division_id=${divisionId}`;
+    if (deptId) url += `&dept_id=${deptId}`;
+    
+    fetch(url)
+        .then(r => r.json())
+        .then(d => {
+            console.log('Report data:', d);
+            
+            if (d.success && d.reports.length > 0) {
+                // Build filter summary
+                // Build filter summary — show ALL filters, even if unchanged
+                let filtersUsed = [];
+                
+                // Year
+                filtersUsed.push('Year: ' + (year || 'All'));
+                
+                // Month
+                filtersUsed.push('Month: ' + (month ? new Date(2000, month - 1).toLocaleString('en-US', { month: 'long' }) : 'All'));
+                
+                // Request Status
+                filtersUsed.push('Request Status: ' + (status ? ucfirst(status) : 'All'));
+                
+                // PTR Status
+                filtersUsed.push('PTR Status: ' + (ptrStatus ? ucfirst(ptrStatus) : 'All'));
+                
+                // Division
+                const divSelect = document.getElementById('reportDivision');
+                let divisionName = 'All';
+                if (divisionId && divSelect) {
+                    const divOption = divSelect.querySelector(`option[value="${divisionId}"]`);
+                    if (divOption) divisionName = divOption.textContent;
+                }
+                filtersUsed.push('Division: ' + divisionName);
+                
+                // Department
+                const deptSelect = document.getElementById('reportDepartment');
+                let deptName = 'All';
+                if (deptId && deptSelect) {
+                    const deptOption = deptSelect.querySelector(`option[value="${deptId}"]`);
+                    if (deptOption) deptName = deptOption.textContent;
+                }
+                filtersUsed.push('Department: ' + deptName);
+                
+                let html = `<div style="text-align:center;margin-bottom:20px;padding-bottom:15px;border-bottom:2px solid #43a047;">
+                    <h4 style="margin:0 0 5px;font-size:18px;font-weight:600;color:#2e7d32;">Training Report</h4>
+                    <p style="margin:0;font-size:13px;color:#666;">${filtersUsed.length > 0 ? filtersUsed.join(' | ') : 'All Records'}</p>
+                </div>`;
+                
+                html += `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead><tr style="background:#f5f5f5;border-bottom:2px solid #ccc;">
+                        <th style="padding:8px 10px;text-align:left;">Title</th>
+                        <th style="padding:8px 10px;text-align:left;">From</th>
+                        <th style="padding:8px 10px;text-align:left;">To</th>
+                        <th style="padding:8px 10px;text-align:left;">Requester</th>
+                        <th style="padding:8px 10px;text-align:left;">H.O. No.</th>
+                        <th style="padding:8px 10px;text-align:center;">Is OB</th>
+                        <th style="padding:8px 10px;text-align:center;">Is LF</th>
+                        <th style="padding:8px 10px;text-align:left;">PTR Status</th>
+                        <th style="padding:8px 10px;text-align:left;">Request Status</th>
+                    </tr></thead><tbody>`;
+                
+                d.reports.forEach(report => {
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:6px 10px;"><strong>${escapeHtml(report.title)}</strong></td>
+                        <td style="padding:6px 10px;">${escapeHtml(report.date_start)}</td>
+                        <td style="padding:6px 10px;">${escapeHtml(report.date_end)}</td>
+                        <td style="padding:6px 10px;">${escapeHtml(report.requester_name)}</td>
+                        <td style="padding:6px 10px;">${escapeHtml(report.hospital_order_no || '—')}</td>
+                        <td style="padding:6px 10px;text-align:center;">${report.official_business == 1 ? 'Yes' : 'No'}</td>
+                        <td style="padding:6px 10px;text-align:center;">${report.late_filing == 1 ? 'Yes' : 'No'}</td>
+                        <td style="padding:6px 10px;">${ucfirst(report.ptr_status)}</td>
+                        <td style="padding:6px 10px;">${ucfirst(report.status)}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table>`;
+                html += `<p style="text-align:right;font-size:12px;color:#888;margin-top:12px;padding-top:8px;border-top:1px solid #eee;">Total Records: <strong>${d.reports.length}</strong></p>`;
+                content.innerHTML = html;
+            } else {
+                content.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-inbox fa-3x mb-3" style="color:#dee2e6;"></i><p style="font-size:15px;">No records found matching your filters</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('Report error:', error);
+            content.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error generating report. Please check the console for details.</div>';
+        });
 }
-document.getElementById('reportYear')?.addEventListener('change', loadReportData);
-document.getElementById('reportMonth')?.addEventListener('change', loadReportData);
-document.getElementById('reportDivision')?.addEventListener('change', function() { updateDepartments(); loadReportData(); });
-document.getElementById('reportDepartment')?.addEventListener('change', loadReportData);
-document.getElementById('exportReportBtn')?.addEventListener('click', exportReportToCSV);
-document.getElementById('reportModal')?.addEventListener('show.bs.modal', function() { loadFilterOptions(); setTimeout(() => { updateDepartments(); loadReportData(); }, 100); });
+
+    function printGeneratedReport() {
+        const content = document.getElementById('reportPreviewContent').innerHTML;
+        const w = window.open('', '_blank', 'width=1000,height=700');
+        w.document.write(`<!DOCTYPE html><html><head><title>Training Report</title><style>body{font-family:Arial,sans-serif;padding:30px;color:#222;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:6px 8px;}th{background:#f5f5f5;}@media print{body{padding:15px;}}</style></head><body>${content}</body></html>`);
+        w.document.close();
+        w.focus();
+        setTimeout(() => w.print(), 300);
+    }
+
+    function saveGeneratedReportPdf() {
+        printGeneratedReport();
+    }
+
+    // Event listeners
+    document.getElementById('generateReportPreviewBtn')?.addEventListener('click', generateReportPreview);
+    document.getElementById('reportModal')?.addEventListener('show.bs.modal', () => {
+        loadReportFilterOptions();
+        document.getElementById('reportPreviewContainer').style.display = 'none';
+    });
 <?php endif; ?>
 </script>
 </body>

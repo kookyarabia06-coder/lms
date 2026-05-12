@@ -43,15 +43,30 @@ if (isset($_GET['delete']) && isset($_GET['id'])) {
     exit;
 }
 
-// Delete conversation
+// Delete conversation (soft delete - current user's side only)
 if (isset($_GET['delete_conv']) && isset($_GET['conv_user'])) {
     $convUserId = (int)$_GET['conv_user'];
     
-    $stmt = $pdo->prepare("DELETE FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)");
-    $stmt->execute([$userId, $convUserId, $convUserId, $userId]);
+    // Soft delete messages
+    $stmt = $pdo->prepare("UPDATE messages SET is_deleted_sender = 1 WHERE sender_id = ? AND receiver_id = ?");
+    $stmt->execute([$userId, $convUserId]);
     
-    $stmt = $pdo->prepare("DELETE FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)");
+    $stmt = $pdo->prepare("UPDATE messages SET is_deleted_receiver = 1 WHERE sender_id = ? AND receiver_id = ?");
+    $stmt->execute([$convUserId, $userId]);
+    
+    // Add current user to deleted_by list
+    $stmt = $pdo->prepare("SELECT id, deleted_by FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)");
     $stmt->execute([$userId, $convUserId, $convUserId, $userId]);
+    $conv = $stmt->fetch();
+    
+    if ($conv) {
+        $deletedBy = $conv['deleted_by'] ? json_decode($conv['deleted_by'], true) : [];
+        if (!in_array($userId, $deletedBy)) {
+            $deletedBy[] = $userId;
+        }
+        $stmt = $pdo->prepare("UPDATE conversations SET deleted_by = ? WHERE id = ?");
+        $stmt->execute([json_encode($deletedBy), $conv['id']]);
+    }
     
     header('Location: messages.php');
     exit;
@@ -80,8 +95,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
         $conv = $stmt->fetch();
         
         if ($conv) {
-            $stmt = $pdo->prepare("UPDATE conversations SET last_message_id = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$newMessageId, $conv['id']]);
+            // Remove receiver from deleted_by so the conversation reappears for them
+            $stmt = $pdo->prepare("
+                UPDATE conversations 
+                SET last_message_id = ?, 
+                    updated_at = NOW(),
+                    deleted_by = CASE 
+                        WHEN deleted_by IS NULL THEN NULL 
+                        ELSE JSON_REMOVE(deleted_by, JSON_UNQUOTE(JSON_SEARCH(deleted_by, 'one', ?))) 
+                    END
+                WHERE id = ?
+            ");
+            $stmt->execute([$newMessageId, (string)$receiverId, $conv['id']]);
         } else {
             $stmt = $pdo->prepare("INSERT INTO conversations (user1_id, user2_id, last_message_id, updated_at) VALUES (?, ?, ?, NOW())");
             $stmt->execute([$userId, $receiverId, $newMessageId]);
@@ -112,10 +137,11 @@ $stmt = $pdo->prepare("
     JOIN users u1 ON c.user1_id = u1.id
     JOIN users u2 ON c.user2_id = u2.id
     LEFT JOIN messages m ON c.last_message_id = m.id
-    WHERE c.user1_id = ? OR c.user2_id = ?
+    WHERE (c.user1_id = ? OR c.user2_id = ?)
+      AND (c.deleted_by IS NULL OR NOT JSON_CONTAINS(c.deleted_by, ?))
     ORDER BY c.updated_at DESC
 ");
-$stmt->execute([$userId, $userId, $userId, $userId]);
+$stmt->execute([$userId, $userId, $userId, $userId, json_encode($userId)]);
 $conversations = $stmt->fetchAll();
 
 // Get single conversation for view
@@ -138,10 +164,12 @@ if ($action === 'view' && isset($_GET['id'])) {
             FROM messages m
             JOIN users u ON m.sender_id = u.id
             JOIN users ru ON m.receiver_id = ru.id
-            WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
+            WHERE ((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))
+              AND NOT (m.sender_id = ? AND m.is_deleted_sender = 1)
+              AND NOT (m.receiver_id = ? AND m.is_deleted_receiver = 1)
             ORDER BY m.created_at ASC
         ");
-        $stmt->execute([$userId, $otherUserId, $otherUserId, $userId]);
+        $stmt->execute([$userId, $otherUserId, $otherUserId, $userId, $userId, $userId]);
         $conversationMessages = $stmt->fetchAll();
     }
 }
@@ -240,7 +268,8 @@ $otherUser = ($conv['user1_id'] == $userId)
 $initials = strtoupper(substr($otherUser['fname'] ?? '', 0, 1) . substr($otherUser['lname'] ?? '', 0, 1));
 $unread = $conv['unread'] ?? 0;
 $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1">Admin</span>' : 
-             ($otherUser['role'] == 'proponent' ? '<span class="badge bg-primary ms-1">Proponent</span>' : '');
+             ($otherUser['role'] == 'proponent' ? '<span class="badge bg-primary ms-1">Program Manager</span>' : 
+             ($otherUser['role'] == 'user' ? '<span class="badge bg-secondary ms-1">Employee</span>' : ''));
 ?>
 <div class="conversation-item <?= ($action === 'view' && isset($otherUserId) && $otherUserId == $otherUser['id']) ? 'active' : '' ?>" style="position: relative;">
     <a href="messages.php?action=view&id=<?= $conv['last_message_id'] ?>" class="text-decoration-none d-flex align-items-center flex-grow-1" style="color: inherit;">
@@ -297,7 +326,12 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
                 <div class="conversation-avatar me-3" style="width: 40px; height: 40px; font-size: 16px;"><?= $initials ?></div>
                 <div>
                     <h5 class="mb-0"><?= htmlspecialchars($otherUserInfo['fname'] ?? '') ?> <?= htmlspecialchars($otherUserInfo['lname'] ?? '') ?></h5>
-                    <small class="text-muted"><?= ucfirst($otherUserInfo['role'] ?? 'User') ?></small>
+                        <small class="text-muted">
+                            <?php 
+                            $role = $otherUserInfo['role'] ?? 'user';
+                            echo $role === 'user' ? 'Employee' : ($role === 'proponent' ? 'Program Manager' : ucfirst($role));
+                            ?>
+                        </small>
                 </div>
             </div>
         </div>
@@ -375,12 +409,31 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">To:</label>
-                        <select name="receiver_id" class="form-select" required>
-                            <option value="">Select recipient...</option>
-                            <?php foreach($users as $u): ?>
-                                <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?> (<?= ucfirst($u['role']) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="searchable-select-wrapper" style="position: relative;">
+                            <input type="text" 
+                                   id="recipientSearch" 
+                                   class="form-control" 
+                                   placeholder="Search recipient..." 
+                                   autocomplete="off"
+                                   onkeyup="filterRecipients(this.value)"
+                                   onfocus="filterRecipients(this.value)">
+                            <input type="hidden" name="receiver_id" id="receiverId" value="">
+                            <div id="recipientDropdown" class="searchable-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 250px; overflow-y: auto; background: #fff; border: 1px solid #ced4da; border-top: none; border-radius: 0 0 6px 6px; z-index: 1050;">
+                                <?php foreach($users as $u): 
+                                    $roleLabel = $u['role'] === 'user' ? 'Employee' : ($u['role'] === 'proponent' ? 'Program Manager' : ucfirst($u['role']));
+                                ?>
+                                <div class="recipient-option" 
+                                     data-id="<?= $u['id'] ?>" 
+                                     data-name="<?= htmlspecialchars(strtolower($u['fname'] . ' ' . $u['lname'])) ?>"
+                                     data-role="<?= htmlspecialchars(strtolower($roleLabel)) ?>"
+                                     onclick="selectRecipient(<?= $u['id'] ?>, '<?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?>', '<?= htmlspecialchars($roleLabel) ?>')"
+                                     style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">
+                                    <strong><?= htmlspecialchars($u['fname'] . ' ' . $u['lname']) ?></strong>
+                                    <span class="text-muted ms-2">(<?= htmlspecialchars($roleLabel) ?>)</span>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     </div>
                     <input type="hidden" name="subject" value="Message">
                     <div class="mb-3">
@@ -457,6 +510,52 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
         new bootstrap.Modal(document.getElementById('deleteConvModal')).show();
     }
 	
+    function filterRecipients(query) {
+        const dropdown = document.getElementById('recipientDropdown');
+        const options = dropdown.querySelectorAll('.recipient-option');
+        let visible = 0;
+        
+        query = query.toLowerCase().trim();
+        
+        options.forEach(option => {
+            const name = option.getAttribute('data-name') || '';
+            const role = option.getAttribute('data-role') || '';
+            
+            if (query === '' || name.includes(query) || role.includes(query)) {
+                option.style.display = '';
+                visible++;
+            } else {
+                option.style.display = 'none';
+            }
+        });
+        
+        dropdown.style.display = visible > 0 ? 'block' : 'none';
+    }
+    
+    function selectRecipient(id, name, role) {
+        document.getElementById('recipientSearch').value = name + ' (' + role + ')';
+        document.getElementById('receiverId').value = id;
+        document.getElementById('recipientDropdown').style.display = 'none';
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const wrapper = document.querySelector('.searchable-select-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            document.getElementById('recipientDropdown').style.display = 'none';
+        }
+    });
+    
+    // Validate recipient on form submit
+    document.querySelector('#composeModal form')?.addEventListener('submit', function(e) {
+        const receiverId = document.getElementById('receiverId').value;
+        if (!receiverId) {
+            e.preventDefault();
+            alert('Please select a recipient from the dropdown.');
+        }
+    });
+
+
 </script>
 </body>
 </html>

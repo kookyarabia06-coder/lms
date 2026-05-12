@@ -1047,10 +1047,24 @@ if ($venues === null) {
     $_SESSION[$cache_key] = $venues;
 }
 
-// Get all committees for dropdown
+// Get committees for dropdown
 $all_committees = [];
-$stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
-$all_committees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if ($is_admin) {
+    // Admin sees all committees
+    $stmt = $pdo->query("SELECT id, name FROM committees ORDER BY name");
+    $all_committees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    // Proponent only sees committees they belong to
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT c.id, c.name 
+        FROM committees c
+        INNER JOIN user_departments ud ON ud.committee_id = c.id
+        WHERE ud.user_id = ?
+        ORDER BY c.name
+    ");
+    $stmt->execute([$current_user_id]);
+    $all_committees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Get filter parameters
 $filter_status = isset($_GET['filter_status']) ? $_GET['filter_status'] : '';
@@ -3106,7 +3120,7 @@ if (!empty($filter_committee)) $active_filters++;
 
     // ========== EDIT MODAL FUNCTIONS ==========
     
-    function openEditPmModal(id) {
+function openEditPmModal(id) {
         fetch(`${window.location.href}?get_pm_request=1&id=${id}`)
             .then(response => response.json())
             .then(data => {
@@ -3150,20 +3164,17 @@ if (!empty($filter_committee)) $active_filters++;
                         const btnRevert = document.querySelector('.btn-revert');
                         
                         if (request.status === 'pending') {
+                            // Pending: show approve/conditional/disapprove, hide revert
                             if (btnApprove) btnApprove.style.display = '';
                             if (btnConditional) btnConditional.style.display = '';
                             if (btnDisapprove) btnDisapprove.style.display = '';
                             if (btnRevert) btnRevert.style.display = 'none';
-                        } else if (request.status === 'approved' || request.status === 'conditional') {
+                        } else {
+                            // Approved, conditional, or disapproved: hide all except revert
                             if (btnApprove) btnApprove.style.display = 'none';
                             if (btnConditional) btnConditional.style.display = 'none';
                             if (btnDisapprove) btnDisapprove.style.display = 'none';
                             if (btnRevert) btnRevert.style.display = '';
-                        } else {
-                            if (btnApprove) btnApprove.style.display = 'none';
-                            if (btnConditional) btnConditional.style.display = 'none';
-                            if (btnDisapprove) btnDisapprove.style.display = 'none';
-                            if (btnRevert) btnRevert.style.display = 'none';
                         }
                     }
                     
@@ -3621,7 +3632,7 @@ if (!empty($filter_committee)) $active_filters++;
             });
     }
     
-    function generateReportPreview() {
+function generateReportPreview() {
         const year = document.getElementById('reportYear').value;
         const month = document.getElementById('reportMonth').value;
         const status = document.getElementById('reportStatus').value;
@@ -3641,9 +3652,33 @@ if (!empty($filter_committee)) $active_filters++;
             container.style.display = 'block';
             
             if (d.success && d.reports.length > 0) {
+                // Build filter summary — show ALL filters with names, not IDs
+                let filtersUsed = [];
+                
+                // Year
+                filtersUsed.push('Year: ' + (year || 'All'));
+                
+                // Month
+                filtersUsed.push('Month: ' + (month ? new Date(2000, month - 1).toLocaleString('en-US', { month: 'long' }) : 'All'));
+                
+                // Request Status
+                filtersUsed.push('Request Status: ' + (status ? ucfirst(status) : 'All'));
+                
+                // PTR Status
+                filtersUsed.push('PTR Status: ' + (ptrStatus ? ucfirst(ptrStatus) : 'All'));
+                
+                // Committee — show name, not ID
+                const commSelect = document.getElementById('reportCommittee');
+                let committeeName = 'All';
+                if (committee && commSelect) {
+                    const commOption = commSelect.querySelector(`option[value="${committee}"]`);
+                    if (commOption) committeeName = commOption.textContent;
+                }
+                filtersUsed.push('Committee: ' + committeeName);
+                
                 let html = `<div style="text-align:center;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #ccc;">
                     <h4 style="margin:0 0 5px;font-size:16px;font-weight:600;">Training Report</h4>
-                    <p style="margin:0;font-size:12px;color:#666;">Filters: ${year||'All Years'} | ${month?new Date(2000,month-1).toLocaleString('en-US',{month:'long'}):'All Months'} | Status: ${status||'All'} | PTR: ${ptrStatus||'All'} | Committee: ${committee||'All'}</p>
+                    <p style="margin:0;font-size:12px;color:#666;">${filtersUsed.join(' | ')}</p>
                 </div>`;
                 html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">
                     <thead><tr style="background:#f5f5f5;border-bottom:1px solid #ccc;">
