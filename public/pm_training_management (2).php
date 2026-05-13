@@ -270,10 +270,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance_aja
         $user_id = (int)$_POST['user_id'];
         $attended = (int)$_POST['attended'];
         
-        $stmt = $pdo->prepare("UPDATE pm_training_attendance SET attended = ?, updated_at = NOW() WHERE batch_id = ? AND user_id = ?");
-        $stmt->execute([$attended, $batch_id, $user_id]);
+        // Check if record exists
+        $stmt = $pdo->prepare("SELECT id FROM pm_training_attendance WHERE batch_id = ? AND user_id = ?");
+        $stmt->execute([$batch_id, $user_id]);
         
-        echo json_encode(['success' => true, 'message' => 'Attendance updated']);
+        if ($stmt->fetch()) {
+            // Update existing
+            $stmt = $pdo->prepare("UPDATE pm_training_attendance SET attended = ?, updated_at = NOW() WHERE batch_id = ? AND user_id = ?");
+            $stmt->execute([$attended, $batch_id, $user_id]);
+        } else {
+            // Insert new — get pm_training_request_id from batch
+            $stmt = $pdo->prepare("SELECT pm_training_request_id FROM pm_training_batches WHERE id = ?");
+            $stmt->execute([$batch_id]);
+            $batch = $stmt->fetch();
+            
+            if ($batch) {
+                $stmt = $pdo->prepare("INSERT INTO pm_training_attendance (pm_training_request_id, user_id, batch_id, attended) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$batch['pm_training_request_id'], $user_id, $batch_id, $attended]);
+            }
+        }
+        
+        echo json_encode(['success' => true, 'message' => 'Attendance saved']);
         exit;
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -2768,7 +2785,7 @@ if (!empty($filter_committee)) $active_filters++;
             }
             
             html += `
-                <div class="batch-panel ${isActive ? 'active' : ''}">
+                <div class="batch-panel ${isActive ? 'active' : ''}" data-batch-panel="${index}">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Start Date</label>
@@ -2847,44 +2864,51 @@ if (!empty($filter_committee)) $active_filters++;
     }
     
     function submitAttendance(batchId, batchIndex) {
-        const panel = document.querySelector(`#editBatchPanelsContainer .batch-panel:nth-child(${batchIndex + 1})`);
-        if (!panel) {
-            showToast('Error: Panel not found', 'danger');
-            return;
-        }
+        // Collect all attendance checkboxes from ALL batch panels
+        const allPanels = document.querySelectorAll('#editBatchPanelsContainer .batch-panel');
+        const promises = [];
         
-        const checkboxes = panel.querySelectorAll('.attendance-checkbox');
-        if (checkboxes.length === 0) {
+        allPanels.forEach((panel, index) => {
+            const checkboxes = panel.querySelectorAll('.attendance-checkbox');
+            const currentBatchId = editBatches[index]?.id;
+            
+            if (!currentBatchId || checkboxes.length === 0) return;
+            
+            checkboxes.forEach(cb => {
+                const userId = parseInt(cb.value);
+                const attended = cb.checked ? 1 : 0;
+                
+                console.log('Saving attendance:', { batchId: currentBatchId, userId, attended });
+                
+                const formData = new FormData();
+                formData.append('update_attendance_ajax', '1');
+                formData.append('batch_id', currentBatchId);
+                formData.append('user_id', userId);
+                formData.append('attended', attended);
+                
+                promises.push(
+                    fetch(window.location.href, { method: 'POST', body: formData })
+                        .then(r => r.json())
+                );
+            });
+        });
+        
+        if (promises.length === 0) {
             showToast('No attendees to save', 'warning');
             return;
         }
-        
-        const promises = [];
-        
-        checkboxes.forEach(cb => {
-            const userId = parseInt(cb.value);
-            const attended = cb.checked ? 1 : 0;
-            
-            console.log('Saving attendance:', { batchId, userId, attended });
-            
-            const formData = new FormData();
-            formData.append('update_attendance_ajax', '1');
-            formData.append('batch_id', batchId);
-            formData.append('user_id', userId);
-            formData.append('attended', attended);
-            
-            promises.push(
-                fetch(window.location.href, { method: 'POST', body: formData })
-                    .then(r => r.json())
-            );
-        });
         
         Promise.all(promises)
             .then(results => {
                 console.log('Attendance results:', results);
                 const allSuccess = results.every(r => r.success);
                 if (allSuccess) {
-                    showToast('Attendance saved!', 'success');
+                    showToast('Attendance saved for all batches!', 'success');
+                    // Close the edit modal
+                    setTimeout(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('editPmTrainingModal'))?.hide();
+                        location.reload();
+                    }, 1000);
                 } else {
                     const errors = results.filter(r => !r.success).map(r => r.message).join(', ');
                     showToast('Failed: ' + errors, 'danger');
