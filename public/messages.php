@@ -3,6 +3,7 @@ require_once __DIR__ . '/../inc/config.php';
 require_once __DIR__ . '/../inc/auth.php';
 require_once __DIR__ . '/../inc/functions.php';
 
+
 require_login();
 $user = current_user();
 $userId = $user['id'];
@@ -30,6 +31,21 @@ if (isset($_GET['delete']) && isset($_GET['id'])) {
     $msg = $stmt->fetch();
     
     if ($msg) {
+        // Delete attachment files from server
+        $stmt = $pdo->prepare("SELECT filepath FROM message_attachments WHERE message_id = ?");
+        $stmt->execute([$messageId]);
+        $attachments = $stmt->fetchAll();
+        foreach ($attachments as $attachment) {
+            if (file_exists($attachment['filepath'])) {
+                unlink($attachment['filepath']);
+            }
+        }
+        
+        // Delete attachment records from database
+        $stmt = $pdo->prepare("DELETE FROM message_attachments WHERE message_id = ?");
+        $stmt->execute([$messageId]);
+        
+        // Soft delete the message
         if ($msg['sender_id'] == $userId) {
             $stmt = $pdo->prepare("UPDATE messages SET is_deleted_sender = 1 WHERE id = ?");
             $stmt->execute([$messageId]);
@@ -85,43 +101,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
     $parentId = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
     
-    if ($receiverId && $subject && $message) {
-        $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, subject, message, parent_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-        $stmt->execute([$userId, $receiverId, $subject, $message, $parentId]);
-        $newMessageId = $pdo->lastInsertId();
+
+     // Check if message is not empty OR attachments are provided
+    $hasMessage = !empty(trim($message));
+    $hasAttachments = !empty($_FILES['attachments']['name'][0]);
+    
+    if ($receiverId && $subject && ($hasMessage || $hasAttachments)) {
+        $pdo->beginTransaction();
         
-        $stmt = $pdo->prepare("SELECT id FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)");
-        $stmt->execute([$userId, $receiverId, $receiverId, $userId]);
-        $conv = $stmt->fetch();
-        
-        if ($conv) {
-            // Remove receiver from deleted_by so the conversation reappears for them
-            $stmt = $pdo->prepare("
-                UPDATE conversations 
-                SET last_message_id = ?, 
-                    updated_at = NOW(),
-                    deleted_by = CASE 
-                        WHEN deleted_by IS NULL THEN NULL 
-                        ELSE JSON_REMOVE(deleted_by, JSON_UNQUOTE(JSON_SEARCH(deleted_by, 'one', ?))) 
-                    END
-                WHERE id = ?
-            ");
-            $stmt->execute([$newMessageId, (string)$receiverId, $conv['id']]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO conversations (user1_id, user2_id, last_message_id, updated_at) VALUES (?, ?, ?, NOW())");
-            $stmt->execute([$userId, $receiverId, $newMessageId]);
+        try {
+            // Insert message
+            $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, subject, message, parent_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$userId, $receiverId, $subject, $message, $parentId]);
+            $newMessageId = $pdo->lastInsertId();
+            
+            // Handle file attachments - SIMPLE VERSION
+            $upload_dir = __DIR__ . '/uploads/messages/';
+            if (!is_dir($upload_dir)) {
+                if (!mkdir($upload_dir, 0755, true)) {
+                    throw new Exception('Failed to create upload directory');
+                }
+            }
+            
+            error_log("Upload dir: $upload_dir, exists: " . (is_dir($upload_dir) ? 'yes' : 'no') . ", writable: " . (is_writable($upload_dir) ? 'yes' : 'no'));
+            
+            if (!empty($_FILES['attachments']['name'][0])) {
+                foreach ($_FILES['attachments']['name'] as $i => $name) {
+                    if ($_FILES['attachments']['error'][$i] !== UPLOAD_ERR_OK) {
+                        error_log("Error uploading file $name: " . $_FILES['attachments']['error'][$i]);
+                        continue;
+                    }
+                    
+                    $tmp_name = $_FILES['attachments']['tmp_name'][$i];
+                    $file_name = basename($name);
+                    $file_size = $_FILES['attachments']['size'][$i];
+                    $stored_name = time() . '_' . $i . '_' . $file_name;
+                    $filepath = $upload_dir . $stored_name;
+                    
+                    error_log("Moving $tmp_name to $filepath");
+                    
+                    if (move_uploaded_file($tmp_name, $filepath)) {
+                        $stmt2 = $pdo->prepare("INSERT INTO message_attachments (message_id, filename, original_filename, filepath, filesize, filetype) VALUES (?, ?, ?, ?, ?, 'uploaded')");
+                        $stmt2->execute([$newMessageId, $stored_name, $file_name, $filepath, $file_size]);
+                        error_log("SUCCESS: File saved");
+                    } else {
+                        error_log("FAILED to move uploaded file");
+                        throw new Exception('Failed to save file: ' . $file_name);
+                    }
+                }
+            } else {
+                error_log("No files uploaded or empty file array");
+            }
+            
+            // Update conversations
+            $stmt = $pdo->prepare("SELECT id FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)");
+            $stmt->execute([$userId, $receiverId, $receiverId, $userId]);
+            $conv = $stmt->fetch();
+            
+            if ($conv) {
+                $stmt = $pdo->prepare("UPDATE conversations SET last_message_id = ?, updated_at = NOW(), deleted_by = CASE WHEN deleted_by IS NULL THEN NULL ELSE JSON_REMOVE(deleted_by, JSON_UNQUOTE(JSON_SEARCH(deleted_by, 'one', ?))) END WHERE id = ?");
+                $stmt->execute([$newMessageId, (string)$receiverId, $conv['id']]);
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO conversations (user1_id, user2_id, last_message_id, updated_at) VALUES (?, ?, ?, NOW())");
+                $stmt->execute([$userId, $receiverId, $newMessageId]);
+            }
+            
+            $pdo->commit();
+            $_SESSION['success'] = 'Message sent successfully!';
+            header('Location: messages.php?action=view&id=' . $newMessageId);
+            exit;
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            error_log("SEND ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error: ' . $e->getMessage();
+            header('Location: messages.php');
+            exit;
         }
-        
-        $_SESSION['success'] = 'Message sent successfully!';
-        header('Location: messages.php?action=view&id=' . $newMessageId);
-        exit;
-    } else {
-        $_SESSION['error'] = 'Please fill in all fields';
+        } else {
+        $_SESSION['error'] = 'Please enter a message or attach a file.';
         header('Location: messages.php');
         exit;
     }
 }
-
 // Get unread count
 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = 0 AND is_deleted_receiver = 0");
 $stmt->execute([$userId]);
@@ -203,9 +265,69 @@ if ($canReply) {
     <link href="<?= BASE_URL ?>/assets/css/sidebar.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>/assets/css/messages.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<style>
+        /* Attachment styling for message bubbles */
+        .attachments-section {
+            border-top: 1px solid rgba(255,255,255,0.2);
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+        
+        .attachment-item {
+            display: inline-flex !important;
+            align-items: center;
+            padding: 6px 12px !important;
+            margin: 3px !important;
+            border-radius: 6px !important;
+            font-size: 0.85rem !important;
+            text-decoration: none !important;
+            transition: all 0.2s ease;
+        }
+        
+        /* For sent messages (right side - blue background) */
+        .message-sent .attachment-item {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        }
+        
+        .message-sent .attachment-item:hover {
+            background: rgba(255, 255, 255, 0.35) !important;
+        }
+        
+        .message-sent .attachment-item small {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        
+        /* For received messages (left side - light background) */
+        .message-received .attachment-item {
+            background: #f0f2f5 !important;
+            color: #1a1a1a !important;
+            border: 1px solid #d1d5db !important;
+        }
+        
+        .message-received .attachment-item:hover {
+            background: #e5e7eb !important;
+        }
+        
+        .message-received .attachment-item small {
+            color: #6b7280 !important;
+        }
+        
+        /* Attachment icon colors */
+        .message-sent .attachment-item i {
+            color: #ffffff !important;
+        }
+        
+        .message-received .attachment-item i {
+            color: #4b5563 !important;
+        }
+    </style>
+
 </head>
 <body>
-    
+
 <div class="lms-sidebar-container">
 <?php include __DIR__ . '/../inc/sidebar.php'; ?>
 </div>
@@ -335,46 +457,95 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
                 </div>
             </div>
         </div>
-        
-        <div class="messages-container-inner" id="messagesContainer">
-            <?php foreach($conversationMessages as $msg): ?>
-                <div class="message-bubble <?= $msg['sender_id'] == $userId ? 'message-sent' : 'message-received' ?> fade-in">
-                    <div class="message-content">
-                        <?php if($msg['sender_id'] != $userId): ?>
-                            <small class="fw-bold d-block mb-1">
-                                <?= htmlspecialchars($msg['sender_fname'] . ' ' . $msg['sender_lname']) ?>
-                                <?php if($msg['sender_role'] == 'admin'): ?><span class="badge bg-danger ms-1">Admin</span>
-                                <?php elseif($msg['sender_role'] == 'proponent'): ?><span class="badge bg-primary ms-1">Proponent</span>
-                                <?php endif; ?>
-                            </small>
-                        <?php else: ?>
-                            <small class="fw-bold d-block mb-1 text-muted">You</small>
+      <div class="messages-container-inner" id="messagesContainer">
+    <?php foreach($conversationMessages as $msg): 
+        // Get attachments for this message
+        $stmt = $pdo->prepare("SELECT * FROM message_attachments WHERE message_id = ? ORDER BY created_at ASC");
+        $stmt->execute([$msg['id']]);
+        $attachments = $stmt->fetchAll();
+    ?>
+        <div class="message-bubble <?= $msg['sender_id'] == $userId ? 'message-sent' : 'message-received' ?> fade-in">
+            <div class="message-content">
+                <?php if($msg['sender_id'] != $userId): ?>
+                    <small class="fw-bold d-block mb-1">
+                        <?= htmlspecialchars($msg['sender_fname'] . ' ' . $msg['sender_lname']) ?>
+                        <?php if($msg['sender_role'] == 'admin'): ?><span class="badge bg-danger ms-1">Admin</span>
+                        <?php elseif($msg['sender_role'] == 'proponent'): ?><span class="badge bg-primary ms-1">Proponent</span>
                         <?php endif; ?>
-                        <?= nl2br(htmlspecialchars($msg['message'])) ?>
-                    </div>
-                    <div class="message-time">
-                        <?= date('M d, Y h:i A', strtotime($msg['created_at'])) ?>
-                        <?php if($msg['sender_id'] == $userId && $msg['is_read']): ?><i class="bi bi-check2-all ms-1" title="Read"></i>
-                        <?php elseif($msg['sender_id'] == $userId): ?><i class="bi bi-check2 ms-1" title="Sent"></i>
-                        <?php endif; ?>
-                    </div>
+                    </small>
+                <?php else: ?>
+                    <small class="fw-bold d-block mb-1 text-muted">You</small>
+                <?php endif; ?>
+                <?= nl2br(htmlspecialchars($msg['message'])) ?>
+                
+                <!-- Attachments -->
+                <?php if(!empty($attachments)): ?>
+                <div class="attachments-section mt-2">
+                    <?php foreach($attachments as $attachment): 
+                        $ext = strtolower(pathinfo($attachment['original_filename'], PATHINFO_EXTENSION));
+                        $icon = 'bi-file-earmark';
+                        if(in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) $icon = 'bi-file-earmark-image';
+                        elseif($ext == 'pdf') $icon = 'bi-file-earmark-pdf';
+                        elseif(in_array($ext, ['doc', 'docx'])) $icon = 'bi-file-earmark-word';
+                        elseif(in_array($ext, ['xls', 'xlsx'])) $icon = 'bi-file-earmark-excel';
+                        elseif(in_array($ext, ['ppt', 'pptx'])) $icon = 'bi-file-earmark-ppt';
+                        elseif(in_array($ext, ['zip', 'rar'])) $icon = 'bi-file-earmark-zip';
+                        
+                        $size_kb = round($attachment['filesize'] / 1024, 1);
+                        $size_display = $size_kb > 1024 ? round($size_kb / 1024, 1) . ' MB' : $size_kb . ' KB';
+                    ?>
+                    <a href="download_attachment.php?id=<?= $attachment['id'] ?>" 
+                       class="attachment-item text-decoration-none" 
+                       download
+                       style="display: inline-flex; align-items: center; padding: 5px 10px; margin: 2px; background: rgba(0,0,0,0.05); border-radius: 6px; font-size: 0.85rem;">
+                        <i class="bi <?= $icon ?> me-2"></i>
+                        <span><?= htmlspecialchars($attachment['original_filename']) ?></span>
+                        <small class="text-muted ms-2">(<?= $size_display ?>)</small>
+                    </a>
+                    <?php endforeach; ?>
                 </div>
-            <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+            <div class="message-time">
+                <?= date('M d, Y h:i A', strtotime($msg['created_at'])) ?>
+                <?php if($msg['sender_id'] == $userId && $msg['is_read']): ?><i class="bi bi-check2-all ms-1" title="Read"></i>
+                <?php elseif($msg['sender_id'] == $userId): ?><i class="bi bi-check2 ms-1" title="Sent"></i>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>
+        <?php if($canReply): ?>
+           <div class="message-input-area">
+    <form method="POST" action="messages.php" enctype="multipart/form-data">
+        <input type="hidden" name="receiver_id" value="<?= $otherUserId ?>">
+        <input type="hidden" name="parent_id" value="<?= $messageId ?>">
+        <input type="hidden" name="subject" value="Message">
+        
+        <div class="mb-2">
+           <textarea name="message" class="form-control" rows="2" placeholder="Type your reply..."></textarea>
         </div>
         
-        <?php if($canReply): ?>
-            <div class="message-input-area">
-                <form method="POST" action="messages.php">
-                    <input type="hidden" name="receiver_id" value="<?= $otherUserId ?>">
-                    <input type="hidden" name="parent_id" value="<?= $messageId ?>">
-                    <input type="hidden" name="subject" value="Message">
-                    <div class="input-group">
-                        <textarea name="message" class="form-control" rows="2" placeholder="Type your reply..." required></textarea>
-                        <button type="submit" name="send_message" class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
-                    </div>
-                </form>
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <label for="replyFileInput" class="btn btn-sm btn-outline-secondary mb-0" style="cursor: pointer;">
+                    <i class="bi bi-paperclip"></i> Attach Files
+                </label>
+                <input type="file" id="replyFileInput" name="attachments[]" multiple 
+                       accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" 
+                       onchange="previewReplyAttachments(this)" style="display: none;">
+                <small class="text-muted">Max 10MB each</small>
             </div>
-        <?php else: ?>
+            <button type="submit" name="send_message" class="btn btn-primary">
+                <i class="bi bi-send"></i> Send
+            </button>
+        </div>
+        
+        <div id="replyAttachmentPreview" class="mt-2"></div>
+    </form>
+</div>
+
+<?php else: ?>
             <div class="message-input-area">
                 <div class="alert alert-secondary mb-0 text-center">
                     <i class="bi bi-info-circle me-2"></i>Read-only mode. You cannot reply.
@@ -475,8 +646,29 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
         if (container) container.scrollTop = container.scrollHeight;
     }
     document.addEventListener('DOMContentLoaded', scrollToBottom);
-    
+        // Debug form submission
     document.addEventListener('DOMContentLoaded', function() {
+        const replyForm = document.querySelector('.message-input-area form');
+        if (replyForm) {
+            replyForm.addEventListener('submit', function(e) {
+                const fileInput = document.getElementById('replyFileInput');
+                const messageInput = this.querySelector('textarea[name="message"]');
+                
+                console.log('Form submitting...');
+                console.log('Message:', messageInput ? messageInput.value.substring(0, 50) : 'NO TEXTAREA');
+                console.log('Files:', fileInput ? fileInput.files.length : 'NO FILE INPUT');
+                
+                if (fileInput && fileInput.files.length > 0) {
+                    for (let i = 0; i < fileInput.files.length; i++) {
+                        console.log('File ' + i + ':', fileInput.files[i].name, fileInput.files[i].size);
+                    }
+                }
+            });
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const alerts = document.querySelectorAll('.alert');
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.className = 'form-control form-control-sm mt-2';
@@ -510,6 +702,29 @@ $roleBadge = $otherUser['role'] == 'admin' ? '<span class="badge bg-danger ms-1"
         new bootstrap.Modal(document.getElementById('deleteConvModal')).show();
     }
 	
+        // Preview reply attachments
+    function previewReplyAttachments(input) {
+        const preview = document.getElementById('replyAttachmentPreview');
+        preview.innerHTML = '';
+        
+        if (input.files && input.files.length > 0) {
+            Array.from(input.files).forEach(file => {
+                const size = file.size > 1024 * 1024 
+                    ? (file.size / 1024 / 1024).toFixed(1) + ' MB' 
+                    : (file.size / 1024).toFixed(1) + ' KB';
+                
+                preview.innerHTML += `
+                    <div class="d-flex align-items-center justify-content-between p-2 mb-1" 
+                         style="background: #f8f9fa; border-radius: 4px; font-size: 0.85rem;">
+                        <span><i class="bi bi-paperclip me-1"></i> ${file.name} (${size})</span>
+                        <span class="text-success"><i class="bi bi-check-circle"></i></span>
+                    </div>
+                `;
+            });
+        }
+    }
+
+
     function filterRecipients(query) {
         const dropdown = document.getElementById('recipientDropdown');
         const options = dropdown.querySelectorAll('.recipient-option');

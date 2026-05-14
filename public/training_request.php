@@ -202,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_request_ajax'])) 
 }
 
 // Handle AJAX Edit Request
+// Handle AJAX Edit Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax'])) {
     // Clean output buffers
     while (ob_get_level()) {
@@ -238,15 +239,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         $remarks = trim($_POST['remarks'] ?? '');
         $date_start = $current_data['date_start']; // Date start cannot be edited (disabled in form)
         
-        // AUTO LATE FILING: Recalculate if official_business changed
-        $ob_changed = ($official_business != $current_data['official_business']);
-        
-        if ($ob_changed) {
-            // Recalculate late filing based on original created_at and new official_business value
-            $late_filing = recalculateLateFilingFromOriginal($pdo, $id, $official_business, $date_start);
+        // LATE FILING: Check if the checkbox was present in the form
+        if (isset($_POST['late_filing_checkbox_exists'])) {
+            // Manual override: use checkbox value (checked = 1, unchecked = 0)
+            $late_filing = isset($_POST['late_filing']) ? 1 : 0;
         } else {
-            // Keep the original late_filing value
-            $late_filing = $current_data['late_filing'];
+            // AUTO CALCULATION: Checkbox not present, use automatic logic
+            $ob_changed = ($official_business != $current_data['official_business']);
+            
+            if ($ob_changed) {
+                $late_filing = recalculateLateFilingFromOriginal($pdo, $id, $official_business, $date_start);
+            } else {
+                $late_filing = $current_data['late_filing'];
+            }
         }
         
         if (empty($title)) {
@@ -387,15 +392,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
                     $sql .= ", remarks = CONCAT(COALESCE(remarks, ''), ?)";
                     $params[] = $remark_entry;
                 } else if ($admin_action === 'revert_pending') {
-                    // Add a default remark for revert action if no custom remark provided
                     $timestamp = date('Y-m-d H:i:s');
                     $remark_entry = "\n[$timestamp] $status_prefix by " . ($_SESSION['user']['username'] ?? 'Admin');
                     $sql .= ", remarks = CONCAT(COALESCE(remarks, ''), ?)";
                     $params[] = $remark_entry;
                 }
                 
-                // If reverting to pending, also reset ptr_status to pending if it was submitted/completed?
-                // This allows user to re-submit attachments if needed
                 if ($admin_action === 'revert_pending' && in_array($current_data['ptr_status'], ['submitted', 'completed'])) {
                     $sql .= ", ptr_status = 'pending'";
                 }
@@ -426,7 +428,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_request_ajax']))
         exit;
     }
 }
-
 // Handle AJAX Mark as Complete (Admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_complete_ajax'])) {
     header('Content-Type: application/json');
@@ -1423,12 +1424,29 @@ $base_url = BASE_URL;
                             <input type="number" class="form-control" name="amount" id="edit_amount" step="0.01">
                         </div>
 
-                        <div class="col-md-12">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="edit_official_business" name="official_business" value="1">
-                                <label class="form-check-label" for="edit_official_business">Official Business</label>
-                            </div>
-                        </div>
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_official_business" name="official_business" value="1">
+                        <label class="form-check-label" for="edit_official_business">Official Business</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <!-- Hidden input ensures the field is always sent even when unchecked -->
+                        <input type="hidden" name="late_filing_checkbox_exists" value="1">
+                        <input type="checkbox" class="form-check-input" id="edit_late_filing" name="late_filing" value="1" onchange="toggleLateFilingWarning()">
+                        <label class="form-check-label" for="edit_late_filing">
+                            Late Filing
+                        </label>
+                    </div>
+                </div>
+                <div class="col-12" id="lateFilingWarningContainer" style="display: none;">
+                    <div class="alert alert-warning mb-0 py-2">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Manual Override:</strong> Late filing is being manually set. Automatic calculation is bypassed.
+                    </div>
+                </div>
+
 
                         <!-- Admin Action Buttons (only show if user is admin) -->
                         <?php if ($is_admin): ?>
@@ -1918,6 +1936,15 @@ function ucfirst(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+
+function toggleLateFilingWarning() {
+    const checkbox = document.getElementById('edit_late_filing');
+    const warning = document.getElementById('lateFilingWarningContainer');
+    if (checkbox && warning) {
+        warning.style.display = checkbox.checked ? 'block' : 'none';
+    }
+}
+
 function updateDepartmentFilter() {
     const divisionId = document.getElementById('filterDivision').value;
     const deptSelect = document.getElementById('filterDept');
@@ -2131,6 +2158,8 @@ function openEditModal(id) {
             document.getElementById('edit_hospital_id').value = request.hospital_order_no || '';
             document.getElementById('edit_amount').value = request.amount || 0;
             document.getElementById('edit_official_business').checked = request.official_business == 1;
+            document.getElementById('edit_late_filing').checked = request.late_filing == 1;
+            toggleLateFilingWarning();
             document.getElementById('edit_remarks').value = request.remarks || '';
             
             document.getElementById('adminAction').value = '';
