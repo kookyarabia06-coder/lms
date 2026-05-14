@@ -1593,7 +1593,7 @@ $base_url = BASE_URL;
 
 <!-- View Attachments Modal -->
 <div class="modal fade" id="viewAttachmentsModal" tabindex="-1" aria-labelledby="viewAttachmentsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="viewAttachmentsModalLabel">
@@ -1700,6 +1700,32 @@ $base_url = BASE_URL;
     </div>
 </div>
 <?php endif; ?>
+
+<!-- View Single Attachment Modal -->
+<div class="modal fade" id="viewAttachmentModal" tabindex="-1" aria-labelledby="viewAttachmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAttachmentModalLabel">
+                    <i class="fas fa-file-alt me-2"></i><span id="attachmentViewTitle">View Attachment</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="background: #f5f5f5; min-height: 500px; display: flex; align-items: center; justify-content: center;">
+                <div id="attachmentViewContent" class="text-center" style="width: 100%;">
+                    <i class="fas fa-spinner fa-spin fa-3x mb-3" style="color: #ccc;"></i>
+                    <p class="text-muted">Loading attachment...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="attachmentDownloadBtn" class="btn btn-primary" download>
+                    <i class="fas fa-download me-1"></i> Download
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ADDED: Custom Delete Confirmation Modal -->
 <div class="delete-confirm-modal" id="deleteConfirmModal">
@@ -2030,6 +2056,84 @@ function openViewModal(id) {
     });
 }
 
+function viewAttachment(fileName, element) {
+    const fileBaseUrl = BASE_URL + '/uploads/training/';
+    const fileUrl = fileBaseUrl + fileName;
+    const fileExt = fileName.split('.').pop().toLowerCase();
+    
+    const modal = new bootstrap.Modal(document.getElementById('viewAttachmentModal'));
+    const titleEl = document.getElementById('attachmentViewTitle');
+    const contentEl = document.getElementById('attachmentViewContent');
+    const downloadBtn = document.getElementById('attachmentDownloadBtn');
+    
+    // Set title and download link
+    titleEl.textContent = fileName;
+    downloadBtn.href = fileUrl;
+    downloadBtn.download = fileName;
+    
+    // Show loading
+    contentEl.innerHTML = '<i class="fas fa-spinner fa-spin fa-3x mb-3" style="color: #ccc;"></i><p class="text-muted">Loading attachment...</p>';
+    modal.show();
+    
+    // Image types that can be displayed directly
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+    // PDF type
+    const pdfTypes = ['pdf'];
+    // Text types
+    const textTypes = ['txt', 'csv', 'log'];
+    
+    if (imageTypes.includes(fileExt)) {
+        // Display image directly
+        const img = new Image();
+        img.onload = function() {
+            contentEl.innerHTML = `<img src="${fileUrl}" class="img-fluid" style="max-height: 70vh; object-fit: contain;" alt="${fileName}">`;
+        };
+        img.onerror = function() {
+            contentEl.innerHTML = `<div class="text-center py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545;"></i><p class="text-danger">Failed to load image.</p><a href="${fileUrl}" class="btn btn-primary" download><i class="fas fa-download me-1"></i> Download Instead</a></div>`;
+        };
+        img.src = fileUrl;
+    } else if (pdfTypes.includes(fileExt)) {
+        // Display PDF in iframe
+        contentEl.innerHTML = `<iframe src="${fileUrl}" width="100%" height="70vh" style="border: none; background: white;" allowfullscreen></iframe>`;
+    } else if (textTypes.includes(fileExt)) {
+        // Fetch and display text content
+        fetch(fileUrl)
+            .then(response => response.text())
+            .then(text => {
+                contentEl.innerHTML = `<pre style="background: white; padding: 20px; margin: 0; min-height: 400px; max-height: 70vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; text-align: left;">${escapeHtml(text)}</pre>`;
+            })
+            .catch(() => {
+                contentEl.innerHTML = `<div class="text-center py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545;"></i><p class="text-danger">Failed to load text file.</p><a href="${fileUrl}" class="btn btn-primary" download><i class="fas fa-download me-1"></i> Download Instead</a></div>`;
+            });
+    } else {
+        // DOC, DOCX, or other types - show file info with download button
+        let iconClass = 'fa-file-word';
+        let fileTypeName = 'Document';
+        
+        if (fileExt === 'doc' || fileExt === 'docx') {
+            iconClass = 'fa-file-word';
+            fileTypeName = 'Word Document';
+        } else if (fileExt === 'xls' || fileExt === 'xlsx') {
+            iconClass = 'fa-file-excel';
+            fileTypeName = 'Excel Spreadsheet';
+        } else if (fileExt === 'ppt' || fileExt === 'pptx') {
+            iconClass = 'fa-file-powerpoint';
+            fileTypeName = 'PowerPoint Presentation';
+        }
+        
+        contentEl.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas ${iconClass} fa-5x mb-3" style="color: #0d6efd;"></i>
+                <h5>${escapeHtml(fileName)}</h5>
+                <p class="text-muted">${fileTypeName} (.${fileExt.toUpperCase()})</p>
+                <p class="text-muted">This file type cannot be previewed in the browser.</p>
+                <a href="${fileUrl}" class="btn btn-primary" download>
+                    <i class="fas fa-download me-1"></i> Download File
+                </a>
+            </div>`;
+    }
+}
+
 function openAttachmentModal(id) {
     const modal = new bootstrap.Modal(document.getElementById('viewAttachmentsModal'));
     const attachmentsList = document.getElementById('attachmentsList');
@@ -2060,7 +2164,7 @@ function openAttachmentModal(id) {
                     hasFiles = true;
                     const fileUrl = fileBaseUrl + file.file;
                     const fileExt = file.file.split('.').pop().toUpperCase();
-                    attachmentsHtml += `<div class="col-md-6"><div class="attachment-card"><div class="attachment-icon"><i class="fas ${file.icon} fa-2x"></i></div><div class="attachment-info"><h6 class="attachment-title">${escapeHtml(file.name)}</h6><p class="attachment-filename">${escapeHtml(file.file)}</p><span class="attachment-badge">${fileExt}</span></div><a href="${fileUrl}" class="btn btn-sm btn-primary" target="_blank" download><i class="fas fa-download me-1"></i> Download</a></div></div>`;
+                    attachmentsHtml += `<div class="col-md-6"><div class="attachment-card"><div class="attachment-icon"><i class="fas ${file.icon} fa-2x"></i></div><div class="attachment-info"><h6 class="attachment-title">${escapeHtml(file.name)}</h6><p class="attachment-filename">${escapeHtml(file.file)}</p><span class="attachment-badge">${fileExt}</span></div><div class="attachment-actions"><button class="btn btn-sm btn-outline-primary" onclick="viewAttachment('${file.file}')" title="View"><i class="fas fa-eye me-1"></i> View</button><a href="${fileUrl}" class="btn btn-sm btn-primary" download><i class="fas fa-download me-1"></i> Download</a></div></div></div>`;
                 } else if (file.required) {
                     missingRequired.push(file.name);
                 }

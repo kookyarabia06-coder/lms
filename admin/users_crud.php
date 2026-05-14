@@ -1480,7 +1480,7 @@ function generateReportPreview() {
                         <td style="padding:6px 10px;">${escapeHtml(report.username)}</td>
                         <td style="padding:6px 10px;">${escapeHtml(report.full_name)}</td>
                         <td style="padding:6px 10px;">${escapeHtml(report.email)}</td>
-                        <td style="padding:6px 10px;">${escapeHtml(report.role)}</td>
+                        <td style="padding:6px 10px;">${escapeHtml(report.role === 'user' ? 'Employee' : report.role === 'proponent' ? 'Proponent' : report.role === 'superadmin' ? 'SuperAdmin' : report.role)}</td>
                         <td style="padding:6px 10px;text-align:center;">${report.employment === 'job_order' ? 'Job Order' : 'Permanent'}</td>
                         <td style="padding:6px 10px;">${escapeHtml(report.division_names || '—')}</td>
                         <td style="padding:6px 10px;">${escapeHtml(report.department_names || '—')}</td>

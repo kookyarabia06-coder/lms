@@ -1885,27 +1885,67 @@ if (!empty($filter_committee)) $active_filters++;
     </div>
 </div>
 
-<!-- PTR Attachment Modal -->
-<div class="modal fade" id="ptrAttachmentModal" tabindex="-1" aria-labelledby="ptrAttachmentLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="ptrAttachmentLabel"><i class="fas fa-file-upload me-2"></i>PTR (Post Training Report)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- View Single Attachment Modal -->
+<div class="modal fade" id="viewAttachmentModal" tabindex="-1" aria-labelledby="viewAttachmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content" style="height: 100vh;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAttachmentModalLabel">
+                    <i class="fas fa-file-alt me-2"></i><span id="attachmentViewTitle">View Attachment</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Current PTR File</label>
-                    <div id="currentPtrDisplay" class="alert alert-info"></div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Upload New PTR File</label>
-                    <input type="file" class="form-control" id="ptrFileInput" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.csv">
-                    <small class="text-muted d-block mt-2">Accepted formats: PDF, JPG, JPEG, PNG, DOC, DOCX, XLSX, CSV</small>
+            <div class="modal-body p-0" style="background: #525659; display: flex; align-items: center; justify-content: center; overflow: auto;">
+                <div id="attachmentViewContent" class="text-center" style="width: 100%; height: 100%;">
+                    <i class="fas fa-spinner fa-spin fa-3x mb-3" style="color: #ccc;"></i>
+                    <p class="text-muted">Loading attachment...</p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-info" id="savePtrAttachmentBtn"><i class="fas fa-save me-1"></i>Save Attachment</button>
+                <a href="#" id="attachmentDownloadBtn" class="btn btn-primary" download>
+                    <i class="fas fa-download me-1"></i> Download
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Attachments Modal (PTR + Attendance) -->
+<div class="modal fade" id="ptrAttachmentModal" tabindex="-1" aria-labelledby="ptrAttachmentLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="ptrAttachmentLabel"><i class="fas fa-paperclip me-2"></i>Training Attachments</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <!-- PTR File -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="m-0"><i class="fas fa-file-alt me-2"></i>PTR (Post Training Report)</h6>
+                            </div>
+                            <div class="card-body text-center" id="ptrFileDisplay">
+                                <span class="text-muted">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Attendance File -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="m-0"><i class="fas fa-users me-2"></i>Attendance File</h6>
+                            </div>
+                            <div class="card-body text-center" id="attendanceFileDisplay">
+                                <span class="text-muted">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Close</button>
             </div>
         </div>
@@ -2049,6 +2089,7 @@ if (!empty($filter_committee)) $active_filters++;
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    const BASE_URL = '<?= BASE_URL ?>';
     let currentPmRequestId = null;
     let batches = [];
     let currentTrainingStart = '';
@@ -3581,65 +3622,121 @@ function openEditPmModal(id) {
             });
     }
     
-    // ========== PTR ATTACHMENT MODAL ==========
+
+    // ========== VIEW SINGLE ATTACHMENT ==========
     
-    let currentPtrRequestId = null;
+    function viewAttachment(fileName, folder) {
+        const folderPath = folder || 'pm_training';
+        const fileBaseUrl = BASE_URL + '/uploads/' + folderPath + '/';
+        const fileUrl = fileBaseUrl + fileName;
+        const fileExt = fileName.split('.').pop().toLowerCase();
+        
+        const modal = new bootstrap.Modal(document.getElementById('viewAttachmentModal'));
+        const titleEl = document.getElementById('attachmentViewTitle');
+        const contentEl = document.getElementById('attachmentViewContent');
+        const downloadBtn = document.getElementById('attachmentDownloadBtn');
+        
+        titleEl.textContent = fileName;
+        downloadBtn.href = fileUrl;
+        downloadBtn.download = fileName;
+        
+        contentEl.innerHTML = '<i class="fas fa-spinner fa-spin fa-3x mb-3" style="color: #ccc;"></i><p class="text-muted">Loading attachment...</p>';
+        modal.show();
+        
+        const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+        const pdfTypes = ['pdf'];
+        const textTypes = ['txt', 'csv', 'log'];
+        
+        if (imageTypes.includes(fileExt)) {
+            const img = new Image();
+            img.onload = function() {
+                contentEl.innerHTML = `<img src="${fileUrl}" class="img-fluid" style="max-height: calc(100vh - 130px); object-fit: contain;" alt="${fileName}">`;
+            };
+            img.onerror = function() {
+                contentEl.innerHTML = `<div class="text-center py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545;"></i><p class="text-danger">Failed to load image.</p><a href="${fileUrl}" class="btn btn-primary" download><i class="fas fa-download me-1"></i> Download Instead</a></div>`;
+            };
+            img.src = fileUrl;
+        } else if (pdfTypes.includes(fileExt)) {
+            contentEl.innerHTML = `<iframe src="${fileUrl}" width="100%" style="flex: 1; min-height: calc(100vh - 130px); border: none; background: white;" allowfullscreen></iframe>`;
+        } else if (textTypes.includes(fileExt)) {
+            fetch(fileUrl)
+                .then(response => response.text())
+                .then(text => {
+                    contentEl.innerHTML = `<pre style="background: white; padding: 20px; margin: 0; min-height: 400px; height: calc(100vh - 130px); overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; text-align: left;">${escapeHtml(text)}</pre>`;
+                })
+                .catch(() => {
+                    contentEl.innerHTML = `<div class="text-center py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545;"></i><p class="text-danger">Failed to load text file.</p><a href="${fileUrl}" class="btn btn-primary" download><i class="fas fa-download me-1"></i> Download Instead</a></div>`;
+                });
+        } else {
+            let iconClass = 'fa-file';
+            let fileTypeName = 'Document';
+            if (fileExt === 'doc' || fileExt === 'docx') { iconClass = 'fa-file-word'; fileTypeName = 'Word Document'; }
+            else if (fileExt === 'xls' || fileExt === 'xlsx') { iconClass = 'fa-file-excel'; fileTypeName = 'Excel Spreadsheet'; }
+            else if (fileExt === 'ppt' || fileExt === 'pptx') { iconClass = 'fa-file-powerpoint'; fileTypeName = 'PowerPoint Presentation'; }
+            contentEl.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas ${iconClass} fa-5x mb-3" style="color: #0d6efd;"></i>
+                    <h5>${escapeHtml(fileName)}</h5>
+                    <p class="text-muted">${fileTypeName} (.${fileExt.toUpperCase()})</p>
+                    <p class="text-muted">This file type cannot be previewed in the browser.</p>
+                    <a href="${fileUrl}" class="btn btn-primary" download>
+                        <i class="fas fa-download me-1"></i> Download File
+                    </a>
+                </div>`;
+        }
+    }
+
+
+    // ========== VIEW ATTACHMENTS MODAL (PTR + Attendance) ==========
     
     function openPtrAttachmentModal(id) {
-        currentPtrRequestId = id;
+        const modal = new bootstrap.Modal(document.getElementById('ptrAttachmentModal'));
+        const ptrDisplay = document.getElementById('ptrFileDisplay');
+        const attendanceDisplay = document.getElementById('attendanceFileDisplay');
+        
+        ptrDisplay.innerHTML = '<span class="text-muted">Loading...</span>';
+        attendanceDisplay.innerHTML = '<span class="text-muted">Loading...</span>';
+        modal.show();
+        
         fetch(`${window.location.href}?get_pm_request=1&id=${id}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     const request = data.request;
-                    const displayDiv = document.getElementById('currentPtrDisplay');
+                    const fileBaseUrl = '<?= BASE_URL ?>/uploads/pm_training/';
+                    
+                    // PTR File
                     if (request.ptr_file) {
-                        displayDiv.innerHTML = `<a href="<?= BASE_URL ?>/uploads/pm_training/${request.ptr_file}" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-download me-1"></i> Download Current PTR</a>`;
+                        ptrDisplay.innerHTML = `
+                            <p class="mb-2 text-truncate" title="${escapeHtml(request.ptr_file)}">${escapeHtml(request.ptr_file)}</p>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="viewAttachment('${request.ptr_file}', 'pm_training')"><i class="fas fa-eye me-1"></i> View</button>
+                            <a href="${fileBaseUrl}${request.ptr_file}" class="btn btn-sm btn-info" download><i class="fas fa-download me-1"></i> Download</a>
+                        `;
                     } else {
-                        displayDiv.innerHTML = '<span class="text-muted">No PTR file uploaded yet</span>';
+                        ptrDisplay.innerHTML = '<p class="text-muted"><i class="fas fa-file-alt fa-2x mb-2 d-block"></i>No PTR file uploaded</p>';
                     }
-                    document.getElementById('ptrFileInput').value = '';
-                    new bootstrap.Modal(document.getElementById('ptrAttachmentModal')).show();
-                }
-            });
-    }
-    
-    document.getElementById('savePtrAttachmentBtn')?.addEventListener('click', function() {
-        if (!currentPtrRequestId) return;
-        const fileInput = document.getElementById('ptrFileInput');
-        if (!fileInput.files.length) {
-            showToast('Please select a file to upload', 'warning');
-            return;
-        }
-        const formData = new FormData();
-        formData.append('edit_pm_request_ajax', '1');
-        formData.append('id', currentPtrRequestId);
-        formData.append('ptr_file', fileInput.files[0]);
-        
-        const btn = this;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Uploading...';
-        
-        fetch(window.location.href, { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('ptrAttachmentModal'))?.hide();
-                    showToast('PTR uploaded successfully!', 'success');
-                    setTimeout(() => location.reload(), 1500);
+                    
+                    // Attendance File
+                    if (request.attendance_file) {
+                        attendanceDisplay.innerHTML = `
+                            <p class="mb-2 text-truncate" title="${escapeHtml(request.attendance_file)}">${escapeHtml(request.attendance_file)}</p>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="viewAttachment('${request.attendance_file}', 'pm_training')"><i class="fas fa-eye me-1"></i> View</button>
+                            <a href="${fileBaseUrl}${request.attendance_file}" class="btn btn-sm btn-info" download><i class="fas fa-download me-1"></i> Download</a>
+                        `;
+                    } else {
+                        attendanceDisplay.innerHTML = '<p class="text-muted"><i class="fas fa-users fa-2x mb-2 d-block"></i>No attendance file uploaded</p>';
+                    }
                 } else {
-                    showToast(data.message, 'danger');
+                    ptrDisplay.innerHTML = '<span class="text-danger">Error loading data</span>';
+                    attendanceDisplay.innerHTML = '<span class="text-danger">Error loading data</span>';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                showToast('Upload failed', 'danger');
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Attachment';
+                ptrDisplay.innerHTML = '<span class="text-danger">Error loading</span>';
+                attendanceDisplay.innerHTML = '<span class="text-danger">Error loading</span>';
             });
-    });
+    }
     
     // ========== GENERATE REPORT MODAL ==========
     
